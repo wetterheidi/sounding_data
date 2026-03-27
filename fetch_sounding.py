@@ -149,8 +149,8 @@ def fetch_and_extract(url: str, lat: float, lon: float, timeout: int = 45) -> fl
 
     return value
 
-def qv_to_dewpoint(qv: float | None, p_pa: float) -> float:
-    if not qv or qv <= 1e-9: return -99.0
+def qv_to_dewpoint(qv: float | None, p_pa: float) -> float | None:
+    if not qv or qv <= 1e-9: return None 
     eps  = 0.622
     e    = max((qv * p_pa) / (eps + qv * (1.0 - eps)), 0.01)
     ln_e = math.log(e / 611.2)
@@ -237,15 +237,18 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
             spd = math.sqrt(u * u + v * v) * 1.94384
             dir = (270.0 - math.degrees(math.atan2(v, u))) % 360.0
 
+        # Taupunkt berechnen und prüfen, ob er None ist
+        td_val = qv_to_dewpoint(qv, p_toa[i])
+
         levels.append({
             "level_idx": li_t,
             "p_hPa":    round(p_toa[i] / 100.0, 3),
             "z_m":      round(z_toa[i], 1),
             "T_C":      round(T - 273.15, 2),
-            "Td_C":     round(qv_to_dewpoint(qv, p_toa[i]), 2),
+            "Td_C":     round(td_val, 2) if td_val is not None else None, # <--- Sauberer Null-Wert
             "wspd_kn":  round(spd, 1) if spd is not None else None,
             "wdir_deg": round(dir, 1) if dir is not None else None,
-        })
+        })Ï
 
     valid_dt = run_date.replace(hour=int(run), tzinfo=timezone.utc) + timedelta(hours=step)
     sounding = {
