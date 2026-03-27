@@ -4,7 +4,7 @@ name: TlogP Data Fetcher
 on:
   schedule:
     # Jeden Tag um 04:30 UTC (Morgen-Lauf) und 16:30 UTC (Abend-Lauf)
-    - cron: '30 4,16 * * *'
+    - cron: '30 4,10,16,22 * * *'
   # Erlaubt uns, das Skript auch jederzeit manuell per Knopfdruck zu starten!
   workflow_dispatch: 
 
