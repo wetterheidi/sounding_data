@@ -267,14 +267,30 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
 def latest_run(model: str, lag_h: int = 3) -> tuple[datetime, str]:
     cfg = MODEL_CFG[model]
     now = datetime.now(timezone.utc)
-    for r in sorted(cfg["runs"], reverse=True):
-        dt = now.replace(hour=int(r), minute=0, second=0, microsecond=0)
-        if dt > now: dt -= timedelta(days=1)
+    
+    # 1. Sammle alle potenziellen Läufe von heute und gestern
+    candidates = []
+    for r in cfg["runs"]:
+        # Lauf von heute
+        dt_today = now.replace(hour=int(r), minute=0, second=0, microsecond=0)
+        candidates.append((dt_today, r))
+        
+        # Lauf von gestern
+        dt_yesterday = dt_today - timedelta(days=1)
+        candidates.append((dt_yesterday, r))
+    
+    # 2. Chronologisch absteigend sortieren (neuester zuerst!)
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    
+    # 3. Den neuesten Lauf finden, der das Delay (lag_h) erfüllt
+    for dt, r in candidates:
         if (now - dt).total_seconds() / 3600 >= lag_h:
             return dt.replace(tzinfo=None), r
-    yesterday = (now - timedelta(days=1)).replace(hour=int(cfg["runs"][-1]), minute=0, second=0, microsecond=0)
-    return yesterday.replace(tzinfo=None), cfg["runs"][-1]
-
+            
+    # Fallback (sollte bei 3h Lag nie erreicht werden, außer die Systemuhr spinnt)
+    fallback_dt, fallback_r = candidates[-1]
+    return fallback_dt.replace(tzinfo=None), fallback_r
+    
 def parse_steps(s: str) -> list[int]:
     if ":" in s:
         p = s.split(":")
