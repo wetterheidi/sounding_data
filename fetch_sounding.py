@@ -248,7 +248,7 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
             "Td_C":     round(td_val, 2) if td_val is not None else None, # <--- Sauberer Null-Wert
             "wspd_kn":  round(spd, 1) if spd is not None else None,
             "wdir_deg": round(dir, 1) if dir is not None else None,
-        })Ï
+        })
 
     valid_dt = run_date.replace(hour=int(run), tzinfo=timezone.utc) + timedelta(hours=step)
     sounding = {
