@@ -38,7 +38,6 @@ jobs:
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "action@github.com"
-          git add ./data/*.json
-          # Wir nutzen einen Trick: Falls sich nichts geändert hat, bricht er hier nicht ab
-          git commit -m "Automatisches Wetter-Update" || echo "Keine Änderungen"
+          git add -A ./data/
+          git commit -m "Automatisches Wetter-Update und Cleanup" || echo "Keine Änderungen"
           git push
