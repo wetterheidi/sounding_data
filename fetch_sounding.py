@@ -37,51 +37,156 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 MODEL_CFG = {
     "icon-d2": {
-        "url_base": "https://opendata.dwd.de/weather/nwp/icon-d2/grib",
-        "scope":    "germany",
-        "gridtype": "regular-lat-lon",
-        "n_levels": 65,
-        "runs":     ["00", "03", "06", "09", "12", "15", "18", "21"],
-        "max_step": 48,
-        "params":   ["t", "qv", "u", "v", "p"],
-        "ps_param": "ps",
+        "url_base":    "https://opendata.dwd.de/weather/nwp/icon-d2/grib",
+        "scope":       "germany",
+        "gridtype":    "icosahedral",
+        "n_levels":    65,
+        "runs":        ["00", "03", "06", "09", "12", "15", "18", "21"],
+        "max_step":    48,
+        "params":      ["t", "qv", "u", "v", "p"],
+        "ps_param":    "ps",
+        "var_case":    "lower",      # Dateinamen: kleingeschrieben (t, ps)
+        "sl_level":    "2d",         # Single-Level-Dateien haben Extra-Feld "2d"
     },
     "icon-eu": {
-        "url_base": "https://opendata.dwd.de/weather/nwp/icon-eu/grib",
-        "scope":    "europe",
-        "gridtype": "regular-lat-lon",
-        "n_levels": 74,   # <--- HIER auf 74 ändern! (früher 60)
-        "runs":     ["00", "06", "12", "18"],
-        "max_step": 120,
-        "params":   ["t", "qv", "u", "v", "p"],
-        "ps_param": "ps",
+        "url_base":    "https://opendata.dwd.de/weather/nwp/icon-eu/grib",
+        "scope":       "europe",
+        "gridtype":    "regular-lat-lon",
+        "n_levels":    74,
+        "runs":        ["00", "06", "12", "18"],
+        "max_step":    120,
+        "params":      ["t", "qv", "u", "v", "p"],
+        "ps_param":    "ps",
+        "var_case":    "upper",      # Dateinamen: großgeschrieben (T, PS)
+        "sl_level":    None,
     },
     "icon": {
-        "url_base": "https://opendata.dwd.de/weather/nwp/icon/grib",
-        "scope":    "global",
-        "gridtype": "regular-lat-lon",
-        "n_levels": 120,   # <--- Am besten hier auch direkt auf 120 ändern
-        "runs":     ["00", "06", "12", "18"],
-        "max_step": 180,
-        "params":   ["t", "qv", "u", "v", "p"],
-        "ps_param": "ps",
+        "url_base":    "https://opendata.dwd.de/weather/nwp/icon/grib",
+        "scope":       "global",
+        "gridtype":    "icosahedral",
+        "n_levels":    120,
+        "runs":        ["00", "06", "12", "18"],
+        "max_step":    180,
+        "params":      ["t", "qv", "u", "v", "p"],
+        "ps_param":    "ps",
+        "var_case":    "upper",      # Dateinamen: großgeschrieben (T, PS)
+        "sl_level":    None,
     }
 }
+
+def _var_filename(param: str, cfg: dict) -> str:
+    """Variablenname im Dateinamen: je nach Modell groß oder klein."""
+    return param.upper() if cfg["var_case"] == "upper" else param.lower()
 
 def model_level_url(model: str, run: str, run_date: datetime, step: int, level: int, param: str) -> str:
     cfg  = MODEL_CFG[model]
     date = run_date.strftime("%Y%m%d") + run
-    fn   = f"{model}_{cfg['scope']}_{cfg['gridtype']}_model-level_{date}_{step:03d}_{level}_{param.upper()}.grib2.bz2"
+    vn   = _var_filename(param, cfg)
+    fn   = f"{model}_{cfg['scope']}_{cfg['gridtype']}_model-level_{date}_{step:03d}_{level}_{vn}.grib2.bz2"
     return f"{cfg['url_base']}/{run}/{param}/{fn}"
 
 def surface_url(model: str, run: str, run_date: datetime, step: int) -> str:
     cfg   = MODEL_CFG[model]
     date  = run_date.strftime("%Y%m%d") + run
     param = cfg["ps_param"]
-    fn    = f"{model}_{cfg['scope']}_{cfg['gridtype']}_single-level_{date}_{step:03d}_{param.upper()}.grib2.bz2"
+    vn    = _var_filename(param, cfg)
+    sl    = cfg.get("sl_level")
+    if sl:
+        fn = f"{model}_{cfg['scope']}_{cfg['gridtype']}_single-level_{date}_{step:03d}_{sl}_{vn}.grib2.bz2"
+    else:
+        fn = f"{model}_{cfg['scope']}_{cfg['gridtype']}_single-level_{date}_{step:03d}_{vn}.grib2.bz2"
     return f"{cfg['url_base']}/{run}/{param}/{fn}"
 
-def fetch_and_extract(url: str, lat: float, lon: float, timeout: int = 45) -> float | None:
+# ---------------------------------------------------------------------------
+# Nearest-Neighbor für unstrukturierte Gitter (ICON, ICON-D2)
+# ---------------------------------------------------------------------------
+# Cache: model → (lats_array, lons_array)
+_grid_coords: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+# Cache: (model, lat, lon) → flat_idx
+_nn_cache: dict[tuple, int] = {}
+
+def _clat_clon_url(model: str, run: str, run_date: datetime) -> tuple[str, str]:
+    """URLs für CLAT/CLON time-invariant Gitter-Dateien."""
+    cfg  = MODEL_CFG[model]
+    base = cfg["url_base"]
+    date = run_date.strftime("%Y%m%d") + run
+    if model == "icon-d2":
+        clat = f"{base}/{run}/clat/{model}_{cfg['scope']}_icosahedral_time-invariant_{date}_000_0_clat.grib2.bz2"
+        clon = f"{base}/{run}/clon/{model}_{cfg['scope']}_icosahedral_time-invariant_{date}_000_0_clon.grib2.bz2"
+    else:  # icon global
+        clat = f"{base}/{run}/clat/{model}_{cfg['scope']}_icosahedral_time-invariant_{date}_CLAT.grib2.bz2"
+        clon = f"{base}/{run}/clon/{model}_{cfg['scope']}_icosahedral_time-invariant_{date}_CLON.grib2.bz2"
+    return clat, clon
+
+def _extract_all_values(url: str, timeout: int = 60) -> np.ndarray | None:
+    """Alle Werte aus einer GRIB-Datei als numpy-Array."""
+    for attempt in range(3):
+        try:
+            r = requests.get(url, timeout=timeout)
+            if r.status_code == 404:
+                return None
+            r.raise_for_status()
+            raw = bz2.decompress(r.content)
+            break
+        except requests.RequestException:
+            if attempt < 2:
+                time.sleep(1 + attempt * 2)
+                continue
+            return None
+    else:
+        return None
+
+    with tempfile.NamedTemporaryFile(suffix=".grib2", delete=False) as tmp:
+        tmp.write(raw)
+        tmp_path = tmp.name
+    try:
+        with open(tmp_path, "rb") as fh:
+            gid = eccodes.codes_grib_new_from_file(fh)
+        if not gid:
+            return None
+        vals = np.array(eccodes.codes_get_values(gid))
+        eccodes.codes_release(gid)
+        return vals
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+def _load_grid(model: str, run: str, run_date: datetime) -> bool:
+    """CLAT/CLON laden und im Cache speichern."""
+    if model in _grid_coords:
+        return True
+    clat_url, clon_url = _clat_clon_url(model, run, run_date)
+    log.info(f"  Lade Gitter-Koordinaten für {model.upper()} …")
+    lats = _extract_all_values(clat_url)
+    lons = _extract_all_values(clon_url)
+    if lats is None or lons is None:
+        log.error(f"  CLAT/CLON nicht abrufbar für {model.upper()}")
+        return False
+    # CLAT/CLON sind in Radiant → zu Grad konvertieren
+    lats_deg = np.degrees(lats)
+    lons_deg = np.degrees(lons)
+    _grid_coords[model] = (lats_deg, lons_deg)
+    log.info(f"  Gitter geladen: {len(lats_deg)} Punkte")
+    return True
+
+def _nearest_index(model: str, lat: float, lon: float) -> int | None:
+    """Nächster Gitterpunkt per Haversine-Distanz."""
+    cache_key = (model, round(lat, 4), round(lon, 4))
+    if cache_key in _nn_cache:
+        return _nn_cache[cache_key]
+    if model not in _grid_coords:
+        return None
+    grid_lats, grid_lons = _grid_coords[model]
+    lat_r, lon_r = np.radians(lat), np.radians(lon)
+    lats_r = np.radians(grid_lats)
+    lons_r = np.radians(grid_lons)
+    dlat = lats_r - lat_r
+    dlon = lons_r - lon_r
+    a = np.sin(dlat / 2) ** 2 + np.cos(lat_r) * np.cos(lats_r) * np.sin(dlon / 2) ** 2
+    idx = int(np.argmin(a))
+    _nn_cache[cache_key] = idx
+    return idx
+
+def fetch_and_extract(url: str, lat: float, lon: float, model: str = "icon-eu", timeout: int = 45) -> float | None:
     # 4 Versuche für den Download mit "Exponential Backoff" (Wartezeit)
     raw_grib = None
     for attempt in range(4):
@@ -118,29 +223,31 @@ def fetch_and_extract(url: str, lat: float, lon: float, timeout: int = 45) -> fl
         with open(tmp_path, "rb") as fh:
             gid = eccodes.codes_grib_new_from_file(fh)
         if gid:
-            lat_first = eccodes.codes_get(gid, "latitudeOfFirstGridPointInDegrees")
-            lon_first = eccodes.codes_get(gid, "longitudeOfFirstGridPointInDegrees")
-            lat_last  = eccodes.codes_get(gid, "latitudeOfLastGridPointInDegrees")
-            lon_last  = eccodes.codes_get(gid, "longitudeOfLastGridPointInDegrees")
-            n_lat     = eccodes.codes_get(gid, "Nj")
-            n_lon     = eccodes.codes_get(gid, "Ni")
-
-            dlat = (lat_last - lat_first) / (n_lat - 1)
-            lon_last_adj = lon_last if lon_last >= lon_first else lon_last + 360.0
-            dlon = (lon_last_adj - lon_first) / (n_lon - 1)
-
-            lon_q = lon
-            while lon_q < lon_first: lon_q += 360.0
-            while lon_q >= lon_first + 360.0: lon_q -= 360.0
-
-            i_lat = int(round((lat - lat_first) / dlat))
-            i_lon = int(round((lon_q - lon_first) / dlon))
-            i_lat = max(0, min(i_lat, n_lat - 1))
-            i_lon = max(0, min(i_lon, n_lon - 1))
-            
-            flat_idx = i_lat * n_lon + i_lon
+            grid_type = eccodes.codes_get_string(gid, "gridType")
             values = eccodes.codes_get_values(gid)
-            if flat_idx < len(values):
+
+            if grid_type in ("regular_ll", "regular_gg"):
+                # Regular grid: einfache Index-Berechnung
+                lat_first = eccodes.codes_get(gid, "latitudeOfFirstGridPointInDegrees")
+                lon_first = eccodes.codes_get(gid, "longitudeOfFirstGridPointInDegrees")
+                lat_last  = eccodes.codes_get(gid, "latitudeOfLastGridPointInDegrees")
+                lon_last  = eccodes.codes_get(gid, "longitudeOfLastGridPointInDegrees")
+                n_lat     = eccodes.codes_get(gid, "Nj")
+                n_lon     = eccodes.codes_get(gid, "Ni")
+                dlat = (lat_last - lat_first) / (n_lat - 1)
+                lon_last_adj = lon_last if lon_last >= lon_first else lon_last + 360.0
+                dlon = (lon_last_adj - lon_first) / (n_lon - 1)
+                lon_q = lon
+                while lon_q < lon_first: lon_q += 360.0
+                while lon_q >= lon_first + 360.0: lon_q -= 360.0
+                i_lat = max(0, min(int(round((lat - lat_first) / dlat)), n_lat - 1))
+                i_lon = max(0, min(int(round((lon_q - lon_first) / dlon)), n_lon - 1))
+                flat_idx = i_lat * n_lon + i_lon
+            else:
+                # Unstrukturiertes Gitter (icosahedral etc.): Nearest-Neighbor
+                flat_idx = _nearest_index(model, lat, lon)
+
+            if flat_idx is not None and flat_idx < len(values):
                 v = float(values[flat_idx])
                 value = v if math.isfinite(v) else None
             eccodes.codes_release(gid)
@@ -178,8 +285,13 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
 
     log.info(f"━━ {model.upper()}  {run_date.strftime('%Y%m%d')}/{run}Z  +{step:03d}h  ({lat}, {lon})  {n_lev} Level × {n_par} Parameter = {n_lev * n_par + 1} Downloads ━━")
 
+    # Für unstrukturierte Gitter: Koordinaten einmalig laden
+    if cfg["gridtype"] != "regular-lat-lon":
+        if not _load_grid(model, run, run_date):
+            return None
+
     ps_url = surface_url(model, run, run_date, step)
-    ps_pa  = fetch_and_extract(ps_url, lat, lon)
+    ps_pa  = fetch_and_extract(ps_url, lat, lon, model=model)
 
     if ps_pa is None:
         log.error("Oberflächendruck nicht abrufbar.")
@@ -198,7 +310,7 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
 
     def _fetch(item):
         (param, lev), url = item
-        return (param, lev), fetch_and_extract(url, lat, lon)
+        return (param, lev), fetch_and_extract(url, lat, lon, model=model)
 
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         futs = {pool.submit(_fetch, item): item for item in tasks.items()}
