@@ -1,7 +1,22 @@
 #!/bin/bash
-# Erstelle den Ausgabeordner und leere ihn (damit wir keinen Datenmüll ansammeln)
 mkdir -p ./data
-rm -rf ./data/*
+
+# --- NEU: Intelligentes Aufräumen von Dateien, die älter als 3 Tage sind ---
+python3 -c '
+import os, datetime, glob, re
+# Grenze: Vor 3 Tagen
+limit = datetime.datetime.utcnow() - datetime.timedelta(days=3)
+
+for f in glob.glob("./data/*.json"):
+    # Suche das Datum im Dateinamen (8 Ziffern am Stück, z.B. 20260327)
+    match = re.search(r"_(\d{8})_", f)
+    if match:
+        file_date = datetime.datetime.strptime(match.group(1), "%Y%m%d")
+        if file_date < limit:
+            os.remove(f)
+            print(f"🧹 Alte Datei gelöscht: {f}")
+'
+# ---------------------------------------------------------------------------
 
 # Ort 1: München (MUC) - Vorhersage für 48 Stunden im 6-Stunden-Takt
 python3 fetch_sounding.py --lat 48.35 --lon 11.79 --model icon-eu --step 0:48:6 --outdir ./data
