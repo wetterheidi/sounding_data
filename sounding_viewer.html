@@ -1,0 +1,1869 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TlogP Sounding Viewer</title>
+  <style>
+    /* ------------------------------------------------------------------ */
+    /* Typographie & Reset                                                  */
+    /* ------------------------------------------------------------------ */
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      /* Dunklere, reinere Hintergründe für maximalen Kontrast */
+      --bg: #030406;
+      --bg2: #0b0d12;
+      --bg3: #161a24;
+      --border: #2a3040;
+      --border2: #3d455c;
+
+      /* Hellere Schriften */
+      --text: #ffffff;
+      /* Reines Weiß für Messwerte */
+      --text2: #a1a9bd;
+      /* Helles Grau-Blau für Labels */
+      --text3: #6c758f;
+      /* Mittleres Grau für Einheiten/Sekundäres */
+
+      /* Leuchtende Akzentfarben */
+      --accent: #5ba4fc;
+      --accent2: #3b82f6;
+      --temp: #ff5252;
+      /* Leuchtendes Rot */
+      --dew: #4ade80;
+      /* Leuchtendes Neongrün */
+      --wind-bb: #ffffff;
+      /* Reinweiße Windbarbs */
+
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'IBM Plex Sans', sans-serif;
+      --radius: 6px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Header                                                               */
+    /* ------------------------------------------------------------------ */
+    header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    header h1 {
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    header h1 span {
+      color: var(--accent);
+    }
+
+    .meta-chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+
+    .chip {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text2);
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 3px 8px;
+      white-space: nowrap;
+    }
+
+    .chip.accent {
+      color: var(--accent);
+      border-color: var(--accent2);
+    }
+
+    /* Datei-Drop Zone im Header */
+    .file-drop {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .btn {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 5px 12px;
+      background: var(--bg3);
+      color: var(--text2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn:hover {
+      background: var(--border2);
+      color: var(--text);
+    }
+
+    .btn.primary {
+      background: var(--accent2);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .btn.primary:hover {
+      background: var(--accent);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Timeslider-Leiste                                                    */
+    /* ------------------------------------------------------------------ */
+    #timebar {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    #timebar label {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text2);
+      white-space: nowrap;
+    }
+
+    #timeslider {
+      flex: 1;
+      -webkit-appearance: none;
+      height: 3px;
+      background: var(--border2);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    #timeslider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    #timeslider::-webkit-slider-thumb:hover {
+      background: #6aacf5;
+    }
+
+    .time-ticks {
+      display: flex;
+      gap: 0;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text3);
+      min-width: 0;
+      flex: 1;
+      position: relative;
+      height: 18px;
+      margin-top: 2px;
+    }
+
+    .tick-label {
+      position: absolute;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      cursor: pointer;
+      transition: color 0.1s;
+    }
+
+    .tick-label:hover,
+    .tick-label.active {
+      color: var(--accent);
+    }
+
+    #time-display {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--accent);
+      min-width: 120px;
+      text-align: right;
+    }
+
+    .play-btn {
+      font-family: var(--mono);
+      font-size: 18px;
+      line-height: 1;
+      background: none;
+      border: none;
+      color: var(--text2);
+      cursor: pointer;
+      padding: 0 4px;
+      transition: color 0.15s;
+    }
+
+    .play-btn:hover {
+      color: var(--accent);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Hauptlayout: Diagramm + Seitenleiste                                */
+    /* ------------------------------------------------------------------ */
+    #main {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* TlogP Canvas                                                         */
+    /* ------------------------------------------------------------------ */
+    #chart-wrap {
+      flex: 1;
+      min-width: 0;
+      position: relative;
+      overflow-y: auto;
+      /* Zwingend nötig für den Scrollbalken */
+      overflow-x: hidden;
+      background: var(--bg);
+    }
+
+    #sounding-canvas {
+      display: block;
+      width: 100%;
+      /* Geändert: Verhindert Stauchen des Diagramms */
+      height: 100%;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Seitenleiste: Indizes                                                */
+    /* ------------------------------------------------------------------ */
+    #sidebar {
+      width: 250px;
+      min-width: 230px;
+      background: var(--bg2);
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .sidebar-section h3 {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text3);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .index-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 3px 0;
+      font-size: 12px;
+    }
+
+    .index-name {
+      color: var(--text2);
+      font-size: 11px;
+    }
+
+    .index-val {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    .index-val.pos {
+      color: #e05c3a;
+    }
+
+    .index-val.neg {
+      color: #4ab56e;
+    }
+
+    .index-val.warn {
+      color: #e0b83a;
+    }
+
+    .wind-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+
+    .wind-table th {
+      color: var(--text3);
+      font-size: 10px;
+      font-weight: 400;
+      text-align: left;
+      padding: 2px 4px 4px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .wind-table td {
+      color: var(--text);
+      padding: 3px 4px 3px 0;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Leer-Zustand                                                         */
+    /* ------------------------------------------------------------------ */
+    #empty-state {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: var(--text3);
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    #empty-state.hidden {
+      display: none;
+    }
+
+    #empty-state svg {
+      opacity: 0.3;
+    }
+
+    #empty-state p {
+      font-family: var(--mono);
+      font-size: 12px;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    #empty-state .drop-hint {
+      font-size: 11px;
+      color: var(--text3);
+      pointer-events: all;
+    }
+
+    /* Drop-Zone Highlight */
+    body.drag-over #chart-wrap::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 2px dashed var(--accent);
+      border-radius: var(--radius);
+      background: rgba(74, 144, 226, 0.06);
+      z-index: 10;
+      pointer-events: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ====================================================================
+     HEADER
+     ==================================================================== -->
+  <header>
+    <h1>T<span>log</span>P<span style="color:var(--text2);font-weight:300"> Sounding Viewer</span></h1>
+    <div class="meta-chips" id="meta-chips">
+      <select class="chip" id="loc-select" style="color: var(--text); outline: none; cursor: pointer;">
+        <option value="">Kein Ort geladen</option>
+      </select>
+
+      <select class="chip" id="run-select"
+        style="color: var(--text); outline: none; cursor: pointer; background: var(--bg3);">
+        <option value="">Kein Lauf</option>
+      </select>
+
+      <span class="chip accent" id="chip-time">Keine Daten</span>
+    </div>
+    <div class="file-drop">
+      <button class="btn" id="btn-cloud" style="color: var(--accent); border-color: var(--accent);">
+        ☁️ Aktuelle Daten laden
+      </button>
+
+      <button class="btn" id="btn-export" style="color: #4ab56e; border-color: #4ab56e;">
+        TXT Export ⭳
+      </button>
+
+      <button class="btn primary" onclick="document.getElementById('file-input').click()">
+        JSON laden ↑
+      </button>
+      <input type="file" id="file-input" accept=".json" multiple style="display:none">
+    </div>
+  </header>
+
+  <!-- ====================================================================
+     TIMESLIDER
+     ==================================================================== -->
+  <div id="timebar">
+    <label>VHZ</label>
+    <button class="play-btn" id="play-btn" title="Abspielen/Pause">▶</button>
+    <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+      <input type="range" id="timeslider" min="0" max="0" value="0">
+      <div class="time-ticks" id="time-ticks"></div>
+    </div>
+    <div id="time-display">—</div>
+  </div>
+
+  <!-- ====================================================================
+     HAUPTBEREICH
+     ==================================================================== -->
+  <div id="main">
+    <div id="chart-wrap">
+      <canvas id="sounding-canvas"></canvas>
+
+      <!-- Leer-Zustand -->
+      <div id="empty-state">
+        <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+          <rect x="4" y="4" width="48" height="48" rx="8" stroke="currentColor" stroke-width="1.5"
+            stroke-dasharray="4 3" />
+          <path d="M14 40 L20 28 L26 32 L32 18 L38 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+            stroke-linejoin="round" fill="none" />
+          <circle cx="38" cy="24" r="3" fill="currentColor" />
+        </svg>
+        <p>Kein Profil geladen.<br>
+          JSON-Datei von <code>fetch_sounding.py</code> laden<br>
+          oder per Drag &amp; Drop hierher ziehen.</p>
+      </div>
+    </div>
+
+    <!-- Seitenleiste -->
+    <div id="sidebar">
+
+      <div class="sidebar-section">
+        <h3>Mauszeiger (Level)</h3>
+        <div class="index-row"><span class="index-name">Druck</span><span class="index-val" id="cur-p">—</span></div>
+
+        <div class="index-row"><span class="index-name">Höhe (AGL)</span><span class="index-val" id="cur-z-agl">—</span>
+        </div>
+        <div class="index-row"><span class="index-name" title="Genähert über ISA-Bodendruck">Höhe (AMSL)</span><span
+            class="index-val" id="cur-z-amsl">—</span></div>
+
+        <div class="index-row"><span class="index-name">T</span><span class="index-val" id="cur-t"
+            style="color:var(--temp)">—</span></div>
+        <div class="index-row"><span class="index-name">Td</span><span class="index-val" id="cur-td"
+            style="color:var(--dew)">—</span></div>
+        <div class="index-row"><span class="index-name">RH</span><span class="index-val" id="cur-rh"
+            style="color:#a1a9bd">—</span></div>
+        <div class="index-row"><span class="index-name">Wind</span><span class="index-val" id="cur-wind">—</span></div>
+      </div>
+      <div class="sidebar-section">
+        <h3>Labilitätsindizes</h3>
+        <div class="index-row"><span class="index-name">CAPE</span><span class="index-val" id="idx-cape">—</span></div>
+        <div class="index-row"><span class="index-name">CIN</span><span class="index-val" id="idx-cin">—</span></div>
+        <div class="index-row"><span class="index-name">Lifted Index</span><span class="index-val" id="idx-li">—</span>
+        </div>
+        <div class="index-row"><span class="index-name">K-Index</span><span class="index-val" id="idx-ki">—</span></div>
+        <div class="index-row"><span class="index-name">Showalter</span><span class="index-val" id="idx-si">—</span>
+        </div>
+        <div class="index-row"><span class="index-name">TTI</span><span class="index-val" id="idx-tti">—</span></div>
+      </div>
+      <div class="sidebar-section">
+        <h3>Kondensationsniveaus</h3>
+        <div class="index-row"><span class="index-name">LCL</span><span class="index-val" id="idx-lcl">—</span></div>
+        <div class="index-row"><span class="index-name">LFC</span><span class="index-val" id="idx-lfc">—</span></div>
+        <div class="index-row"><span class="index-name">CCL</span><span class="index-val" id="idx-ccl">—</span></div>
+        <div class="index-row"><span class="index-name">TA</span><span class="index-val" id="idx-tc">—</span></div>
+        <div class="index-row"><span class="index-name">EL</span><span class="index-val" id="idx-el">—</span></div>
+      </div>
+      <div class="sidebar-section">
+        <h3>Wind (repr. Niveaus)</h3>
+        <table class="wind-table" id="wind-table">
+          <thead>
+            <tr>
+              <th>hPa</th>
+              <th>Richtung</th>
+              <th>Geschw.</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="sidebar-section">
+        <h3>Troposphäre</h3>
+        <div class="index-row"><span class="index-name">Tropopause (est.)</span><span class="index-val"
+            id="idx-tropo">—</span></div>
+        <div class="index-row"><span class="index-name">0°C Grenze</span><span class="index-val" id="idx-iso0">—</span>
+        </div>
+      </div>
+      <div class="sidebar-section" style="opacity: 0.7;">
+        <h3>Steuerung</h3>
+        <div style="font-size: 11px; color: var(--text2); line-height: 1.5;">
+          <b>Mausrad:</b> Zoomen<br>
+          <b>Klick & Ziehen:</b> Verschieben<br>
+          <b>Doppelklick:</b> Zoom zurücksetzen
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+     JAVASCRIPT
+     ==================================================================== -->
+  <script>
+    'use strict';
+
+    // =========================================================================
+    // Globaler Zustand
+    // =========================================================================
+    const STATE = {
+      allSoundings: [],        // NEU: Alle geladenen Profile (alle Orte)
+      soundings: [],           // Gefilterte Profile (nur der aktuell gewählte Ort)
+      currentLocationKey: '',  // NEU: Welcher Ort ist gerade im Dropdown aktiv?
+      currentIdx: 0,
+      currentRunKey: '',
+      animTimer: null,
+      animPlaying: false,
+      mouseHover: null,
+    };
+
+    // =========================================================================
+    // Hilfsfunktionen Meteorologie
+    // =========================================================================
+    const MET = {
+      /** Dampfdruck [Pa] aus Temperatur [°C] (Magnus) */
+      es(T_C) {
+        return 611.2 * Math.exp(17.67 * T_C / (T_C + 243.5));
+      },
+      // Neu: Dampfdruck in Taupunkt [°C] umrechnen (Umkehrung der Magnus-Formel)
+      dewpoint_from_e(e_Pa) {
+        const L = Math.log(Math.max(e_Pa / 611.2, 1e-10));
+        return (243.5 * L) / (17.67 - L);
+      },
+      // Neu: Mischungsverhältnis [kg/kg] aus Temperatur und Druck berechnen
+      mixing_ratio(T_C, p_hPa) {
+        const e = MET.es(T_C);
+        return 0.622 * e / (p_hPa * 100 - e);
+      },
+      // Neu: Temperatur [°C] für ein fixes Mischungsverhältnis und neuen Druck finden
+      T_from_mixing_ratio(w, p_hPa) {
+        const e = (w * p_hPa * 100) / (w + 0.622);
+        return MET.dewpoint_from_e(e);
+      },
+      /** Temperatur des Hebungskondensationsniveaus (Bolton 1980) */
+      T_LCL(T_C, Td_C) {
+        const T = T_C + 273.15;
+        const Td = Td_C + 273.15;
+        return 1 / (1 / (Td - 56) + Math.log(T / Td) / 800) + 56;
+      },
+      /** Trockenadiabatischer Temperaturgradient */
+      dry_adiabat_T(T0_K, p0_hPa, p_hPa) {
+        const kappa = 0.2854;
+        return T0_K * Math.pow(p_hPa / p0_hPa, kappa);
+      },
+      /** Präzise pseudoadiabatische Temperatur-Integration */
+      moist_adiabat_T(T0_K, p0_hPa, p_hPa) {
+        let T = T0_K;
+        let p = p0_hPa;
+
+        // Fester numerischer Integrationsschritt (2 hPa) für Stabilität
+        const step = (p_hPa < p0_hPa) ? -2 : 2;
+
+        while ((step < 0 && p > p_hPa) || (step > 0 && p < p_hPa)) {
+          // Letzter Teilschritt, um exakt auf p_hPa zu landen
+          const dp_hPa = ((step < 0 && p + step < p_hPa) || (step > 0 && p + step > p_hPa))
+            ? (p_hPa - p) : step;
+
+          const e_s_hPa = MET.es(T - 273.15) / 100.0;
+          const r_s = 0.622 * e_s_hPa / Math.max(p - e_s_hPa, 0.01);
+
+          const Lv = 2500000; // Verdampfungswärme [J/kg]
+          const Rd = 287.05;  // Gaskonstante trockene Luft
+          const cp = 1005;    // Spezifische Wärmekapazität
+
+          // dT/dp Formel für Feuchtadiabate [K/Pa]
+          const p_Pa = p * 100.0;
+          const num = Rd * T + Lv * r_s;
+          const den = p_Pa * cp + (p_Pa * Math.pow(Lv, 2) * r_s * 0.622) / (Rd * Math.pow(T, 2));
+          const dT_dPa = num / den;
+
+          // Umrechnung in hPa und anwenden
+          T += dT_dPa * (dp_hPa * 100.0);
+          p += dp_hPa;
+        }
+        return T;
+      },
+      /** Windrichtung in Text */
+      dir_text(deg) {
+        if (deg == null) return '—';
+        const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+          'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+        return dirs[Math.round(deg / 22.5) % 16];
+      }
+    };
+
+    // --- NEU: Hilfsfunktionen für Wolkenauswertung ---
+
+    /**
+     * Berechnet die relative Feuchte (%) aus Temperatur und Taupunkt (°C)
+     */
+    function calcRelativeHumidity(T_C, Td_C) {
+      if (T_C === null || Td_C === null || T_C === undefined || Td_C === undefined) return null;
+      // Magnus-Formel Konstanten
+      const a = 17.625;
+      const b = 243.04;
+
+      // Sättigungsdampfdruck für T und Td
+      const es = 6.112 * Math.exp((a * T_C) / (b + T_C));
+      const e = 6.112 * Math.exp((a * Td_C) / (b + Td_C));
+
+      const rh = (e / es) * 100;
+      return Math.max(0, Math.min(100, rh)); // Begrenzen auf 0-100%
+    }
+
+    /**
+     * Gibt die Farbe für den Wolkenbalken basierend auf der RH zurück
+     */
+    function getCloudColor(rh) {
+      if (rh === null || rh < 65) return null; // Kein Balken
+      if (rh < 85) return 'rgb(208, 208, 208)'; // Hellgrau (FEW-SCT)
+      if (rh < 95) return 'rgb(144, 144, 144)'; // Mittelgrau (BKN)
+      return 'rgb(80, 80, 80)';                // Dunkelgrau (OVC)
+    }
+
+    // =========================================================================
+    // TlogP-Projektion
+    // =========================================================================
+    class SkewTProj {
+      constructor(canvas, margin = { top: 40, right: 120, bottom: 40, left: 50 }) {
+        this.canvas = canvas;
+        this.margin = margin;
+        this.p_top = 100;
+        this.p_bot = 1050;
+        this.skew = 45;      // Unser absoluter Wunsch-Winkel!
+
+        // Zoom & Pan
+        this.zoom = 1.0;
+        this.offsetX = 0;
+        this.offsetY = 0;
+
+        this.resize();
+      }
+
+      resize() {
+        const m = this.margin;
+        this.W = this.canvas.clientWidth - m.left - m.right;
+        this.H = this.canvas.clientHeight - m.top - m.bottom;
+
+        // --- DER 45-GRAD GEOMETRIE-FIX ---
+        // 1. Wie viel "Temperatur-Verschiebung" entsteht vom Boden bis zum Top?
+        const dLogP = Math.log(this.p_bot / this.p_top);
+        const skewTempDiff = this.skew * dLogP;
+
+        // 2. Damit der Winkel exakt 1:1 (45°) ist, muss die Pixel-Verschiebung in X 
+        // genau der Pixel-Verschiebung in Y (also der Höhe H) entsprechen.
+        // Wir berechnen die sichtbare Gesamtspanne der Temperatur (T_range) anhand des Seitenverhältnisses:
+        const T_range = (this.W / this.H) * skewTempDiff;
+
+        // 3. Diagramm am Boden zentrieren (z. B. 10°C immer in die Mitte der X-Achse setzen)
+        const T_center_bottom = 10;
+        this.T_left = T_center_bottom - (T_range / 2);
+        this.T_right = T_center_bottom + (T_range / 2);
+      }
+
+      p2y(p_hPa) {
+        const frac = (Math.log(p_hPa) - Math.log(this.p_top)) /
+          (Math.log(this.p_bot) - Math.log(this.p_top));
+        return frac * this.H;
+      }
+
+      // NEU: Helfer für die Y-Koordinate inkl. Zoom & Pan
+      toCanvasY(p_hPa) {
+        return this.margin.top + (this.p2y(p_hPa) * this.zoom) + this.offsetY;
+      }
+
+      tskew2x(T_C, p_hPa) {
+        const skewOffset = this.skew * Math.log(this.p_bot / p_hPa);
+        const T_skewed = T_C + skewOffset;
+        return ((T_skewed - this.T_left) / (this.T_right - this.T_left)) * this.W;
+      }
+
+      toCanvas(T_C, p_hPa) {
+        const m = this.margin;
+        return {
+          x: m.left + (this.tskew2x(T_C, p_hPa) * this.zoom) + this.offsetX,
+          y: this.toCanvasY(p_hPa)
+        };
+      }
+
+      canvasY2p(cy) {
+        const m = this.margin;
+        // Zoom und Pan herausrechnen
+        const y0 = (cy - m.top - this.offsetY) / this.zoom;
+        const frac = y0 / this.H;
+        const logP = frac * (Math.log(this.p_bot) - Math.log(this.p_top)) + Math.log(this.p_top);
+        return Math.exp(logP);
+      }
+
+      canvas2T(cx, p_hPa) {
+        const m = this.margin;
+        // Zoom und Pan herausrechnen
+        const x0 = (cx - m.left - this.offsetX) / this.zoom;
+        const T_range = this.T_right - this.T_left;
+        const T_skewed = this.T_left + (x0 / this.W) * T_range;
+        const skewOffset = this.skew * Math.log(this.p_bot / p_hPa);
+        return T_skewed - skewOffset;
+      }
+    }
+
+    // =========================================================================
+    // Analyselinien zeichnen
+    // =========================================================================
+    function drawInteractiveLines() {
+      if (!STATE.mouseHover || !proj) return;
+      const p_m = STATE.mouseHover.p_hPa;
+      const T_m = STATE.mouseHover.T_C;
+
+      if (p_m < proj.p_top || p_m > proj.p_bot) return;
+
+      const snd = STATE.soundings[STATE.currentIdx];
+      const p_sfc = snd && snd.levels.length > 0 ? snd.levels[0].p_hPa : proj.p_bot;
+
+      // --- NEU: Clipping-Maske aktivieren ---
+      const m = proj.margin;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(m.left, m.top, proj.W, proj.H);
+      ctx.clip();
+      // --------------------------------------
+
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+
+      // 1. Trockenadiabate nach unten (Gelb/Orange)
+      ctx.beginPath();
+      ctx.strokeStyle = '#e0b83a';
+      let first = true;
+      for (let p = p_m; p <= p_sfc + 10; p += 10) {
+        const p_step = Math.min(p, p_sfc);
+        const T_K = MET.dry_adiabat_T(T_m + 273.15, p_m, p_step);
+        const c = proj.toCanvas(T_K - 273.15, p_step);
+        first ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
+        first = false;
+      }
+      ctx.stroke();
+
+      // 2. Sättigungsmischungsverhältnis nach unten (Grün)
+      ctx.beginPath();
+      ctx.strokeStyle = '#4ab56e';
+      const w_target = MET.mixing_ratio(T_m, p_m);
+      first = true;
+      for (let p = p_m; p <= p_sfc + 10; p += 10) {
+        const p_step = Math.min(p, p_sfc);
+        const T_iso = MET.T_from_mixing_ratio(w_target, p_step);
+        const c = proj.toCanvas(T_iso, p_step);
+        first ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
+        first = false;
+      }
+      ctx.stroke();
+
+      // 3. Feuchtadiabate nach oben (Blau)
+      ctx.beginPath();
+      ctx.strokeStyle = '#4a90e2';
+      first = true;
+      for (let p = p_m; p >= proj.p_top - 10; p -= 10) {
+        const p_step = Math.max(p, proj.p_top);
+        const T_K = MET.moist_adiabat_T(T_m + 273.15, p_m, p_step);
+        const c = proj.toCanvas(T_K - 273.15, p_step);
+        first ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
+        first = false;
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Fadenkreuzpunkt
+      const center = proj.toCanvas(T_m, p_m);
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+
+      // --- NEU: Clipping und Zeichen-Status wieder zurücksetzen ---
+      ctx.restore();
+    }
+
+    // =========================================================================
+    // Windbarb-Zeichner
+    // =========================================================================
+    function drawWindBarb(ctx, x, y, wspd_kn, wdir_deg, size = 20) {
+      if (wspd_kn == null || wdir_deg == null) return;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(wdir_deg * Math.PI / 180);
+
+      const col = getComputedStyle(document.documentElement)
+        .getPropertyValue('--wind-bb').trim() || '#c8cdd8';
+      ctx.strokeStyle = col;
+      ctx.fillStyle = col;
+      ctx.lineWidth = 1.0;
+
+      // Stamm
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, -size);
+      ctx.stroke();
+
+      // Fähnchen
+      let remaining = Math.round(wspd_kn / 5) * 5;
+      let yPos = -size;
+      const barbLen = size * 0.5;
+
+      // 50er-Wimpel (gefülltes Dreieck)
+      while (remaining >= 50) {
+        ctx.beginPath();
+        ctx.moveTo(0, yPos);
+        ctx.lineTo(barbLen, yPos + size * 0.25);
+        ctx.lineTo(0, yPos + size * 0.25);
+        ctx.closePath();
+        ctx.fill();
+        yPos += size * 0.28;
+        remaining -= 50;
+      }
+      // 10er-Linien
+      while (remaining >= 10) {
+        ctx.beginPath();
+        ctx.moveTo(0, yPos);
+        ctx.lineTo(barbLen, yPos - size * 0.1);
+        ctx.stroke();
+        yPos += size * 0.14;
+        remaining -= 10;
+      }
+      // 5er-Linien (halb)
+      if (remaining >= 5) {
+        ctx.beginPath();
+        ctx.moveTo(0, yPos);
+        ctx.lineTo(barbLen * 0.5, yPos - size * 0.05);
+        ctx.stroke();
+      }
+
+      // Null-Wind: kleiner Kreis
+      if (Math.round(wspd_kn / 5) === 0) {
+        ctx.beginPath();
+        ctx.arc(0, 0, 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    // =========================================================================
+    // Hauptzeichenroutine
+    // =========================================================================
+    const canvas = document.getElementById('sounding-canvas');
+    const ctx = canvas.getContext('2d');
+    let proj = null;
+
+    function resizeCanvas() {
+      const wrap = document.getElementById('chart-wrap');
+      const dpr = window.devicePixelRatio || 1;
+
+      const w = wrap.clientWidth;
+      const h = wrap.clientHeight; // <-- HIER GEÄNDERT: Das Math.max(..., 900) ist weg!
+
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+
+      ctx.scale(dpr, dpr);
+      if (proj) {
+        proj.canvas = canvas;
+        proj.resize();
+      }
+      redraw();
+    }
+
+    function drawBackground() {
+      const m = proj.margin;
+      const W = proj.W, H = proj.H;
+
+      // Plotfläche (Tiefschwarz für besten Kontrast)
+      ctx.fillStyle = '#030406';
+      ctx.fillRect(m.left, m.top, W, H);
+
+      // --- Isobaren (Luftdruck-Linien) ---
+      const isobars = [1050, 1000, 950, 925, 900, 850, 800, 750, 700, 650, 600, 550, 500, 450, 400, 350, 300, 250, 200, 150, 100];
+      ctx.strokeStyle = '#202635'; // Deutlichere Kanten
+      ctx.lineWidth = 0.8;
+      isobars.forEach(p => {
+        const y = proj.toCanvasY(p);
+        if (y < m.top || y > m.top + H) return;
+
+        ctx.beginPath();
+        ctx.moveTo(m.left, y);
+        ctx.lineTo(m.left + W, y);
+        ctx.stroke();
+
+        ctx.fillStyle = '#6c758f'; // Hellere Achsenbeschriftung
+        ctx.font = '10px IBM Plex Mono, monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(p, m.left + 5, y + 3);
+      });
+
+      // --- START CLIPPING ---
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(m.left, m.top, W, H);
+      ctx.clip();
+
+      // --- Isotherme (schräg, alle 10°C) ---
+      for (let T = -150; T <= 150; T += 10) {
+        if (T === 0) {
+          ctx.strokeStyle = '#5ba4fc'; // 0-Grad-Grenze in leuchtendem Cyan!
+          ctx.lineWidth = 1.0;
+        } else {
+          ctx.strokeStyle = '#202635'; // Wie Isobaren
+          ctx.lineWidth = 0.6;
+        }
+        const p1 = proj.p_bot, p2 = proj.p_top;
+        const c1 = proj.toCanvas(T, p1);
+        const c2 = proj.toCanvas(T, p2);
+        ctx.beginPath();
+        ctx.moveTo(c1.x, c1.y);
+        ctx.lineTo(c2.x, c2.y);
+        ctx.stroke();
+      }
+
+      // --- Trockenadiabaten (alle 10K) ---
+      ctx.strokeStyle = '#4a3620'; // Kräftigeres Braun-Orange
+      ctx.lineWidth = 0.6;
+      for (let Th = -40; Th <= 120; Th += 10) {
+        const T0_K = (Th + 273.15);
+        ctx.beginPath();
+        let first = true;
+        for (let p = proj.p_bot; p >= proj.p_top - 10; p -= 5) {
+          const T_K = MET.dry_adiabat_T(T0_K, 1000, p);
+          const cp = proj.toCanvas(T_K - 273.15, p);
+          if (first) { ctx.moveTo(cp.x, cp.y); first = false; }
+          else ctx.lineTo(cp.x, cp.y);
+        }
+        ctx.stroke();
+      }
+
+      // --- Feuchtadiabaten (alle 4K) ---
+      ctx.strokeStyle = '#1a5940'; // Leuchtenderes Blau-Grün
+      ctx.lineWidth = 0.6;
+      for (let Tw = -20; Tw <= 36; Tw += 4) {
+        const T0_K = Tw + 273.15;
+        ctx.beginPath();
+        let first = true;
+        for (let p = 1000; p >= proj.p_top - 10; p -= 10) {
+          if (p > proj.p_bot) { first = true; continue; }
+          const T_K = MET.moist_adiabat_T(T0_K, 1000, p);
+          const cp = proj.toCanvas(T_K - 273.15, p);
+          if (first) { ctx.moveTo(cp.x, cp.y); first = false; }
+          else ctx.lineTo(cp.x, cp.y);
+        }
+        ctx.stroke();
+      }
+
+      // --- END CLIPPING ---
+      ctx.restore();
+
+      // --- Temperatur-Labels am UNTEREN Rand ---
+      const current_p_bottom = proj.canvasY2p(m.top + H);
+      for (let T = -150; T <= 150; T += 10) {
+        const c_bottom = proj.toCanvas(T, current_p_bottom);
+        if (c_bottom.x >= m.left && c_bottom.x <= m.left + W) {
+          ctx.fillStyle = T === 0 ? '#5ba4fc' : '#6c758f'; // 0-Grad-Label auch Cyan
+          ctx.font = '11px IBM Plex Mono, monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(T + '°C', c_bottom.x, m.top + H + 16);
+        }
+      }
+
+      // Plotrahmen
+      ctx.strokeStyle = '#3d455c';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(m.left, m.top, W, H);
+    }
+
+    function drawSounding(snd) {
+      if (!snd || !snd.levels || snd.levels.length === 0) return;
+
+      const m = proj.margin;
+      const lvls = snd.levels.filter(l =>
+        l.p_hPa <= proj.p_bot && l.p_hPa >= proj.p_top
+      );
+      if (lvls.length === 0) return;
+
+      // --- NEU: Wolkenbalken zeichnen ---
+      const cbWidth = 16; // Breite des Wolkenbalkens
+      const cbX = m.left + proj.W + 15; // Exakt zwischen Diagramm und Windfiedern
+
+      ctx.save();
+      for (let i = 0; i < lvls.length - 1; i++) {
+        const l1 = lvls[i];   // Unteres Level (z.B. 1000 hPa)
+        const l2 = lvls[i + 1]; // Oberes Level (z.B. 950 hPa)
+
+        if (l1.T_C == null || l1.Td_C == null || l2.T_C == null || l2.Td_C == null) continue;
+
+        const rh1 = calcRelativeHumidity(l1.T_C, l1.Td_C);
+        const rh2 = calcRelativeHumidity(l2.T_C, l2.Td_C);
+        const rhAvg = (rh1 + rh2) / 2;
+
+        const color = getCloudColor(rhAvg);
+
+        if (color) {
+          const y1 = proj.toCanvasY(l1.p_hPa);
+          const y2 = proj.toCanvasY(l2.p_hPa);
+
+          ctx.fillStyle = color;
+          // y2 ist der obere Punkt (kleinere Pixelzahl), y1-y2 ist die Höhe der Schicht
+          ctx.fillRect(cbX, y2, cbWidth, y1 - y2);
+        }
+      }
+      ctx.restore();
+
+      // --- Temperaturfläche (schattierter Bereich zwischen T und Td) ---
+      ctx.beginPath();
+      lvls.forEach((l, i) => {
+        const c = proj.toCanvas(l.T_C, l.p_hPa);
+        i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
+      });
+      [...lvls].reverse().forEach(l => {
+        const c = proj.toCanvas(l.Td_C, l.p_hPa);
+        ctx.lineTo(c.x, c.y);
+      });
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(74, 181, 110, 0.06)';
+      ctx.fill();
+
+      // --- Taupunkt (grün) ---
+      ctx.beginPath();
+      ctx.strokeStyle = '#4ab56e';
+      ctx.lineWidth = 1.5;
+      lvls.forEach((l, i) => {
+        const c = proj.toCanvas(l.Td_C, l.p_hPa);
+        i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
+      });
+      ctx.stroke();
+
+      // --- Temperatur (rot-orange) ---
+      ctx.beginPath();
+      ctx.strokeStyle = '#e05c3a';
+      ctx.lineWidth = 2.0;
+      lvls.forEach((l, i) => {
+        const c = proj.toCanvas(l.T_C, l.p_hPa);
+        i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
+      });
+      ctx.stroke();
+
+
+      // --- Windbarbs (rechte Spalte) ---
+      const barbX = m.left + proj.W + 60;
+      const p_barb_levels = [1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150];
+      p_barb_levels.forEach(pTarget => {
+        let best = null, bestDist = Infinity;
+        lvls.forEach(l => {
+          const d = Math.abs(l.p_hPa - pTarget);
+          if (d < bestDist) { bestDist = d; best = l; }
+        });
+        if (!best || bestDist > 30) return;
+
+        const y = proj.toCanvasY(best.p_hPa); // Geändert!
+        if (y < m.top || y > m.top + proj.H) return; // Verhindert Überlappung oben/unten
+
+        drawWindBarb(ctx, barbX, y, best.wspd_kn, best.wdir_deg, 18);
+        ctx.fillStyle = '#3a4060';
+        ctx.font = '9px IBM Plex Mono, monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(pTarget, barbX + 14, y + 3);
+      });
+
+      // --- Titel ---
+      const runStr = `${snd.model} ${snd.run_date} ${snd.run_hour}Z +${String(snd.step_h).padStart(3, '0')}h`;
+      const locStr = `${snd.grid_lat ?? snd.target_lat}°N  ${snd.grid_lon ?? snd.target_lon}°E`;
+      ctx.fillStyle = '#4a5068';
+      ctx.font = '11px IBM Plex Mono, monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(runStr, m.left + 6, m.top + 14);
+      ctx.fillText(locStr, m.left + 6, m.top + 26);
+    }
+
+    function redraw() {
+      if (!proj) return;
+      const W = canvas.width / (window.devicePixelRatio || 1);
+      const H = canvas.height / (window.devicePixelRatio || 1);
+      ctx.clearRect(0, 0, W, H);
+      drawBackground();
+      if (STATE.soundings.length > 0) {
+        drawSounding(STATE.soundings[STATE.currentIdx]);
+        computeAndDisplayIndices(STATE.soundings[STATE.currentIdx]);
+      }
+      drawInteractiveLines(); // HIER zeichnen wir die neuen Maus-Linien!
+    }
+
+    // =========================================================================
+    // Stabilitätsindizes
+    // =========================================================================
+    function levelAt(levels, pTarget) {
+      if (!levels || levels.length === 0) return null;
+      return levels.reduce((best, l) =>
+        Math.abs(l.p_hPa - pTarget) < Math.abs(best.p_hPa - pTarget) ? l : best
+      );
+    }
+
+    // Berechnet den Aufstieg eines Boden-Luftpakets (Parcel Path)
+    function computeParcel(lvls) {
+      if (!lvls || lvls.length === 0) return null;
+
+      // FIX: In den ICON-Daten ist Index 0 der Boden (Surface)!
+      const sfc = lvls[0];
+      const p_sfc = sfc.p_hPa;
+      const T_sfc_K = sfc.T_C + 273.15;
+
+      // LCL berechnen
+      const T_LCL_K = MET.T_LCL(sfc.T_C, sfc.Td_C);
+      const p_LCL = p_sfc * Math.pow(T_LCL_K / T_sfc_K, 1 / 0.2854);
+
+      let parcel = [];
+      let cape = 0, cin = 0;
+      let lfc_p = null, el_p = null;
+      let above_lfc = false;
+
+      // Von unten (Boden) nach oben iterieren
+      for (let i = 0; i < lvls.length; i++) {
+        const l = lvls[i];
+        let Tp_K;
+        if (l.p_hPa >= p_LCL) {
+          Tp_K = MET.dry_adiabat_T(T_sfc_K, p_sfc, l.p_hPa);
+        } else {
+          Tp_K = MET.moist_adiabat_T(T_LCL_K, p_LCL, l.p_hPa);
+        }
+        parcel.push({ p: l.p_hPa, T_C: Tp_K - 273.15 });
+
+        // CAPE / CIN Integration
+        if (i > 0) {
+          const prev = lvls[i - 1];
+          const dz = l.z_m - prev.z_m;
+          const T_env_K = l.T_C + 273.15;
+          const buoy = 9.81 * (Tp_K - T_env_K) / T_env_K * dz;
+
+          if (buoy > 0) {
+            if (!above_lfc) { above_lfc = true; lfc_p = l.p_hPa; }
+            cape += buoy;
+            el_p = l.p_hPa;
+          } else {
+            if (!above_lfc) cin += buoy;
+          }
+        }
+      }
+      return { path: parcel, cape, cin, p_LCL, lfc_p, el_p };
+    }
+
+    function computeAndDisplayIndices(snd) {
+      if (!snd || !snd.levels) return;
+      const lvls = snd.levels;
+
+      // FIX: Boden ist Index 0
+      const lSfc = lvls[0];
+
+      // Parcel und Instabilität (CAPE/CIN) berechnen
+      const parcelData = computeParcel(lvls);
+
+      // K-Index, Total-Totals
+      const l850 = levelAt(lvls, 850);
+      const l700 = levelAt(lvls, 700);
+      const l500 = levelAt(lvls, 500);
+
+      let ki = null, tti = null, si = null, li = null;
+      if (l850 && l700 && l500) {
+        ki = (l850.T_C - l500.T_C) + l850.Td_C - (l700.T_C - l700.Td_C);
+        tti = (l850.T_C + l850.Td_C) - 2 * l500.T_C;
+
+        const T_lcl_850_K = MET.T_LCL(l850.T_C, l850.Td_C);
+        const p_lcl_850 = 850 * Math.pow(T_lcl_850_K / (l850.T_C + 273.15), 1 / 0.2854);
+        const T_lifted_SI = MET.moist_adiabat_T(T_lcl_850_K, p_lcl_850, 500);
+        si = l500.T_C - (T_lifted_SI - 273.15);
+      }
+
+      // Lifted Index (vom Boden gehoben)
+      if (l500 && parcelData) {
+        const parcel_at_500 = parcelData.path.find(p => Math.abs(p.p - 500) < 15);
+        if (parcel_at_500) li = l500.T_C - parcel_at_500.T_C;
+      }
+
+      // Isotherm 0°C
+      let iso0_m = null, tropo_m = null;
+      for (let i = 0; i < lvls.length - 1; i++) {
+        if (lvls[i].T_C >= 0 && lvls[i + 1].T_C < 0) {
+          const frac = lvls[i].T_C / (lvls[i].T_C - lvls[i + 1].T_C);
+          iso0_m = lvls[i].z_m + frac * (lvls[i + 1].z_m - lvls[i].z_m);
+          break;
+        }
+      }
+
+      // Tropopausenerkennung
+      for (let i = 0; i < lvls.length - 3; i++) {
+        if (lvls[i].p_hPa < 350 && lvls[i].p_hPa > 100) {
+          const lapse_rate = (lvls[i + 2].T_C - lvls[i].T_C) / (lvls[i + 2].z_m - lvls[i].z_m) * -1000;
+          if (lapse_rate < 2.0) {
+            tropo_m = lvls[i].z_m;
+            break;
+          }
+        }
+      } // <--- WICHTIG: Hier endet die Tropopausen-Schleife!
+
+      // --- NEU: CCL und Auslösetemperatur (Mixed Layer 100 hPa) ---
+      const sfc_p = lSfc.p_hPa;
+
+      // 1. Druckgewichtetes Sättigungsmischungsverhältnis der untersten 100 hPa berechnen
+      let sum_w_dp = 0;
+      let sum_dp = 0;
+      for (let i = 0; i < lvls.length - 1; i++) {
+        if (lvls[i].p_hPa < sfc_p - 100) break;
+
+        let p1 = lvls[i].p_hPa;
+        let p2 = Math.max(lvls[i + 1].p_hPa, sfc_p - 100);
+        let dp = p1 - p2;
+
+        let w1 = MET.mixing_ratio(lvls[i].Td_C, lvls[i].p_hPa);
+        let w2 = MET.mixing_ratio(lvls[i + 1].Td_C, lvls[i + 1].p_hPa);
+
+        sum_w_dp += ((w1 + w2) / 2) * dp;
+        sum_dp += dp;
+      }
+      const w_avg = sum_w_dp / sum_dp;
+
+      // 2. CCL (Schnittpunkt der gemittelten Isohume mit der Umgebungstemperatur) finden
+      let p_ccl = null, T_ccl = null;
+      for (let i = 0; i < lvls.length; i++) {
+        const T_iso = MET.T_from_mixing_ratio(w_avg, lvls[i].p_hPa);
+        if (lvls[i].T_C <= T_iso) {
+          if (i > 0) {
+            const prev = lvls[i - 1];
+            const prev_T_iso = MET.T_from_mixing_ratio(w_avg, prev.p_hPa);
+            const frac = (prev.T_C - prev_T_iso) / ((prev.T_C - prev_T_iso) - (lvls[i].T_C - T_iso));
+            p_ccl = prev.p_hPa + frac * (lvls[i].p_hPa - prev.p_hPa);
+            T_ccl = prev.T_C + frac * (lvls[i].T_C - prev.T_C);
+          } else {
+            p_ccl = lvls[0].p_hPa;
+            T_ccl = lvls[0].T_C;
+          }
+          break;
+        }
+      }
+
+      // 3. Auslösetemperatur (Entlang der Trockenadiabate vom CCL zum Boden)
+      let T_conv = null;
+      if (p_ccl !== null && T_ccl !== null) {
+        const T_conv_K = MET.dry_adiabat_T(T_ccl + 273.15, p_ccl, sfc_p);
+        T_conv = T_conv_K - 273.15;
+      }
+      // -----------------------------------------------------------
+
+      // --- Anzeige aktualisieren ---
+      function setIdx(id, val, unit = '', fmt = 1) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (val == null || isNaN(val)) { el.textContent = '—'; el.className = 'index-val'; return; }
+
+        el.textContent = val.toFixed(fmt) + unit;
+        el.className = 'index-val';
+
+        let cls = '';
+        if (id === 'idx-cape') cls = val > 500 ? 'pos' : val > 0 ? 'warn' : '';
+        if (id === 'idx-cin') cls = val < -50 ? 'pos' : '';
+        if (id === 'idx-li') cls = val < 0 ? 'pos' : val < 2 ? 'warn' : 'neg';
+        if (id === 'idx-ki') cls = val > 30 ? 'pos' : val > 20 ? 'warn' : 'neg';
+        if (id === 'idx-si') cls = val < 0 ? 'pos' : val < 3 ? 'warn' : 'neg';
+        if (id === 'idx-tti') cls = val > 50 ? 'pos' : val > 44 ? 'warn' : 'neg';
+
+        if (cls !== '') el.classList.add(cls);
+      }
+
+      setIdx('idx-cape', parcelData ? parcelData.cape : null, ' J/kg', 0);
+      setIdx('idx-cin', parcelData ? parcelData.cin : null, ' J/kg', 0);
+      setIdx('idx-li', li, ' K');
+      setIdx('idx-ki', ki, ' K');
+      setIdx('idx-si', si, ' K');
+      setIdx('idx-tti', tti, ' K');
+      setIdx('idx-iso0', iso0_m, ' m', 0);
+      setIdx('idx-tropo', tropo_m, ' m', 0);
+
+      document.getElementById('idx-lcl').textContent = parcelData && parcelData.p_LCL ? Math.round(parcelData.p_LCL) + ' hPa' : '—';
+      document.getElementById('idx-lfc').textContent = parcelData && parcelData.lfc_p ? Math.round(parcelData.lfc_p) + ' hPa' : '—';
+      document.getElementById('idx-el').textContent = parcelData && parcelData.el_p ? Math.round(parcelData.el_p) + ' hPa' : '—';
+      document.getElementById('idx-ccl').textContent = parcelData && parcelData.ccl_p ? Math.round(parcelData.ccl_p) + ' hPa' : '—';
+      const tcEl = document.getElementById('idx-tc');
+      if (tcEl) {
+        tcEl.textContent = T_conv ? T_conv.toFixed(1) + ' °C' : '—';
+        tcEl.className = 'index-val';
+        // Optional: Warnfarbe, wenn die Auslösetemperatur nah an der aktuellen Bodentemp liegt
+        if (T_conv !== null && (T_conv - lSfc.T_C) < 3) tcEl.classList.add('warn');
+      }
+
+      const tbody = document.querySelector('#wind-table tbody');
+      if (tbody) {
+        const wLevels = [1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150];
+        tbody.innerHTML = wLevels.map(p => {
+          const l = levelAt(lvls, p);
+          if (!l || Math.abs(l.p_hPa - p) > 30) return '';
+          return `<tr>
+        <td>${p}</td>
+        <td>${MET.dir_text(l.wdir_deg)} ${l.wdir_deg != null ? Math.round(l.wdir_deg) + '°' : ''}</td>
+        <td>${l.wspd_kn != null ? Math.round(l.wspd_kn) + ' kn' : '—'}</td>
+      </tr>`;
+        }).join('');
+      }
+    }
+    // =========================================================================
+    // Timeslider & Animations-Engine
+    // =========================================================================
+    function updateTimeslider() {
+      const slider = document.getElementById('timeslider');
+      const ticks = document.getElementById('time-ticks');
+      const n = STATE.soundings.length;
+      slider.max = Math.max(0, n - 1);
+      slider.value = STATE.currentIdx;
+
+      // Tick-Labels
+      ticks.innerHTML = '';
+      if (n <= 1) return;
+      STATE.soundings.forEach((snd, i) => {
+        const pct = i / (n - 1) * 100;
+        const span = document.createElement('span');
+        span.className = 'tick-label' + (i === STATE.currentIdx ? ' active' : '');
+        span.style.left = pct + '%';
+        span.textContent = `+${snd.step_h}h`;
+        span.onclick = () => jumpTo(i);
+        ticks.appendChild(span);
+      });
+    }
+
+    function jumpTo(idx) {
+      STATE.currentIdx = Math.max(0, Math.min(idx, STATE.soundings.length - 1));
+      const snd = STATE.soundings[STATE.currentIdx];
+      document.getElementById('timeslider').value = STATE.currentIdx;
+      document.getElementById('time-display').textContent =
+        snd ? `+${String(snd.step_h).padStart(3, '0')}h · ${snd.valid_time ?? ''}` : '—';
+      updateChips(snd);
+      updateTimeslider();
+      redraw();
+    }
+
+    function updateChips(snd) {
+      if (!snd) return;
+      document.getElementById('chip-time').textContent =
+        `VHZ +${String(snd.step_h).padStart(3, '0')}h  ${snd.n_levels_loaded ?? '?'} Level`;
+    }
+
+    document.getElementById('timeslider').addEventListener('input', e => {
+      jumpTo(parseInt(e.target.value));
+    });
+
+    // Keyboard-Navigation
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowRight') jumpTo(STATE.currentIdx + 1);
+      if (e.key === 'ArrowLeft') jumpTo(STATE.currentIdx - 1);
+      if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+    });
+
+    // Abspielen
+    function togglePlay() {
+      const btn = document.getElementById('play-btn');
+      if (STATE.animPlaying) {
+        clearInterval(STATE.animTimer);
+        STATE.animPlaying = false;
+        btn.textContent = '▶';
+      } else {
+        STATE.animPlaying = true;
+        btn.textContent = '⏸';
+        STATE.animTimer = setInterval(() => {
+          if (STATE.currentIdx >= STATE.soundings.length - 1) {
+            jumpTo(0);
+          } else {
+            jumpTo(STATE.currentIdx + 1);
+          }
+        }, 800);
+      }
+    }
+    document.getElementById('play-btn').addEventListener('click', togglePlay);
+
+    // =========================================================================
+    // Daten laden
+    // =========================================================================
+    // Hilfsfunktion: Erzeugt einen sauberen Text (Key) aus den Koordinaten eines Profils
+    function getLocKey(snd) {
+      const lat = snd.target_lat ?? snd.grid_lat;
+      const lon = snd.target_lon ?? snd.grid_lon;
+      const latS = lat >= 0 ? `${lat}°N` : `${-lat}°S`;
+      const lonS = lon >= 0 ? `${lon}°E` : `${-lon}°W`;
+      return `${latS}  ${lonS}`;
+    }
+
+    // Hilfsfunktion: Erzeugt einen sauberen Text für den Lauf (z.B. "20260327 06Z")
+    function getRunKey(snd) {
+      return `${snd.model} ${snd.run_date} ${snd.run_hour}Z`;
+    }
+
+    // Filtert den großen Datentopf nach dem aktuell ausgewählten Ort und füllt das Lauf-Dropdown
+    function filterByLocation() {
+      if (!STATE.currentLocationKey) return;
+
+      // 1. Alle Profile des gewählten Ortes holen
+      const locSoundings = STATE.allSoundings.filter(snd => getLocKey(snd) === STATE.currentLocationKey);
+
+      // 2. Alle verfügbaren Läufe für diesen Ort finden
+      const runSet = new Set();
+      locSoundings.forEach(snd => runSet.add(getRunKey(snd)));
+
+      // 3. Läufe absteigend sortieren (der NEUESTE Lauf steht ganz oben / an Index 0!)
+      const runs = Array.from(runSet).sort((a, b) => b.localeCompare(a));
+
+      // 4. Lauf-Dropdown befüllen
+      const runSelect = document.getElementById('run-select');
+      runSelect.innerHTML = '';
+      runs.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r;
+        opt.textContent = r;
+        runSelect.appendChild(opt);
+      });
+
+      // 5. Automatisch den neuesten Lauf auswählen!
+      if (runs.length > 0) {
+        STATE.currentRunKey = runs[0];
+        runSelect.value = STATE.currentRunKey;
+      } else {
+        STATE.currentRunKey = '';
+      }
+
+      // 6. Jetzt nach Ort UND Lauf filtern
+      filterByRun();
+    }
+
+    // NEU: Filtert die Daten final nach Ort und dem gewählten Lauf
+    function filterByRun() {
+      if (!STATE.currentLocationKey || !STATE.currentRunKey) return;
+
+      // 1. Nur Profile für den aktiven Ort UND den aktiven Lauf behalten
+      const filtered = STATE.allSoundings.filter(snd =>
+        getLocKey(snd) === STATE.currentLocationKey &&
+        getRunKey(snd) === STATE.currentRunKey
+      );
+
+      // 2. Diese nur noch nach Vorhersagestunde (step_h) sortieren
+      STATE.soundings = filtered.sort((a, b) => a.step_h - b.step_h);
+
+      // 3. Zeitleiste auf 0 setzen und Bild neu zeichnen
+      STATE.currentIdx = 0;
+      updateTimeslider();
+      jumpTo(0);
+    }
+
+    // Event-Listener für das neue Dropdown
+    document.getElementById('run-select').addEventListener('change', e => {
+      STATE.currentRunKey = e.target.value;
+      filterByRun();
+    });
+
+    // Neue Lade-Routine (wird von Cloud und Drag&Drop genutzt)
+    function loadSoundings(files_or_data) {
+      STATE.allSoundings = [...files_or_data];
+      if (STATE.allSoundings.length === 0) return;
+
+      // 1. Alle einzigartigen Orte in den Daten finden
+      const locSet = new Set();
+      STATE.allSoundings.forEach(snd => locSet.add(getLocKey(snd)));
+      const locations = Array.from(locSet).sort();
+
+      // 2. Dropdown-Menü mit diesen Orten befüllen
+      const select = document.getElementById('loc-select');
+      select.innerHTML = '';
+      locations.forEach(loc => {
+        const opt = document.createElement('option');
+        opt.value = loc;
+        opt.textContent = loc;
+        select.appendChild(opt);
+      });
+
+      // 3. Ersten Ort als Standard setzen und Filter anwenden
+      STATE.currentLocationKey = locations[0];
+      select.value = STATE.currentLocationKey;
+
+      document.getElementById('empty-state').classList.add('hidden');
+      filterByLocation();
+    }
+
+    // Wenn der Nutzer im Dropdown einen anderen Ort anklickt -> Ansicht aktualisieren!
+    document.getElementById('loc-select').addEventListener('change', e => {
+      STATE.currentLocationKey = e.target.value;
+      filterByLocation();
+    });
+
+    function readJsonFiles(fileList) {
+      const promises = Array.from(fileList).map(f => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = e => {
+            try { resolve(JSON.parse(e.target.result)); }
+            catch (err) { reject(err); }
+          };
+          reader.onerror = reject;
+          reader.readAsText(f);
+        });
+      });
+      Promise.all(promises).then(results => {
+        // Flatten: einzelne Soundings und Arrays (kombinierte Dateien) zusammenführen
+        const all = results.flatMap(r => Array.isArray(r) ? r : [r]);
+        loadSoundings(all);
+      }).catch(err => alert('Fehler: ' + err));
+    }
+
+    document.getElementById('file-input').addEventListener('change', e => {
+      readJsonFiles(e.target.files);
+    });
+
+    // Drag & Drop
+    const chartWrap = document.getElementById('chart-wrap');
+    document.body.addEventListener('dragover', e => {
+      e.preventDefault();
+      document.body.classList.add('drag-over');
+    });
+    document.body.addEventListener('dragleave', () => {
+      document.body.classList.remove('drag-over');
+    });
+    document.body.addEventListener('drop', e => {
+      e.preventDefault();
+      document.body.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) readJsonFiles(e.dataTransfer.files);
+    });
+
+    // =========================================================================
+    // Cursor-Daten beim Hovern (ersetzt den fliegenden Tooltip)
+    // =========================================================================
+    function clearCursorData() {
+      document.getElementById('cur-p').textContent = '—';
+      document.getElementById('cur-z-agl').textContent = '—';  // Geändert
+      document.getElementById('cur-z-amsl').textContent = '—'; // Geändert
+      document.getElementById('cur-t').textContent = '—';
+      document.getElementById('cur-td').textContent = '—';
+      document.getElementById('cur-rh').textContent = '—';
+      document.getElementById('cur-wind').textContent = '—';
+    }
+
+    // =========================================================================
+    // Interaktion: Zoom & Pan
+    // =========================================================================
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+    let projStart = { x: 0, y: 0 };
+
+    canvas.addEventListener('mousedown', e => {
+      if (e.button !== 0) return; // Nur linke Maustaste erlaubt ziehen
+      isDragging = true;
+      dragStart = { x: e.clientX, y: e.clientY };
+      projStart = { x: proj.offsetX, y: proj.offsetY };
+      canvas.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        canvas.style.cursor = 'default';
+      }
+    });
+
+    canvas.addEventListener('dblclick', () => {
+      if (!proj) return;
+      proj.zoom = 1.0;
+      proj.offsetX = 0;
+      proj.offsetY = 0;
+      redraw();
+    });
+
+    canvas.addEventListener('wheel', e => {
+      if (!proj) return;
+      e.preventDefault(); // Verhindert das Scrollen der gesamten Webseite
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left - proj.margin.left;
+      const mouseY = e.clientY - rect.top - proj.margin.top;
+
+      // Zoom-Faktor bestimmen (sanftes Zoomen)
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+      const newZoom = Math.max(1.0, Math.min(proj.zoom * zoomFactor, 15.0)); // Max 15x Zoom
+
+      if (newZoom !== proj.zoom) {
+        // Offset so anpassen, dass genau unter der Maus hineingezoomt wird!
+        proj.offsetX = mouseX - (mouseX - proj.offsetX) * (newZoom / proj.zoom);
+        proj.offsetY = mouseY - (mouseY - proj.offsetY) * (newZoom / proj.zoom);
+
+        // Zurücksetzen, wenn wir wieder auf 100% sind
+        if (newZoom === 1.0) {
+          proj.offsetX = 0;
+          proj.offsetY = 0;
+        }
+
+        proj.zoom = newZoom;
+        redraw();
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('mousemove', e => {
+      if (!proj || STATE.soundings.length === 0) return;
+
+      if (isDragging) {
+        proj.offsetX = projStart.x + (e.clientX - dragStart.x);
+        proj.offsetY = projStart.y + (e.clientY - dragStart.y);
+        clearCursorData();
+        redraw();
+        return;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      // Pixel in meteorologische Werte umrechnen
+      const p_hPa = proj.canvasY2p(mouseY);
+      const T_C = proj.canvas2T(mouseX, p_hPa);
+
+      // Status aktualisieren für die interaktiven Linien
+      STATE.mouseHover = { p_hPa, T_C };
+
+      const snd = STATE.soundings[STATE.currentIdx];
+      if (!snd) return;
+
+      // Nächstes Modell-Level suchen
+      const l = (snd.levels || []).reduce((best, lv) =>
+        Math.abs(lv.p_hPa - p_hPa) < Math.abs(best.p_hPa - p_hPa) ? lv : best,
+        { p_hPa: Infinity }
+      );
+
+      // Wenn die Maus zu weit weg von echten Daten ist (z.B. im Weltraum)
+      if (!l || Math.abs(l.p_hPa - p_hPa) > 30) {
+        clearCursorData();
+        redraw();
+        return;
+      }
+
+      // Werte in die Sidebar schreiben
+      document.getElementById('cur-p').textContent = Math.round(l.p_hPa) + ' hPa';
+
+      let zAglText = '—';
+      let zAmslText = '—';
+
+      if (l.z_m != null) {
+        // AGL ist direkt der Wert aus dem JSON (Da Integration bei 0 startet)
+        zAglText = `${Math.round(l.z_m)} m / ${Math.round(l.z_m * 3.28084)} ft`;
+
+        // AMSL: Wir berechnen die Modell-Geländehöhe aus dem Bodendruck via Standardatmosphäre
+        const p_sfc = snd.surface_p_hPa || (snd.levels.length > 0 ? snd.levels[0].p_hPa : 1013.25);
+        const z_sfc_isa = 44330 * (1 - Math.pow(p_sfc / 1013.25, 0.19026));
+
+        // AMSL = AGL + Geländehöhe
+        const amsl_m = l.z_m + Math.max(0, z_sfc_isa);
+        zAmslText = `~${Math.round(amsl_m)} m / ${Math.round(amsl_m * 3.28084)} ft`;
+      }
+
+      document.getElementById('cur-z-agl').textContent = zAglText;
+      document.getElementById('cur-z-amsl').textContent = zAmslText;
+
+      document.getElementById('cur-t').textContent = l.T_C.toFixed(1) + ' °C';
+      document.getElementById('cur-td').textContent = l.Td_C.toFixed(1) + ' °C';
+
+      // --- NEU: RH berechnen und anzeigen ---
+      let rhText = '—';
+      if (l.T_C != null && l.Td_C != null) {
+        const rhVal = calcRelativeHumidity(l.T_C, l.Td_C);
+        if (rhVal != null) {
+          rhText = Math.round(rhVal) + ' %';
+        }
+      }
+      document.getElementById('cur-rh').textContent = rhText;
+
+      let wText = '—';
+      if (l.wspd_kn != null) {
+        wText = `${MET.dir_text(l.wdir_deg)} ${Math.round(l.wdir_deg)}° / ${Math.round(l.wspd_kn)} kn`;
+      }
+      document.getElementById('cur-wind').textContent = wText;
+
+      redraw();
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+      STATE.mouseHover = null;
+      clearCursorData();
+      redraw();
+    });
+
+    // =========================================================================
+    // GitHub Cloud Download
+    // =========================================================================
+    async function fetchFromCloud() {
+      const repo = 'wetterheidi/sounding_data';
+      const path = 'data'; // Der Ordner, den unsere GitHub-Action befüllt
+      const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
+
+      const emptyStateText = document.querySelector('#empty-state p');
+      const originalText = emptyStateText.innerHTML;
+
+      try {
+        // Lade-Hinweis anzeigen
+        emptyStateText.innerHTML = 'Suche aktuelle Daten in der Cloud...<br><span style="color:var(--accent)">Bitte warten</span>';
+
+        // 1. Inhaltsverzeichnis des Ordners bei GitHub abfragen
+        const response = await fetch(apiUrl);
+        if (!response.ok) throw new Error('Ordner nicht gefunden oder noch leer.');
+
+        const files = await response.json();
+
+        // Nur .json Dateien herausfiltern
+        const jsonFiles = files.filter(f => f.name.endsWith('.json'));
+        if (jsonFiles.length === 0) throw new Error('Keine JSON-Dateien im Cloud-Ordner gefunden.');
+
+        emptyStateText.innerHTML = `Lade ${jsonFiles.length} Profile herunter...<br><span style="color:var(--accent)">Bitte warten</span>`;
+
+        // 2. Alle JSON-Dateien parallel über ihre "download_url" herunterladen
+        const fetchPromises = jsonFiles.map(file =>
+          fetch(file.download_url).then(res => res.json())
+        );
+
+        const allData = await Promise.all(fetchPromises);
+
+        // 3. Wie beim Drag & Drop: Verschachtelungen auflösen und in den Viewer laden
+        const flatData = allData.flatMap(r => Array.isArray(r) ? r : [r]);
+        loadSoundings(flatData);
+
+      } catch (error) {
+        console.error('Cloud-Download Fehler:', error);
+        emptyStateText.innerHTML = `Cloud-Download fehlgeschlagen:<br><i>${error.message}</i><br><br>Lokale Datei laden.`;
+        setTimeout(() => {
+          if (STATE.soundings.length === 0) emptyStateText.innerHTML = originalText;
+        }, 5000);
+      }
+    }
+
+    // Button-Klick mit der Cloud-Funktion verknüpfen
+    document.getElementById('btn-cloud').addEventListener('click', fetchFromCloud);
+
+    // =========================================================================
+    // ASCII Export
+    // =========================================================================
+    function exportCurrentToAscii() {
+      const snd = STATE.soundings[STATE.currentIdx];
+      if (!snd || !snd.levels || snd.levels.length === 0) {
+        alert('Keine Daten zum Exportieren vorhanden.');
+        return;
+      }
+
+      // Die gewünschte Kopfzeile
+      let txt = "h(mAGL) p(hPa) T(C) Dew(C) Dir(°) Spd(m/s) RH(%)\n";
+
+      // Umrechnungsfaktor von Knoten in Meter pro Sekunde
+      const kn_to_ms = 0.514444;
+
+      // Wir gehen davon aus, dass Index 0 der Boden ist und iterieren nach oben
+      snd.levels.forEach(l => {
+        // Zuweisung und Formatierung der Werte (oder "---" falls Daten fehlen)
+        const z = l.z_m != null ? Math.round(l.z_m) : "---";
+        const p = l.p_hPa != null ? l.p_hPa.toFixed(1) : "---";
+        const t = l.T_C != null ? l.T_C.toFixed(1) : "---";
+        const td = l.Td_C != null ? l.Td_C.toFixed(1) : "---";
+        const dir = l.wdir_deg != null ? Math.round(l.wdir_deg) : "---";
+        const spd = l.wspd_kn != null ? (l.wspd_kn * kn_to_ms).toFixed(1) : "---";
+        
+        // Relative Feuchte berechnen
+        let rh = "---";
+        if (l.T_C != null && l.Td_C != null) {
+          const rhVal = calcRelativeHumidity(l.T_C, l.Td_C);
+          if (rhVal != null) rh = Math.round(rhVal);
+        }
+
+        // Zeile mit Leerzeichen getrennt zusammenbauen
+        txt += `${z} ${p} ${t} ${td} ${dir} ${spd} ${rh}\n`;
+      });
+
+      // Text-Blob für den Browser erzeugen
+      const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      
+      // Einen aussagekräftigen Dateinamen bauen, 
+      // z.B. 2026-03-27_0600Z_ICON-EU_step012.txt
+      const dateStr = snd.run_date.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
+      const stepStr = String(snd.step_h).padStart(3, '0');
+      const fileName = `${dateStr}_${snd.run_hour}00Z_${snd.model}_step${stepStr}.txt`;
+      
+      a.href = url;
+      a.download = fileName;
+      
+      // Simulierter Klick zum Starten des Downloads
+      document.body.appendChild(a);
+      a.click();
+      
+      // Aufräumen
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Button mit der Funktion verknüpfen
+    document.getElementById('btn-export').addEventListener('click', exportCurrentToAscii);
+    
+    // =========================================================================
+    // Init
+    // =========================================================================
+    function init() {
+      proj = new SkewTProj(canvas);
+      resizeCanvas();
+    }
+
+    window.addEventListener('resize', () => {
+      proj.resize();
+      resizeCanvas();
+    });
+
+    //Daten beim Start automatisch aus der Cloud laden (optional, kann auch über Button getriggert werden)
+    fetchFromCloud();
+
+    init();
+  </script>
+</body>
+
+</html>
