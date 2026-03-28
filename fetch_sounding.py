@@ -161,11 +161,9 @@ def _load_grid(model: str, run: str, run_date: datetime) -> bool:
     if lats is None or lons is None:
         log.error(f"  CLAT/CLON nicht abrufbar für {model.upper()}")
         return False
-    # CLAT/CLON sind in Radiant → zu Grad konvertieren
-    lats_deg = np.degrees(lats)
-    lons_deg = np.degrees(lons)
-    _grid_coords[model] = (lats_deg, lons_deg)
-    log.info(f"  Gitter geladen: {len(lats_deg)} Punkte")
+    # CLAT/CLON sind bereits in Grad
+    _grid_coords[model] = (lats, lons)
+    log.info(f"  Gitter geladen: {len(lats)} Punkte")
     return True
 
 def _nearest_index(model: str, lat: float, lon: float) -> int | None:
