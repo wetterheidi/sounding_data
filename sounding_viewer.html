@@ -151,7 +151,7 @@
     #timebar {
       background: var(--bg2);
       border-bottom: 1px solid var(--border);
-      padding: 10px 20px;
+      padding: 20px 20px;
       display: flex;
       align-items: center;
       gap: 14px;
@@ -757,7 +757,7 @@
         this.margin = margin;
         this.p_top = 100;
         this.p_bot = 1050;
-        this.skew = 45;      // Unser absoluter Wunsch-Winkel!
+        this.skew = 39;      // Kalibriert auf 0°C: skew = T_ref_K × κ / 2 = 273.15 × 0.2854 / 2 ≈ 39
 
         // Zoom & Pan
         this.zoom = 1.0;
