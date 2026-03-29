@@ -606,6 +606,7 @@
       allSoundings: [],        // NEU: Alle geladenen Profile (alle Orte)
       soundings: [],           // Gefilterte Profile (nur der aktuell gewählte Ort)
       currentLocationKey: '',  // NEU: Welcher Ort ist gerade im Dropdown aktiv?
+      locationAliases: {},     // Koordinaten-Key → Alias (aus location_alias-Feld der JSON-Daten)
       currentIdx: 0,
       currentRunKey: '',
       animTimer: null,
@@ -1304,7 +1305,9 @@
 
       // --- Titel ---
       const runStr = `${snd.model} ${snd.run_date} ${snd.run_hour}Z +${String(snd.step_h).padStart(3, '0')}h`;
-      const locStr = `${snd.grid_lat ?? snd.target_lat}°N  ${snd.grid_lon ?? snd.target_lon}°E`;
+      const coordStr = `${snd.grid_lat ?? snd.target_lat}°N  ${snd.grid_lon ?? snd.target_lon}°E`;
+      const locLabel = getLocLabel(getLocKey(snd));
+      const locStr = locLabel !== coordStr ? locLabel : coordStr;
       ctx.fillStyle = '#4a5068';
       ctx.font = '11px IBM Plex Mono, monospace';
       ctx.textAlign = 'left';
@@ -1952,6 +1955,7 @@
     // =========================================================================
     // Daten laden
     // =========================================================================
+
     // Hilfsfunktion: Erzeugt einen sauberen Text (Key) aus den Koordinaten eines Profils
     function getLocKey(snd) {
       const lat = snd.target_lat ?? snd.grid_lat;
@@ -1959,6 +1963,12 @@
       const latS = lat >= 0 ? `${lat}°N` : `${-lat}°S`;
       const lonS = lon >= 0 ? `${lon}°E` : `${-lon}°W`;
       return `${latS}  ${lonS}`;
+    }
+
+    // Hilfsfunktion: Gibt Anzeige-Label für einen Ort zurück (Alias · Koordinaten oder nur Koordinaten)
+    function getLocLabel(key) {
+      const alias = STATE.locationAliases?.[key];
+      return alias ? `${alias} · ${key}` : key;
     }
 
     // Hilfsfunktion: Erzeugt einen sauberen Text für den Lauf (z.B. "20260327 06Z")
@@ -2032,6 +2042,12 @@
       STATE.allSoundings = [...files_or_data];
       if (STATE.allSoundings.length === 0) return;
 
+      // 0. Alias-Map aus den Sounding-Daten aufbauen (location_alias-Feld, falls vorhanden)
+      STATE.locationAliases = {};
+      STATE.allSoundings.forEach(snd => {
+        if (snd.location_alias) STATE.locationAliases[getLocKey(snd)] = snd.location_alias;
+      });
+
       // 1. Alle einzigartigen Orte in den Daten finden
       const locSet = new Set();
       STATE.allSoundings.forEach(snd => locSet.add(getLocKey(snd)));
@@ -2043,7 +2059,7 @@
       locations.forEach(loc => {
         const opt = document.createElement('option');
         opt.value = loc;
-        opt.textContent = loc;
+        opt.textContent = getLocLabel(loc);
         select.appendChild(opt);
       });
 

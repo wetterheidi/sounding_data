@@ -276,7 +276,7 @@ def geopotential_heights_ground_first(p_pa: list[float], T_K: list[float], ps_pa
         p_prev = p_c
     return z
 
-def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datetime, step: int, jobs: int = 20) -> dict | None:
+def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datetime, step: int, jobs: int = 20, alias: str | None = None) -> dict | None:
     cfg   = MODEL_CFG[model]
     n_lev = cfg["n_levels"]
     n_par = len(cfg["params"])
@@ -369,6 +369,7 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
         "valid_time": valid_dt.strftime("%Y-%m-%dT%H:%MZ"),
         "target_lat": lat, "target_lon": lon,
         "grid_lat": lat, "grid_lon": lon,
+        **({"location_alias": alias} if alias else {}),
         "surface_p_hPa": round(ps_pa / 100.0, 2),
         "n_levels_loaded": len(levels),
         "levels": levels,
@@ -421,6 +422,7 @@ def main():
     ap.add_argument("--step",    default="0", help="Vorhersagestunden")
     ap.add_argument("--outdir",  default=".", help="Ausgabeverzeichnis")
     ap.add_argument("--jobs",    type=int, default=30, help="Downloads parallel")
+    ap.add_argument("--alias",   default=None, help="Kurzname/ICAO für den Ort (optional, z.B. ETHA)")
     args = ap.parse_args()
 
     run_date_arg = datetime.strptime(args.date, "%Y%m%d") if args.date else None
@@ -439,7 +441,7 @@ def main():
 
     soundings = []
     for step in steps:
-        snd = fetch_sounding(args.lat, args.lon, args.model, run, run_date, step, args.jobs)
+        snd = fetch_sounding(args.lat, args.lon, args.model, run, run_date, step, args.jobs, alias=args.alias)
         if snd:
             soundings.append(snd)
 
