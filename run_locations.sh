@@ -1,14 +1,19 @@
 #!/bin/bash
 mkdir -p ./data
 
-# --- NEU: Intelligentes Aufräumen von Dateien, die älter als 3 Tage sind ---
+# Optionaler Modell-Filter: icon-d2, icon-eu, icon (leer = alle)
+MODEL_FILTER="${1:-}"
+
+# Hilfsfunktion: gibt 0 (ausführen) zurück, wenn Modell zum Filter passt
+run_model() {
+  [[ -z "$MODEL_FILTER" || "$MODEL_FILTER" == "$1" ]]
+}
+
+# --- Intelligentes Aufräumen von Dateien, die älter als 3 Tage sind ---
 python3 -c '
 import os, datetime, glob, re
-# Grenze: Vor 3 Tagen
 limit = datetime.datetime.utcnow() - datetime.timedelta(days=3)
-
 for f in glob.glob("./data/*.json"):
-    # Suche das Datum im Dateinamen (8 Ziffern am Stück, z.B. 20260327)
     match = re.search(r"_(\d{8})_", f)
     if match:
         file_date = datetime.datetime.strptime(match.group(1), "%Y%m%d")
@@ -18,17 +23,28 @@ for f in glob.glob("./data/*.json"):
 '
 # ---------------------------------------------------------------------------
 
-# Ort 1: München (MUC) - Vorhersage für 48 Stunden im 6-Stunden-Takt
-#python3 fetch_sounding.py --lat 48.35 --lon 11.79 --model icon-eu --step 0:48:6 --outdir ./data
+# === ICON-D2 (3-stündlich) ===
+if run_model "icon-d2"; then
+  # Ort: Startplatz
+  python3 fetch_sounding.py --lat 47.981 --lon 11.235 --model icon-d2 --step 0:24:1 --outdir ./data --alias Startplatz
 
-# Ort 2: Bishop 33.113, -112.270
-# python3 fetch_sounding.py --lat 33.113 --lon -112.270 --model icon --step 0:6:6 --outdir ./data
+  # Ort: Muckberg
+  python3 fetch_sounding.py --lat 48.710 --lon 8.784 --model icon-d2 --step 0:24:1 --outdir ./data --alias Muckberg
+fi
 
-# Ort 3: Startplatz 47.981, 11.235
-python3 fetch_sounding.py --lat 47.981 --lon 11.235 --model icon-d2 --step 0:24:1 --outdir ./data --alias Startplatz
+# === ICON-EU (3-stündlich) ===
+if run_model "icon-eu"; then
+  # Ort: München
+  # python3 fetch_sounding.py --lat 48.35 --lon 11.79 --model icon-eu --step 0:48:6 --outdir ./data --alias EDDM
+  :
+fi
 
-# Ort 4: Muckberg
-python3 fetch_sounding.py --lat 48.710 --lon 8.784 --model icon-d2 --step 0:24:1 --outdir ./data --alias Muckberg
+# === ICON Global (6-stündlich) ===
+if run_model "icon"; then
+  # Ort: Phoenix
+  # python3 fetch_sounding.py --lat 33.113 --lon -112.270 --model icon --step 0:24:6 --outdir ./data --alias KPHX
 
-# Ort 5: Irgendwo in der Karibik (CAPE Test)
-# python3 fetch_sounding.py --lat 18.036 --lon -72.150 --model icon --step 0:6:6 --outdir ./data
+  # Ort: Karibik (CAPE Test)
+  # python3 fetch_sounding.py --lat 18.036 --lon -72.150 --model icon --step 0:6:6 --outdir ./data
+  :
+fi
