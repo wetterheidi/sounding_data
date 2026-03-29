@@ -272,8 +272,8 @@
     /* Seitenleiste: Indizes                                                */
     /* ------------------------------------------------------------------ */
     #sidebar {
-      width: 250px;
-      min-width: 230px;
+      width: 270px;
+      min-width: 250px;
       background: var(--bg2);
       border-left: 1px solid var(--border);
       overflow-y: auto;
@@ -292,6 +292,39 @@
       margin-bottom: 6px;
       padding-bottom: 4px;
       border-bottom: 1px solid var(--border);
+    }
+
+    details.sidebar-section {
+      border: none;
+    }
+
+    details.sidebar-section summary {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text3);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      user-select: none;
+    }
+
+    details.sidebar-section summary::-webkit-details-marker { display: none; }
+
+    details.sidebar-section summary::before {
+      content: '▸';
+      font-size: 9px;
+      transition: transform 0.15s;
+    }
+
+    details[open].sidebar-section summary::before {
+      transform: rotate(90deg);
     }
 
     .index-row {
@@ -489,27 +522,29 @@
             style="color:#a1a9bd">—</span></div>
         <div class="index-row"><span class="index-name">Wind</span><span class="index-val" id="cur-wind">—</span></div>
       </div>
-      <div class="sidebar-section">
-        <h3>Labilitätsindizes</h3>
-        <div class="index-row"><span class="index-name">CAPE</span><span class="index-val" id="idx-cape">—</span></div>
+      <details class="sidebar-section" open>
+        <summary>Labilitätsindizes</summary>
+        <div class="index-row"><span class="index-name"><label style="cursor:pointer"><input type="checkbox" id="chk-cape-lfc" style="margin-right:3px;">CAPE (LFC)</label></span><span class="index-val" id="idx-cape">—</span></div>
+        <div class="index-row"><span class="index-name"><label style="cursor:pointer"><input type="checkbox" id="chk-cape-ccl" style="margin-right:3px;">CAPE (CCL)</label></span><span class="index-val" id="idx-cape-ccl">—</span></div>
         <div class="index-row"><span class="index-name">CIN</span><span class="index-val" id="idx-cin">—</span></div>
-        <div class="index-row"><span class="index-name">Lifted Index</span><span class="index-val" id="idx-li">—</span>
-        </div>
+        <div class="index-row"><span class="index-name">Lifted Index</span><span class="index-val" id="idx-li">—</span></div>
         <div class="index-row"><span class="index-name">K-Index</span><span class="index-val" id="idx-ki">—</span></div>
-        <div class="index-row"><span class="index-name">Showalter</span><span class="index-val" id="idx-si">—</span>
-        </div>
-        <div class="index-row"><span class="index-name">TTI</span><span class="index-val" id="idx-tti">—</span></div>
-      </div>
-      <div class="sidebar-section">
-        <h3>Kondensationsniveaus</h3>
+        <div class="index-row"><span class="index-name">Showalter</span><span class="index-val" id="idx-si">—</span></div>
+        <div class="index-row"><span class="index-name">TT</span><span class="index-val" id="idx-tti">—</span></div>
+        <div class="index-row"><span class="index-name">VT</span><span class="index-val" id="idx-vt">—</span></div>
+        <div class="index-row"><span class="index-name">KO-Index</span><span class="index-val" id="idx-ko">—</span></div>
+        <div class="index-row"><span class="index-name">Fröstl</span><span class="index-val" id="idx-froestl">—</span></div>
+      </details>
+      <details class="sidebar-section" open>
+        <summary>Kondensationsniveaus</summary>
         <div class="index-row"><span class="index-name">LCL</span><span class="index-val" id="idx-lcl">—</span></div>
         <div class="index-row"><span class="index-name">LFC</span><span class="index-val" id="idx-lfc">—</span></div>
         <div class="index-row"><span class="index-name">CCL</span><span class="index-val" id="idx-ccl">—</span></div>
         <div class="index-row"><span class="index-name">TA</span><span class="index-val" id="idx-tc">—</span></div>
         <div class="index-row"><span class="index-name">EL</span><span class="index-val" id="idx-el">—</span></div>
-      </div>
-      <div class="sidebar-section">
-        <h3>Wind (repr. Niveaus)</h3>
+      </details>
+      <details class="sidebar-section" open>
+        <summary>Wind (repr. Niveaus)</summary>
         <table class="wind-table" id="wind-table">
           <thead>
             <tr>
@@ -520,22 +555,25 @@
           </thead>
           <tbody></tbody>
         </table>
-      </div>
-      <div class="sidebar-section">
-        <h3>Troposphäre</h3>
+        <div style="margin-top:6px;border-top:1px solid var(--border);padding-top:6px;">
+          <div class="index-row"><span class="index-name">Faust-Glover Böen</span><span class="index-val" id="idx-faust">—</span></div>
+          <div class="index-row"><span class="index-name">Nakamura Böen</span><span class="index-val" id="idx-nakamura">—</span></div>
+        </div>
+      </details>
+      <details class="sidebar-section" open>
+        <summary>Troposphäre</summary>
         <div class="index-row"><span class="index-name">Tropopause (est.)</span><span class="index-val"
             id="idx-tropo">—</span></div>
-        <div class="index-row"><span class="index-name">0°C Grenze</span><span class="index-val" id="idx-iso0">—</span>
-        </div>
-      </div>
-      <div class="sidebar-section" style="opacity: 0.7;">
-        <h3>Steuerung</h3>
+        <div class="index-row"><span class="index-name">0°C Grenze</span><span class="index-val" id="idx-iso0">—</span></div>
+      </details>
+      <details class="sidebar-section" open style="opacity: 0.7;">
+        <summary>Steuerung</summary>
         <div style="font-size: 11px; color: var(--text2); line-height: 1.5;">
           <b>Mausrad:</b> Zoomen<br>
           <b>Klick & Ziehen:</b> Verschieben<br>
           <b>Doppelklick:</b> Zoom zurücksetzen
         </div>
-      </div>
+      </details>
     </div>
   </div>
 
@@ -557,6 +595,9 @@
       animTimer: null,
       animPlaying: false,
       mouseHover: null,
+      showCapeLfc: false,
+      showCapeCcl: false,
+      parcelData: null,
     };
 
     // =========================================================================
@@ -624,6 +665,33 @@
           p += dp_hPa;
         }
         return T;
+      },
+      /** Potentielle Temperatur [K] */
+      potential_T(T_K, p_hPa) {
+        return T_K * Math.pow(1000 / p_hPa, 0.2854);
+      },
+      /** Feucht-Pseudopotentielle Temperatur [K] (θ_sw) bei Sättigung */
+      moist_potential_T(T_K, p_hPa) {
+        // Feuchtadiabatisch von (T, p) auf 1000 hPa absteigen
+        return MET.moist_adiabat_T(T_K, p_hPa, 1000);
+      },
+      /** Feuchttemperatur (Wet-Bulb) [°C] - iterative Näherung */
+      wet_bulb(T_C, Td_C, p_hPa) {
+        // Normand-Konstruktion: LCL finden, dann feuchtadiabatisch zum Ausgangsdruck
+        const T_lcl_K = MET.T_LCL(T_C, Td_C);
+        const p_lcl = p_hPa * Math.pow(T_lcl_K / (T_C + 273.15), 1 / 0.2854);
+        const Tw_K = MET.moist_adiabat_T(T_lcl_K, p_lcl, p_hPa);
+        return Tw_K - 273.15;
+      },
+      /** Äquivalentpotentielle Temperatur θe [K] (Bolton 1980) */
+      theta_e(T_K, Td_K, p_hPa) {
+        const T_C = T_K - 273.15;
+        const Td_C = Td_K - 273.15;
+        const T_lcl = 1 / (1 / (Td_K - 56) + Math.log(T_K / Td_K) / 800) + 56;
+        const e = MET.es(Td_C) / 100; // hPa
+        const r = 0.622 * e / (p_hPa - e); // kg/kg
+        const theta = T_K * Math.pow(1000 / p_hPa, 0.2854 * (1 - 0.28 * r));
+        return theta * Math.exp((3036 / T_lcl - 1.78) * r * (1 + 0.448 * r));
       },
       /** Windrichtung in Text */
       dir_text(deg) {
@@ -1093,6 +1161,110 @@
       ctx.stroke();
 
 
+      // --- CAPE-Flächen (optional, per Checkbox) ---
+      if ((STATE.showCapeLfc || STATE.showCapeCcl) && STATE.parcelData) {
+
+        // Hilfsfunktion: CAPE/CIN-Fläche + Parcel-Kurve zeichnen
+        function drawCapeArea(parcelPath, startP, endP, color, parcelColor) {
+          if (!parcelPath || !startP || !endP) return;
+
+          // Positive CAPE-Fläche
+          ctx.beginPath();
+          let started = false;
+          for (let i = 0; i < lvls.length; i++) {
+            const l = lvls[i];
+            const pp = parcelPath.find(p => Math.abs(p.p - l.p_hPa) < 0.5);
+            if (!pp || l.p_hPa > startP || l.p_hPa < endP) continue;
+            if (pp.T_C <= l.T_C) continue;
+            const c = proj.toCanvas(pp.T_C, l.p_hPa);
+            started ? ctx.lineTo(c.x, c.y) : (ctx.moveTo(c.x, c.y), started = true);
+          }
+          for (let i = lvls.length - 1; i >= 0; i--) {
+            const l = lvls[i];
+            const pp = parcelPath.find(p => Math.abs(p.p - l.p_hPa) < 0.5);
+            if (!pp || l.p_hPa > startP || l.p_hPa < endP) continue;
+            if (pp.T_C <= l.T_C) continue;
+            const c = proj.toCanvas(l.T_C, l.p_hPa);
+            ctx.lineTo(c.x, c.y);
+          }
+          ctx.closePath();
+          ctx.fillStyle = color;
+          ctx.fill();
+
+          // CIN-Fläche (blau, unter startP)
+          ctx.beginPath();
+          started = false;
+          for (let i = 0; i < lvls.length; i++) {
+            const l = lvls[i];
+            const pp = parcelPath.find(p => Math.abs(p.p - l.p_hPa) < 0.5);
+            if (!pp || l.p_hPa < startP) continue;
+            if (pp.T_C >= l.T_C) continue;
+            const c = proj.toCanvas(pp.T_C, l.p_hPa);
+            started ? ctx.lineTo(c.x, c.y) : (ctx.moveTo(c.x, c.y), started = true);
+          }
+          for (let i = lvls.length - 1; i >= 0; i--) {
+            const l = lvls[i];
+            const pp = parcelPath.find(p => Math.abs(p.p - l.p_hPa) < 0.5);
+            if (!pp || l.p_hPa < startP) continue;
+            if (pp.T_C >= l.T_C) continue;
+            const c = proj.toCanvas(l.T_C, l.p_hPa);
+            ctx.lineTo(c.x, c.y);
+          }
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(74, 130, 255, 0.15)';
+          ctx.fill();
+
+          // Parcel-Kurve (gestrichelt)
+          ctx.beginPath();
+          ctx.setLineDash([4, 3]);
+          ctx.strokeStyle = parcelColor;
+          ctx.lineWidth = 1.5;
+          parcelPath.forEach((p, i) => {
+            if (p.p > proj.p_bot || p.p < proj.p_top) return;
+            const c = proj.toCanvas(p.T_C, p.p);
+            i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
+          });
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        // CAPE (LFC): Parcel vom Boden (LCL-basiert)
+        if (STATE.showCapeLfc) {
+          const pd = STATE.parcelData;
+          drawCapeArea(pd.path, pd.lfc_p, pd.el_p, 'rgba(224, 92, 58, 0.20)', '#f0c040');
+        }
+
+        // CAPE (CCL): Parcel ab CCL feuchtadiabatisch
+        if (STATE.showCapeCcl && STATE.parcelData.ccl_p) {
+          const pd = STATE.parcelData;
+          const ccl_p = pd.ccl_p;
+          const T_ccl_K = lvls.reduce((best, l) =>
+            Math.abs(l.p_hPa - ccl_p) < Math.abs(best.p_hPa - ccl_p) ? l : best
+          ).T_C + 273.15;
+
+          // CCL-Parcel-Pfad berechnen
+          const cclPath = lvls.map(l => {
+            let Tp_K;
+            if (l.p_hPa >= ccl_p) {
+              Tp_K = MET.dry_adiabat_T(T_ccl_K, ccl_p, l.p_hPa);
+            } else {
+              Tp_K = MET.moist_adiabat_T(T_ccl_K, ccl_p, l.p_hPa);
+            }
+            return { p: l.p_hPa, T_C: Tp_K - 273.15 };
+          });
+
+          // EL für CCL-Parcel finden
+          let ccl_el = null;
+          for (let i = 0; i < lvls.length; i++) {
+            if (lvls[i].p_hPa > ccl_p) continue;
+            const cp = cclPath.find(p => Math.abs(p.p - lvls[i].p_hPa) < 0.5);
+            if (cp && cp.T_C > lvls[i].T_C) ccl_el = lvls[i].p_hPa;
+          }
+
+          drawCapeArea(cclPath, ccl_p, ccl_el, 'rgba(180, 120, 255, 0.20)', '#c090ff');
+        }
+      }
+
       // --- Windbarbs (rechte Spalte) ---
       const barbX = m.left + proj.W + 60;
       const p_barb_levels = [1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150];
@@ -1131,8 +1303,8 @@
       ctx.clearRect(0, 0, W, H);
       drawBackground();
       if (STATE.soundings.length > 0) {
-        drawSounding(STATE.soundings[STATE.currentIdx]);
         computeAndDisplayIndices(STATE.soundings[STATE.currentIdx]);
+        drawSounding(STATE.soundings[STATE.currentIdx]);
       }
       drawInteractiveLines(); // HIER zeichnen wir die neuen Maus-Linien!
     }
@@ -1147,48 +1319,156 @@
       );
     }
 
-    // Berechnet den Aufstieg eines Boden-Luftpakets (Parcel Path)
+    // Berechnet den Aufstieg eines Boden-Luftpakets (Mixed-Layer Parcel Path)
     function computeParcel(lvls) {
       if (!lvls || lvls.length === 0) return null;
 
-      // FIX: In den ICON-Daten ist Index 0 der Boden (Surface)!
       const sfc = lvls[0];
       const p_sfc = sfc.p_hPa;
-      const T_sfc_K = sfc.T_C + 273.15;
 
-      // LCL berechnen
-      const T_LCL_K = MET.T_LCL(sfc.T_C, sfc.Td_C);
-      const p_LCL = p_sfc * Math.pow(T_LCL_K / T_sfc_K, 1 / 0.2854);
+      // --- Mixed-Layer LCL (nach LCLOperator.java) ---
 
+      // 1. Inversionsbehandlung: Wärmstes Level in Bodennähe finden
+      let iLCL = 0;
+      for (let i = 1; i < lvls.length; i++) {
+        if (lvls[i].p_hPa < p_sfc - 100) break;
+        if (lvls[i].T_C > lvls[iLCL].T_C) iLCL = i;
+      }
+
+      // 2. Repräsentatives Mischungsverhältnis der untersten 100 hPa
+      let sum_w = 0, count = 0, sum_T = 0;
+      for (let i = 0; i < lvls.length; i++) {
+        if (lvls[i].p_hPa < p_sfc - 100) break;
+        if (lvls[i].T_C == null || lvls[i].Td_C == null) continue;
+        const w = MET.mixing_ratio(lvls[i].Td_C, lvls[i].p_hPa);
+        if (w < 99) {
+          sum_w += w;
+          sum_T += lvls[i].T_C + 273.15;
+          count++;
+        }
+      }
+      if (count === 0) return null;
+      const w_mean = sum_w / count;
+
+      // 3. Starttemperatur und -druck bestimmen
+      let T_start_K, p_start;
+      if (iLCL === 0) {
+        T_start_K = sfc.T_C + 273.15;
+        p_start = p_sfc;
+      } else {
+        T_start_K = sum_T / count;
+        // Druckniveau passend zur mittleren Temperatur suchen
+        p_start = lvls[iLCL].p_hPa;
+        for (let i = 0; i < lvls.length; i++) {
+          if (lvls[i].p_hPa < p_sfc - 100) break;
+          if (lvls[i].T_C + 273.15 >= T_start_K) {
+            p_start = lvls[i].p_hPa;
+            break;
+          }
+        }
+      }
+
+      // 4. Potentielle Temperatur am Startlevel
+      const potTemp = MET.potential_T(T_start_K, p_start);
+
+      // 5. Iterativ LCL finden: Trockenadiabate aufsteigen bis
+      //    Sättigungsmischungsverhältnis = mittleres Mischungsverhältnis
+      let p_LCL = p_start;
+      let T_LCL_K = T_start_K;
+      let dp = 100; // hPa Schrittweite
+      for (let safety = 0; safety < 1000; safety++) {
+        p_LCL -= dp;
+        if (p_LCL <= 50) return null;
+        T_LCL_K = MET.dry_adiabat_T(potTemp, 1000, p_LCL);
+        const w_sat = MET.mixing_ratio(T_LCL_K - 273.15, p_LCL);
+        const diff = w_sat - w_mean;
+        if (Math.abs(diff) < 0.00001) break;
+        if (diff < 0) {
+          p_LCL += dp;
+          dp /= 10;
+          if (dp < 0.0001) break;
+        }
+      }
+
+      // --- LFC nach LFCOperator.java: Iterative Suche entlang Feuchtadiabate ---
+      // Hilfsfunktion: Umgebungstemperatur bei beliebigem Druck interpolieren
+      function envTempAtP(p) {
+        if (p >= lvls[0].p_hPa) return lvls[0].T_C + 273.15;
+        if (p <= lvls[lvls.length - 1].p_hPa) return lvls[lvls.length - 1].T_C + 273.15;
+        for (let i = 1; i < lvls.length; i++) {
+          if (lvls[i].p_hPa <= p) {
+            const p0 = lvls[i - 1].p_hPa, p1 = lvls[i].p_hPa;
+            const T0 = lvls[i - 1].T_C + 273.15, T1 = lvls[i].T_C + 273.15;
+            const frac = (p - p0) / (p1 - p0);
+            return T0 + frac * (T1 - T0);
+          }
+        }
+        return lvls[lvls.length - 1].T_C + 273.15;
+      }
+
+      const STOP_AT_PRESSURE = 100; // hPa
+      let lfc_p = null;
+
+      // Prüfen ob LCL-Temperatur bereits > Umgebung (bereits instabil → LFC = LCL)
+      const T_env_at_lcl = envTempAtP(p_LCL);
+      if (T_LCL_K > T_env_at_lcl) {
+        lfc_p = p_LCL;
+      } else {
+        // Grobe Suche: Feuchtadiabate in 2-hPa-Schritten aufwärts ab LCL
+        const DP_COARSE = 2; // hPa
+        let prevP_coarse = p_LCL;
+        for (let p = p_LCL - DP_COARSE; p >= STOP_AT_PRESSURE; p -= DP_COARSE) {
+          const Tp = MET.moist_adiabat_T(T_LCL_K, p_LCL, p);
+          const Te = envTempAtP(p);
+          if (Tp > Te) {
+            // Feine Suche: Vom vorherigen groben Schritt in 0.05-hPa-Schritten
+            const DP_FINE = 0.05;
+            for (let pf = prevP_coarse; pf >= p; pf -= DP_FINE) {
+              const Tp_f = MET.moist_adiabat_T(T_LCL_K, p_LCL, pf);
+              const Te_f = envTempAtP(pf);
+              if (Tp_f > Te_f) {
+                lfc_p = pf;
+                break;
+              }
+            }
+            if (!lfc_p) lfc_p = p; // Fallback
+            break;
+          }
+          prevP_coarse = p;
+        }
+      }
+
+      // --- Parcel-Pfad und CAPE/CIN berechnen ---
       let parcel = [];
       let cape = 0, cin = 0;
-      let lfc_p = null, el_p = null;
+      let el_p = null;
       let above_lfc = false;
 
-      // Von unten (Boden) nach oben iterieren
       for (let i = 0; i < lvls.length; i++) {
         const l = lvls[i];
         let Tp_K;
         if (l.p_hPa >= p_LCL) {
-          Tp_K = MET.dry_adiabat_T(T_sfc_K, p_sfc, l.p_hPa);
+          Tp_K = MET.dry_adiabat_T(potTemp, 1000, l.p_hPa);
         } else {
           Tp_K = MET.moist_adiabat_T(T_LCL_K, p_LCL, l.p_hPa);
         }
         parcel.push({ p: l.p_hPa, T_C: Tp_K - 273.15 });
 
-        // CAPE / CIN Integration
+        // CAPE / CIN Integration (LFC aus obiger Berechnung verwenden)
         if (i > 0) {
           const prev = lvls[i - 1];
           const dz = l.z_m - prev.z_m;
           const T_env_K = l.T_C + 273.15;
           const buoy = 9.81 * (Tp_K - T_env_K) / T_env_K * dz;
 
-          if (buoy > 0) {
-            if (!above_lfc) { above_lfc = true; lfc_p = l.p_hPa; }
-            cape += buoy;
-            el_p = l.p_hPa;
+          if (lfc_p !== null && l.p_hPa <= lfc_p) {
+            if (buoy > 0) {
+              above_lfc = true;
+              cape += buoy;
+              el_p = l.p_hPa;
+            }
           } else {
-            if (!above_lfc) cin += buoy;
+            if (buoy < 0) cin += buoy;
           }
         }
       }
@@ -1204,21 +1484,39 @@
 
       // Parcel und Instabilität (CAPE/CIN) berechnen
       const parcelData = computeParcel(lvls);
+      STATE.parcelData = parcelData;
 
       // K-Index, Total-Totals
       const l850 = levelAt(lvls, 850);
       const l700 = levelAt(lvls, 700);
       const l500 = levelAt(lvls, 500);
 
-      let ki = null, tti = null, si = null, li = null;
+      let ki = null, tti = null, vt = null, si = null, li = null, ko = null;
       if (l850 && l700 && l500) {
         ki = (l850.T_C - l500.T_C) + l850.Td_C - (l700.T_C - l700.Td_C);
         tti = (l850.T_C + l850.Td_C) - 2 * l500.T_C;
+        vt = l850.T_C - l500.T_C;
 
         const T_lcl_850_K = MET.T_LCL(l850.T_C, l850.Td_C);
         const p_lcl_850 = 850 * Math.pow(T_lcl_850_K / (l850.T_C + 273.15), 1 / 0.2854);
         const T_lifted_SI = MET.moist_adiabat_T(T_lcl_850_K, p_lcl_850, 500);
         si = l500.T_C - (T_lifted_SI - 273.15);
+
+        // KO-Index (nach KOIndexOperator.java)
+        // KO = 0.5 * (θe_700 + θe_500 - θe_850 - θe_1000)
+        if (l700.Td_C != null && l500.Td_C != null && l850.Td_C != null) {
+          const te500 = MET.theta_e(l500.T_C + 273.15, l500.Td_C + 273.15, l500.p_hPa);
+          const te700 = MET.theta_e(l700.T_C + 273.15, l700.Td_C + 273.15, l700.p_hPa);
+          const te850 = MET.theta_e(l850.T_C + 273.15, l850.Td_C + 273.15, l850.p_hPa);
+          const l1000 = levelAt(lvls, 1000);
+          let te1000;
+          if (l1000 && l1000.Td_C != null && Math.abs(l1000.p_hPa - 1000) < 30) {
+            te1000 = MET.theta_e(l1000.T_C + 273.15, l1000.Td_C + 273.15, l1000.p_hPa);
+          } else {
+            te1000 = te850; // Fallback wie im Java: θe_850 nochmal verwenden
+          }
+          ko = 0.5 * (te700 + te500 - te850 - te1000);
+        }
       }
 
       // Lifted Index (vom Boden gehoben)
@@ -1294,7 +1592,113 @@
         const T_conv_K = MET.dry_adiabat_T(T_ccl + 273.15, p_ccl, sfc_p);
         T_conv = T_conv_K - 273.15;
       }
+
+      // 4. CAPE (CCL): Parcel steigt vom CCL feuchtadiabatisch auf
+      let cape_ccl = 0;
+      if (p_ccl !== null && T_ccl !== null) {
+        const T_ccl_K = T_ccl + 273.15;
+        for (let i = 1; i < lvls.length; i++) {
+          const l = lvls[i];
+          if (l.p_hPa > p_ccl) continue;  // Unter CCL: kein Beitrag
+          const Tp_K = MET.moist_adiabat_T(T_ccl_K, p_ccl, l.p_hPa);
+          const T_env_K = l.T_C + 273.15;
+          const dz = l.z_m - lvls[i - 1].z_m;
+          const buoy = 9.81 * (Tp_K - T_env_K) / T_env_K * dz;
+          if (buoy > 0) cape_ccl += buoy;
+        }
+      }
+
+      // parcelData um CCL-Daten ergänzen
+      if (parcelData) {
+        parcelData.ccl_p = p_ccl;
+        parcelData.cape_ccl = cape_ccl;
+      }
       // -----------------------------------------------------------
+
+      // --- Fröstl-Index ---
+      // Wolkenobergrenze = EL, Mächtigkeit über 0°C = (EL_z - FZLVL_z) in ft
+      let froestl = null;
+      if (parcelData && parcelData.el_p && iso0_m !== null) {
+        // EL-Höhe aus Levels interpolieren
+        let el_z = null;
+        for (let i = 0; i < lvls.length - 1; i++) {
+          if ((lvls[i].p_hPa >= parcelData.el_p && lvls[i+1].p_hPa <= parcelData.el_p) ||
+              (lvls[i].p_hPa <= parcelData.el_p && lvls[i+1].p_hPa >= parcelData.el_p)) {
+            const frac = (parcelData.el_p - lvls[i].p_hPa) / (lvls[i+1].p_hPa - lvls[i].p_hPa);
+            el_z = lvls[i].z_m + frac * (lvls[i+1].z_m - lvls[i].z_m);
+            break;
+          }
+        }
+        if (el_z !== null) {
+          const T_top = lvls.reduce((best, l) =>
+            Math.abs(l.p_hPa - parcelData.el_p) < Math.abs(best.p_hPa - parcelData.el_p) ? l : best
+          ).T_C;
+          const M_ft = Math.max(0, (el_z - iso0_m) * 3.28084);
+
+          // Tabelle absteigend prüfen (schwerste Erscheinung zuerst)
+          if      (T_top < -55  && M_ft >= 27000) froestl = '+TSRAGR';   // heftiges Gewitter
+          else if (T_top <= -45 && M_ft >= 22000) froestl = 'TSRAGR';   // starkes Gewitter
+          else if (T_top <= -35 && M_ft >= 17000) froestl = 'TSRA';    // mäßiges Gewitter
+          else if (T_top <= -25 && M_ft >= 12000) froestl = '-TSRA';   // leichtes Gewitter
+          else if (T_top <= -20 && M_ft >= 9000)  froestl = '+SHRA';   // starker Schauer
+          else if (T_top <= -15 && M_ft >= 7000)  froestl = 'SHRA';    // mäßiger Schauer
+          else if (T_top <= -10 && M_ft >= 5000)  froestl = '-SHRA';   // leichter Schauer
+        }
+      }
+
+      // --- Faust-Glover Böen ---
+      // VMAX = 3.88 * ΔT (kt), wobei ΔT = θ(850) − θ_sw(500)
+      // Korrektur: ΔT > 10° → ΔT * 0.9
+      // Stationskorrektur: gustDelta = (1000 - p_sfc) / 12.5 * 2  (hPa-Basis)
+      let faust_ms = null;
+      if (l850 && l500) {
+        const theta_850 = MET.potential_T(l850.T_C + 273.15, 850);
+        const theta_sw_500 = MET.moist_potential_T(l500.T_C + 273.15, 500);
+        let deltaT = theta_850 - theta_sw_500;
+        if (deltaT > 10) deltaT *= 0.9;
+        const gustKt = 3.88 * deltaT;
+        const gustDelta = (1000 - sfc_p) / 12.5 * 2;
+        const gusts = (gustKt - gustDelta) * 1852 / 3600;
+        if (gusts >= 5) faust_ms = gusts;
+      }
+
+      // --- Nakamura Böen ---
+      // Wet-Bulb-Nullgrad-Höhe finden, Wind dort ablesen
+      // VMAX = sqrt(30 * ΔT * h_wb0 + 5.55 * R * h_wb0 / Vr + V_wind)
+      let nakamura_ms = null;
+      if (lvls.length > 1) {
+        // Wet-Bulb-Temperatur an jedem Level berechnen, Nulldurchgang finden
+        let wb0_z = null, wb0_p = null;
+        for (let i = 0; i < lvls.length - 1; i++) {
+          const l1 = lvls[i], l2 = lvls[i + 1];
+          if (l1.T_C == null || l1.Td_C == null || l2.T_C == null || l2.Td_C == null) continue;
+          const tw1 = MET.wet_bulb(l1.T_C, l1.Td_C, l1.p_hPa);
+          const tw2 = MET.wet_bulb(l2.T_C, l2.Td_C, l2.p_hPa);
+          if (tw1 >= 0 && tw2 < 0) {
+            const frac = tw1 / (tw1 - tw2);
+            wb0_z = (l1.z_m + frac * (l2.z_m - l1.z_m)) / 1000;  // in km
+            wb0_p = l1.p_hPa + frac * (l2.p_hPa - l1.p_hPa);
+            break;
+          }
+        }
+        if (wb0_z !== null && wb0_p !== null && wb0_z > 0) {
+          // Wind am Wet-Bulb-Zero-Level interpolieren
+          let vWind = null;
+          for (let i = 0; i < lvls.length - 1; i++) {
+            if (lvls[i].p_hPa >= wb0_p && lvls[i + 1].p_hPa <= wb0_p) {
+              const f = (wb0_p - lvls[i].p_hPa) / (lvls[i + 1].p_hPa - lvls[i].p_hPa);
+              const s1 = lvls[i].wspd_kn != null ? lvls[i].wspd_kn * 0.514444 : 0;
+              const s2 = lvls[i + 1].wspd_kn != null ? lvls[i + 1].wspd_kn * 0.514444 : 0;
+              vWind = s1 + f * (s2 - s1);
+              break;
+            }
+          }
+          if (vWind !== null) {
+            const deltaT = 3, R = 20, Vr = 5;
+            nakamura_ms = Math.sqrt(30 * deltaT * wb0_z + 5.55 * R * wb0_z / Vr + vWind);
+          }
+        }
+      }
 
       // --- Anzeige aktualisieren ---
       function setIdx(id, val, unit = '', fmt = 1) {
@@ -1306,29 +1710,67 @@
         el.className = 'index-val';
 
         let cls = '';
-        if (id === 'idx-cape') cls = val > 500 ? 'pos' : val > 0 ? 'warn' : '';
+        if (id === 'idx-cape' || id === 'idx-cape-ccl') cls = val > 500 ? 'pos' : val > 0 ? 'warn' : '';
         if (id === 'idx-cin') cls = val < -50 ? 'pos' : '';
         if (id === 'idx-li') cls = val < 0 ? 'pos' : val < 2 ? 'warn' : 'neg';
         if (id === 'idx-ki') cls = val > 30 ? 'pos' : val > 20 ? 'warn' : 'neg';
         if (id === 'idx-si') cls = val < 0 ? 'pos' : val < 3 ? 'warn' : 'neg';
         if (id === 'idx-tti') cls = val > 50 ? 'pos' : val > 44 ? 'warn' : 'neg';
+        if (id === 'idx-vt') cls = val > 28 ? 'pos' : val > 24 ? 'warn' : 'neg';
+        if (id === 'idx-ko') cls = val < -6 ? 'pos' : val < -2 ? 'warn' : 'neg';
 
         if (cls !== '') el.classList.add(cls);
       }
 
       setIdx('idx-cape', parcelData ? parcelData.cape : null, ' J/kg', 0);
+      setIdx('idx-cape-ccl', parcelData ? parcelData.cape_ccl : null, ' J/kg', 0);
       setIdx('idx-cin', parcelData ? parcelData.cin : null, ' J/kg', 0);
       setIdx('idx-li', li, ' K');
       setIdx('idx-ki', ki, ' K');
       setIdx('idx-si', si, ' K');
       setIdx('idx-tti', tti, ' K');
+      setIdx('idx-vt', vt, ' K');
+      setIdx('idx-ko', ko, ' K');
       setIdx('idx-iso0', iso0_m, ' m', 0);
       setIdx('idx-tropo', tropo_m, ' m', 0);
 
-      document.getElementById('idx-lcl').textContent = parcelData && parcelData.p_LCL ? Math.round(parcelData.p_LCL) + ' hPa' : '—';
-      document.getElementById('idx-lfc').textContent = parcelData && parcelData.lfc_p ? Math.round(parcelData.lfc_p) + ' hPa' : '—';
-      document.getElementById('idx-el').textContent = parcelData && parcelData.el_p ? Math.round(parcelData.el_p) + ' hPa' : '—';
-      document.getElementById('idx-ccl').textContent = parcelData && parcelData.ccl_p ? Math.round(parcelData.ccl_p) + ' hPa' : '—';
+      const froestlEl = document.getElementById('idx-froestl');
+      if (froestlEl) {
+        froestlEl.textContent = froestl || '—';
+        froestlEl.className = 'index-val';
+        if (froestl) {
+          if (froestl.includes('TS')) froestlEl.classList.add('pos');
+          else if (froestl === '+SHRA') froestlEl.classList.add('warn');
+        }
+      }
+
+      // Hilfsfunktion: Höhe AGL (m) für gegebenen Druck interpolieren
+      function heightAglAtP(p_hPa) {
+        if (!lvls || lvls.length === 0) return null;
+        if (p_hPa >= lvls[0].p_hPa) return lvls[0].z_m;
+        if (p_hPa <= lvls[lvls.length - 1].p_hPa) return lvls[lvls.length - 1].z_m;
+        for (let i = 1; i < lvls.length; i++) {
+          if (lvls[i].p_hPa <= p_hPa) {
+            const p0 = lvls[i - 1].p_hPa, p1 = lvls[i].p_hPa;
+            const z0 = lvls[i - 1].z_m, z1 = lvls[i].z_m;
+            const frac = (p_hPa - p0) / (p1 - p0);
+            return z0 + frac * (z1 - z0);
+          }
+        }
+        return null;
+      }
+      function fmtLevel(p_hPa) {
+        if (p_hPa == null) return '—';
+        const z = heightAglAtP(p_hPa);
+        if (z == null) return Math.round(p_hPa) + ' hPa';
+        const z_ft = Math.round(z * 3.28084);
+        return Math.round(p_hPa) + ' hPa · ' + Math.round(z) + ' m / ' + z_ft + ' ft AGL';
+      }
+
+      document.getElementById('idx-lcl').textContent = parcelData ? fmtLevel(parcelData.p_LCL) : '—';
+      document.getElementById('idx-lfc').textContent = parcelData ? fmtLevel(parcelData.lfc_p) : '—';
+      document.getElementById('idx-el').textContent = parcelData ? fmtLevel(parcelData.el_p) : '—';
+      document.getElementById('idx-ccl').textContent = parcelData ? fmtLevel(parcelData.ccl_p) : '—';
       const tcEl = document.getElementById('idx-tc');
       if (tcEl) {
         tcEl.textContent = T_conv ? T_conv.toFixed(1) + ' °C' : '—';
@@ -1349,6 +1791,22 @@
         <td>${l.wspd_kn != null ? Math.round(l.wspd_kn) + ' kn' : '—'}</td>
       </tr>`;
         }).join('');
+      }
+
+      // Böen-Anzeige
+      const faustEl = document.getElementById('idx-faust');
+      if (faustEl) {
+        faustEl.textContent = faust_ms !== null ? Math.round(faust_ms) + ' m/s (' + Math.round(faust_ms * 1.94384) + ' kn)' : '—';
+        faustEl.className = 'index-val';
+        if (faust_ms !== null && faust_ms >= 25) faustEl.classList.add('pos');
+        else if (faust_ms !== null && faust_ms >= 15) faustEl.classList.add('warn');
+      }
+      const nakaEl = document.getElementById('idx-nakamura');
+      if (nakaEl) {
+        nakaEl.textContent = nakamura_ms !== null ? Math.round(nakamura_ms) + ' m/s (' + Math.round(nakamura_ms * 1.94384) + ' kn)' : '—';
+        nakaEl.className = 'index-val';
+        if (nakamura_ms !== null && nakamura_ms >= 25) nakaEl.classList.add('pos');
+        else if (nakamura_ms !== null && nakamura_ms >= 15) nakaEl.classList.add('warn');
       }
     }
     // =========================================================================
@@ -1825,11 +2283,11 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       
-      // Einen aussagekräftigen Dateinamen bauen, 
-      // z.B. 2026-03-27_0600Z_ICON-EU_step012.txt
-      const dateStr = snd.run_date.replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3");
-      const stepStr = String(snd.step_h).padStart(3, '0');
-      const fileName = `${dateStr}_${snd.run_hour}00Z_${snd.model}_step${stepStr}.txt`;
+      // Dateiname mit Valid-Time, z.B. 2026-03-27_1300Z_ICON-EU.txt
+      const vt = new Date(snd.valid_time);
+      const vtDate = vt.toISOString().slice(0, 10);
+      const vtHour = String(vt.getUTCHours()).padStart(2, '0');
+      const fileName = `${vtDate}_${vtHour}00Z_${snd.model}.txt`;
       
       a.href = url;
       a.download = fileName;
@@ -1845,7 +2303,16 @@
 
     // Button mit der Funktion verknüpfen
     document.getElementById('btn-export').addEventListener('click', exportCurrentToAscii);
-    
+
+    document.getElementById('chk-cape-lfc').addEventListener('change', (e) => {
+      STATE.showCapeLfc = e.target.checked;
+      redraw();
+    });
+    document.getElementById('chk-cape-ccl').addEventListener('change', (e) => {
+      STATE.showCapeCcl = e.target.checked;
+      redraw();
+    });
+
     // =========================================================================
     // Init
     // =========================================================================
