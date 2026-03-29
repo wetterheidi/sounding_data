@@ -272,7 +272,7 @@
     /* Seitenleiste: Indizes                                                */
     /* ------------------------------------------------------------------ */
     #sidebar {
-      width: 270px;
+      width: 300px;
       min-width: 250px;
       background: var(--bg2);
       border-left: 1px solid var(--border);
@@ -544,7 +544,7 @@
         </div>
         <div class="index-row"><span class="index-name">Fröstl</span><span class="index-val" id="idx-froestl">—</span>
         </div>
-        <div class="index-row"><span class="index-name">PW (Sfc–400 hPa)</span><span class="index-val"
+        <div class="index-row"><span class="index-name">PPW (SFC–400 hPa)</span><span class="index-val"
             id="idx-pw">—</span></div>
       </details>
       <details class="sidebar-section" open>
@@ -553,9 +553,10 @@
         <div class="index-row"><span class="index-name">LFC</span><span class="index-val" id="idx-lfc">—</span></div>
         <div class="index-row"><span class="index-name">CCL</span><span class="index-val" id="idx-ccl">—</span></div>
         <div class="index-row"><span class="index-name">TA</span><span class="index-val" id="idx-tc">—</span></div>
-        <div class="index-row"><span class="index-name">EL</span><span class="index-val" id="idx-el">—</span></div>
+        <div class="index-row"><span class="index-name">EL LFC</span><span class="index-val" id="idx-el">—</span></div>
+        <div class="index-row"><span class="index-name">EL CCL</span><span class="index-val" id="idx-el-ccl">—</span></div>
       </details>
-      <details class="sidebar-section" open>
+      <details class="sidebar-section" closed>
         <summary>Wind (repr. Niveaus)</summary>
         <table class="wind-table" id="wind-table">
           <thead>
@@ -581,7 +582,7 @@
         <div class="index-row"><span class="index-name">0°C Grenze</span><span class="index-val" id="idx-iso0">—</span>
         </div>
       </details>
-      <details class="sidebar-section" open style="opacity: 0.7;">
+      <details class="sidebar-section" closed style="opacity: 0.7;">
         <summary>Steuerung</summary>
         <div style="font-size: 11px; color: var(--text2); line-height: 1.5;">
           <b>Mausrad:</b> Zoomen<br>
@@ -1623,30 +1624,42 @@
         }
       }
 
+      // EL für CCL-Parcel berechnen (letztes Level mit positiver Auftriebskraft)
+      let el_ccl_p = null;
+      if (p_ccl !== null && T_ccl !== null) {
+        const T_ccl_K = T_ccl + 273.15;
+        for (let i = 0; i < lvls.length; i++) {
+          if (lvls[i].p_hPa > p_ccl) continue;
+          const Tp_K = MET.moist_adiabat_T(T_ccl_K, p_ccl, lvls[i].p_hPa);
+          if (Tp_K - 273.15 > lvls[i].T_C) el_ccl_p = lvls[i].p_hPa;
+        }
+      }
+
       // parcelData um CCL-Daten ergänzen
       if (parcelData) {
         parcelData.ccl_p = p_ccl;
         parcelData.cape_ccl = cape_ccl;
+        parcelData.el_ccl_p = el_ccl_p;
       }
       // -----------------------------------------------------------
 
       // --- Fröstl-Index ---
-      // Wolkenobergrenze = EL, Mächtigkeit über 0°C = (EL_z - FZLVL_z) in ft
+      // Wolkenobergrenze = EL CCL, Mächtigkeit über 0°C = (EL_z - FZLVL_z) in ft
       let froestl = null;
-      if (parcelData && parcelData.el_p && iso0_m !== null) {
-        // EL-Höhe aus Levels interpolieren
+      if (parcelData && parcelData.el_ccl_p && iso0_m !== null) {
+        // EL CCL-Höhe aus Levels interpolieren
         let el_z = null;
         for (let i = 0; i < lvls.length - 1; i++) {
-          if ((lvls[i].p_hPa >= parcelData.el_p && lvls[i + 1].p_hPa <= parcelData.el_p) ||
-            (lvls[i].p_hPa <= parcelData.el_p && lvls[i + 1].p_hPa >= parcelData.el_p)) {
-            const frac = (parcelData.el_p - lvls[i].p_hPa) / (lvls[i + 1].p_hPa - lvls[i].p_hPa);
+          if ((lvls[i].p_hPa >= parcelData.el_ccl_p && lvls[i + 1].p_hPa <= parcelData.el_ccl_p) ||
+            (lvls[i].p_hPa <= parcelData.el_ccl_p && lvls[i + 1].p_hPa >= parcelData.el_ccl_p)) {
+            const frac = (parcelData.el_ccl_p - lvls[i].p_hPa) / (lvls[i + 1].p_hPa - lvls[i].p_hPa);
             el_z = lvls[i].z_m + frac * (lvls[i + 1].z_m - lvls[i].z_m);
             break;
           }
         }
         if (el_z !== null) {
           const T_top = lvls.reduce((best, l) =>
-            Math.abs(l.p_hPa - parcelData.el_p) < Math.abs(best.p_hPa - parcelData.el_p) ? l : best
+            Math.abs(l.p_hPa - parcelData.el_ccl_p) < Math.abs(best.p_hPa - parcelData.el_ccl_p) ? l : best
           ).T_C;
           const M_ft = Math.max(0, (el_z - iso0_m) * 3.28084);
 
@@ -1823,6 +1836,7 @@
       document.getElementById('idx-lcl').textContent = parcelData ? fmtLevel(parcelData.p_LCL) : '—';
       document.getElementById('idx-lfc').textContent = parcelData ? fmtLevel(parcelData.lfc_p) : '—';
       document.getElementById('idx-el').textContent = parcelData ? fmtLevel(parcelData.el_p) : '—';
+      document.getElementById('idx-el-ccl').textContent = parcelData ? fmtLevel(parcelData.el_ccl_p) : '—';
       document.getElementById('idx-ccl').textContent = parcelData ? fmtLevel(parcelData.ccl_p) : '—';
       const tcEl = document.getElementById('idx-tc');
       if (tcEl) {
