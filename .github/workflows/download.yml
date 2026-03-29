@@ -8,6 +8,10 @@ on:
   # Erlaubt uns, das Skript auch jederzeit manuell per Knopfdruck zu starten!
   workflow_dispatch: 
 
+concurrency:
+  group: "weather-data-download"
+  cancel-in-progress: false
+  
 jobs:
   download-data:
     runs-on: ubuntu-latest
