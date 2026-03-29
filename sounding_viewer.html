@@ -2366,11 +2366,14 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
 
-      // Dateiname mit Valid-Time, z.B. 2026-03-27_1300Z_ICON-EU.txt
+      // Dateiname mit Valid-Time und Ort, z.B. 2026-03-27_1300Z_ICON-EU_Muckberg.txt
       const vt = new Date(snd.valid_time);
       const vtDate = vt.toISOString().slice(0, 10);
       const vtHour = String(vt.getUTCHours()).padStart(2, '0');
-      const fileName = `${vtDate}_${vtHour}00Z_${snd.model}.txt`;
+      const locPart = snd.location_alias
+        ? snd.location_alias
+        : `${snd.grid_lat ?? snd.target_lat}N_${snd.grid_lon ?? snd.target_lon}E`;
+      const fileName = `${vtDate}_${vtHour}00Z_${snd.model}_${locPart}.txt`;
 
       a.href = url;
       a.download = fileName;
