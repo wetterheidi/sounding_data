@@ -315,7 +315,9 @@
       user-select: none;
     }
 
-    details.sidebar-section summary::-webkit-details-marker { display: none; }
+    details.sidebar-section summary::-webkit-details-marker {
+      display: none;
+    }
 
     details.sidebar-section summary::before {
       content: '▸';
@@ -524,16 +526,26 @@
       </div>
       <details class="sidebar-section" open>
         <summary>Labilitätsindizes</summary>
-        <div class="index-row"><span class="index-name"><label style="cursor:pointer"><input type="checkbox" id="chk-cape-lfc" style="margin-right:3px;">CAPE (LFC)</label></span><span class="index-val" id="idx-cape">—</span></div>
-        <div class="index-row"><span class="index-name"><label style="cursor:pointer"><input type="checkbox" id="chk-cape-ccl" style="margin-right:3px;">CAPE (CCL)</label></span><span class="index-val" id="idx-cape-ccl">—</span></div>
+        <div class="index-row"><span class="index-name"><label style="cursor:pointer"><input type="checkbox"
+                id="chk-cape-lfc" style="margin-right:3px;">CAPE (LFC)</label></span><span class="index-val"
+            id="idx-cape">—</span></div>
+        <div class="index-row"><span class="index-name"><label style="cursor:pointer"><input type="checkbox"
+                id="chk-cape-ccl" style="margin-right:3px;">CAPE (CCL)</label></span><span class="index-val"
+            id="idx-cape-ccl">—</span></div>
         <div class="index-row"><span class="index-name">CIN</span><span class="index-val" id="idx-cin">—</span></div>
-        <div class="index-row"><span class="index-name">Lifted Index</span><span class="index-val" id="idx-li">—</span></div>
+        <div class="index-row"><span class="index-name">Lifted Index</span><span class="index-val" id="idx-li">—</span>
+        </div>
         <div class="index-row"><span class="index-name">K-Index</span><span class="index-val" id="idx-ki">—</span></div>
-        <div class="index-row"><span class="index-name">Showalter</span><span class="index-val" id="idx-si">—</span></div>
+        <div class="index-row"><span class="index-name">Showalter</span><span class="index-val" id="idx-si">—</span>
+        </div>
         <div class="index-row"><span class="index-name">TT</span><span class="index-val" id="idx-tti">—</span></div>
         <div class="index-row"><span class="index-name">VT</span><span class="index-val" id="idx-vt">—</span></div>
-        <div class="index-row"><span class="index-name">KO-Index</span><span class="index-val" id="idx-ko">—</span></div>
-        <div class="index-row"><span class="index-name">Fröstl</span><span class="index-val" id="idx-froestl">—</span></div>
+        <div class="index-row"><span class="index-name">KO-Index</span><span class="index-val" id="idx-ko">—</span>
+        </div>
+        <div class="index-row"><span class="index-name">Fröstl</span><span class="index-val" id="idx-froestl">—</span>
+        </div>
+        <div class="index-row"><span class="index-name">PW (Sfc–400 hPa)</span><span class="index-val"
+            id="idx-pw">—</span></div>
       </details>
       <details class="sidebar-section" open>
         <summary>Kondensationsniveaus</summary>
@@ -556,15 +568,18 @@
           <tbody></tbody>
         </table>
         <div style="margin-top:6px;border-top:1px solid var(--border);padding-top:6px;">
-          <div class="index-row"><span class="index-name">Faust-Glover Böen</span><span class="index-val" id="idx-faust">—</span></div>
-          <div class="index-row"><span class="index-name">Nakamura Böen</span><span class="index-val" id="idx-nakamura">—</span></div>
+          <div class="index-row"><span class="index-name">Faust-Glover Böen</span><span class="index-val"
+              id="idx-faust">—</span></div>
+          <div class="index-row"><span class="index-name">Nakamura Böen</span><span class="index-val"
+              id="idx-nakamura">—</span></div>
         </div>
       </details>
       <details class="sidebar-section" open>
         <summary>Troposphäre</summary>
         <div class="index-row"><span class="index-name">Tropopause (est.)</span><span class="index-val"
             id="idx-tropo">—</span></div>
-        <div class="index-row"><span class="index-name">0°C Grenze</span><span class="index-val" id="idx-iso0">—</span></div>
+        <div class="index-row"><span class="index-name">0°C Grenze</span><span class="index-val" id="idx-iso0">—</span>
+        </div>
       </details>
       <details class="sidebar-section" open style="opacity: 0.7;">
         <summary>Steuerung</summary>
@@ -1622,10 +1637,10 @@
         // EL-Höhe aus Levels interpolieren
         let el_z = null;
         for (let i = 0; i < lvls.length - 1; i++) {
-          if ((lvls[i].p_hPa >= parcelData.el_p && lvls[i+1].p_hPa <= parcelData.el_p) ||
-              (lvls[i].p_hPa <= parcelData.el_p && lvls[i+1].p_hPa >= parcelData.el_p)) {
-            const frac = (parcelData.el_p - lvls[i].p_hPa) / (lvls[i+1].p_hPa - lvls[i].p_hPa);
-            el_z = lvls[i].z_m + frac * (lvls[i+1].z_m - lvls[i].z_m);
+          if ((lvls[i].p_hPa >= parcelData.el_p && lvls[i + 1].p_hPa <= parcelData.el_p) ||
+            (lvls[i].p_hPa <= parcelData.el_p && lvls[i + 1].p_hPa >= parcelData.el_p)) {
+            const frac = (parcelData.el_p - lvls[i].p_hPa) / (lvls[i + 1].p_hPa - lvls[i].p_hPa);
+            el_z = lvls[i].z_m + frac * (lvls[i + 1].z_m - lvls[i].z_m);
             break;
           }
         }
@@ -1636,13 +1651,13 @@
           const M_ft = Math.max(0, (el_z - iso0_m) * 3.28084);
 
           // Tabelle absteigend prüfen (schwerste Erscheinung zuerst)
-          if      (T_top < -55  && M_ft >= 27000) froestl = '+TSRAGR';   // heftiges Gewitter
+          if (T_top < -55 && M_ft >= 27000) froestl = '+TSRAGR';   // heftiges Gewitter
           else if (T_top <= -45 && M_ft >= 22000) froestl = 'TSRAGR';   // starkes Gewitter
           else if (T_top <= -35 && M_ft >= 17000) froestl = 'TSRA';    // mäßiges Gewitter
           else if (T_top <= -25 && M_ft >= 12000) froestl = '-TSRA';   // leichtes Gewitter
-          else if (T_top <= -20 && M_ft >= 9000)  froestl = '+SHRA';   // starker Schauer
-          else if (T_top <= -15 && M_ft >= 7000)  froestl = 'SHRA';    // mäßiger Schauer
-          else if (T_top <= -10 && M_ft >= 5000)  froestl = '-SHRA';   // leichter Schauer
+          else if (T_top <= -20 && M_ft >= 9000) froestl = '+SHRA';   // starker Schauer
+          else if (T_top <= -15 && M_ft >= 7000) froestl = 'SHRA';    // mäßiger Schauer
+          else if (T_top <= -10 && M_ft >= 5000) froestl = '-SHRA';   // leichter Schauer
         }
       }
 
@@ -1700,6 +1715,27 @@
         }
       }
 
+      // --- Precipitable Water (Sfc – 400 hPa) ---
+      // Trapez-Integration des Mischungsverhältnisses (Taupunkt-basiert) von der Oberfläche bis 400 hPa
+      // PW [mm] = 0.5 * Σ [(p1 - p2) * (w1 + w2)] / g   (p in Pa, w in kg/kg, g = 9.81 m/s²)
+      let pw_mm = null;
+      {
+        const pwLvls = lvls
+          .filter(l => l.p_hPa != null && l.Td_C != null && !isNaN(l.Td_C) && l.p_hPa >= 400)
+          .sort((a, b) => b.p_hPa - a.p_hPa);   // absteigend: Oberfläche → 400 hPa
+        if (pwLvls.length >= 2) {
+          let sum = 0;
+          for (let i = 0; i < pwLvls.length - 1; i++) {
+            const p1_Pa = pwLvls[i].p_hPa * 100;
+            const p2_Pa = pwLvls[i + 1].p_hPa * 100;
+            const w1 = MET.mixing_ratio(pwLvls[i].Td_C, pwLvls[i].p_hPa);
+            const w2 = MET.mixing_ratio(pwLvls[i + 1].Td_C, pwLvls[i + 1].p_hPa);
+            sum += (p1_Pa - p2_Pa) * (w1 + w2);
+          }
+          pw_mm = 0.5 * sum / 9.81;
+        }
+      }
+
       // --- Anzeige aktualisieren ---
       function setIdx(id, val, unit = '', fmt = 1) {
         const el = document.getElementById(id);
@@ -1718,6 +1754,7 @@
         if (id === 'idx-tti') cls = val > 50 ? 'pos' : val > 44 ? 'warn' : 'neg';
         if (id === 'idx-vt') cls = val > 28 ? 'pos' : val > 24 ? 'warn' : 'neg';
         if (id === 'idx-ko') cls = val < -6 ? 'pos' : val < -2 ? 'warn' : 'neg';
+        if (id === 'idx-pw') cls = val > 35 ? 'pos' : val > 25 ? 'warn' : '';
 
         if (cls !== '') el.classList.add(cls);
       }
@@ -1731,9 +1768,25 @@
       setIdx('idx-tti', tti, ' K');
       setIdx('idx-vt', vt, ' K');
       setIdx('idx-ko', ko, ' K');
-      setIdx('idx-iso0', iso0_m, ' m', 0);
-      setIdx('idx-tropo', tropo_m, ' m', 0);
+      setIdx('idx-pw', pw_mm, ' mm', 1);
 
+      // --- 0°C Grenze (Freezing Level) in m und ft AGL ---
+      const isoEl = document.getElementById('idx-iso0');
+      if (iso0_m !== null) {
+        isoEl.textContent = `${Math.round(iso0_m)} m / ${Math.round(iso0_m * 3.28084)} ft AGL`;
+      } else {
+        isoEl.textContent = '—';
+      }
+      isoEl.className = 'index-val';
+
+      // --- Tropopause in m und ft AGL ---
+      const tropoEl = document.getElementById('idx-tropo');
+      if (tropo_m !== null) {
+        tropoEl.textContent = `${Math.round(tropo_m)} m / ${Math.round(tropo_m * 3.28084)} ft AGL`;
+      } else {
+        tropoEl.textContent = '—';
+      }
+      tropoEl.className = 'index-val';
       const froestlEl = document.getElementById('idx-froestl');
       if (froestlEl) {
         froestlEl.textContent = froestl || '—';
@@ -2266,7 +2319,7 @@
         const td = l.Td_C != null ? l.Td_C.toFixed(1) : "---";
         const dir = l.wdir_deg != null ? Math.round(l.wdir_deg) : "---";
         const spd = l.wspd_kn != null ? (l.wspd_kn * kn_to_ms).toFixed(1) : "---";
-        
+
         // Relative Feuchte berechnen
         let rh = "---";
         if (l.T_C != null && l.Td_C != null) {
@@ -2282,20 +2335,20 @@
       const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      
+
       // Dateiname mit Valid-Time, z.B. 2026-03-27_1300Z_ICON-EU.txt
       const vt = new Date(snd.valid_time);
       const vtDate = vt.toISOString().slice(0, 10);
       const vtHour = String(vt.getUTCHours()).padStart(2, '0');
       const fileName = `${vtDate}_${vtHour}00Z_${snd.model}.txt`;
-      
+
       a.href = url;
       a.download = fileName;
-      
+
       // Simulierter Klick zum Starten des Downloads
       document.body.appendChild(a);
       a.click();
-      
+
       // Aufräumen
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
