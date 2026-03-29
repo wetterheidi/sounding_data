@@ -30,6 +30,5 @@ for f in glob.glob("./data/*.json"):
 # Ort 4: Muckberg
 # python3 fetch_sounding.py --lat 48.710 --lon 8.784 --model icon-d2 --step 0:24:1 --outdir ./data
 
-# Ort 5: Irgendwo in Asien (CAPE Test)
-python3 fetch_sounding.py --lat 22.037 --lon -107.562 --model icon --step 0:6:6 --outdir ./data
-
+# Ort 5: Irgendwo in der Karibik (CAPE Test)
+python3 fetch_sounding.py --lat 18.036 --lon -72.150 --model icon --step 0:6:6 --outdir ./data
