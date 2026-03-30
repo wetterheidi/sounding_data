@@ -3,11 +3,11 @@ name: TlogP Data Fetcher
 on:
   schedule:
     # ICON-D2:  Daten verfügbar ~03, 06, 09, 12, 15, 18, 21, 00 UTC
-    - cron: '30 3,6,9,12,15,18,21,0 * * *'
+    - cron: '30 2,5,8,11,14,17,20,23 * * *'
     # ICON-EU:  Daten verfügbar ~01, 04, 07, 10, 13, 16, 19, 22 UTC
-    - cron: '30 1,4,7,10,13,16,19,22 * * *'
+    - cron: '45 0,3,6,9,12,15,18,21 * * *'
     # ICON:     Daten verfügbar ~05, 11, 17, 23 UTC
-    - cron: '30 5,11,17,23 * * *'
+    - cron: '00 4,10,16,22 * * *'
   workflow_dispatch:
     inputs:
       model:
@@ -48,9 +48,9 @@ jobs:
             echo "filter=${{ github.event.inputs.model }}" >> $GITHUB_OUTPUT
           else
             case "${{ github.event.schedule }}" in
-              "30 3,6,9,12,15,18,21,0 * * *") echo "filter=icon-d2"  >> $GITHUB_OUTPUT ;;
-              "30 1,4,7,10,13,16,19,22 * * *") echo "filter=icon-eu"  >> $GITHUB_OUTPUT ;;
-              "30 5,11,17,23 * * *")            echo "filter=icon"     >> $GITHUB_OUTPUT ;;
+              "30 2,5,8,11,14,17,20,23 * * *") echo "filter=icon-d2"  >> $GITHUB_OUTPUT ;;
+              "45 0,3,6,9,12,15,18,21 * * *") echo "filter=icon-eu"  >> $GITHUB_OUTPUT ;;
+              "00 4,10,16,22 * * *")            echo "filter=icon"     >> $GITHUB_OUTPUT ;;
               *)                                echo "filter="          >> $GITHUB_OUTPUT ;;
             esac
           fi
