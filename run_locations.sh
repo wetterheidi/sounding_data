@@ -30,6 +30,9 @@ if run_model "icon-d2"; then
 
   # Ort: Muckberg
   python3 fetch_sounding.py --lat 48.710 --lon 8.784 --model icon-d2 --step 0:24:1 --outdir ./data --alias Muckberg
+
+  # Ort: Parow
+  python3 fetch_sounding.py --lat 54.362 --lon 13.087 --model icon-d2 --step 0:24:1 --outdir ./data --alias Parow
 fi
 
 # === ICON-EU (3-stündlich) ===
