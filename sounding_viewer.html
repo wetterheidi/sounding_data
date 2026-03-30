@@ -1048,8 +1048,8 @@
 
       // --- Isobaren (Luftdruck-Linien) ---
       const isobars = [1050, 1000, 950, 925, 900, 850, 800, 750, 700, 650, 600, 550, 500, 450, 400, 350, 300, 250, 200, 150, 100];
-      ctx.strokeStyle = '#202635'; // Deutlichere Kanten
-      ctx.lineWidth = 0.8;
+      ctx.strokeStyle = '#38485c';
+      ctx.lineWidth = 1.0;
       isobars.forEach(p => {
         const y = proj.toCanvasY(p);
         if (y < m.top || y > m.top + H) return;
@@ -1077,8 +1077,8 @@
           ctx.strokeStyle = '#5ba4fc'; // 0-Grad-Grenze in leuchtendem Cyan!
           ctx.lineWidth = 1.0;
         } else {
-          ctx.strokeStyle = '#202635'; // Wie Isobaren
-          ctx.lineWidth = 0.6;
+          ctx.strokeStyle = '#323d54';
+          ctx.lineWidth = 0.8;
         }
         const p1 = proj.p_bot, p2 = proj.p_top;
         const c1 = proj.toCanvas(T, p1);
@@ -1090,8 +1090,8 @@
       }
 
       // --- Trockenadiabaten (alle 10K) ---
-      ctx.strokeStyle = '#4a3620'; // Kräftigeres Braun-Orange
-      ctx.lineWidth = 0.6;
+      ctx.strokeStyle = '#7a5832';
+      ctx.lineWidth = 0.8;
       for (let Th = -40; Th <= 120; Th += 10) {
         const T0_K = (Th + 273.15);
         ctx.beginPath();
@@ -1106,8 +1106,8 @@
       }
 
       // --- Feuchtadiabaten (alle 4K) ---
-      ctx.strokeStyle = '#1a5940'; // Leuchtenderes Blau-Grün
-      ctx.lineWidth = 0.6;
+      ctx.strokeStyle = '#2a7a52';
+      ctx.lineWidth = 0.8;
       for (let Tw = -20; Tw <= 36; Tw += 4) {
         const T0_K = Tw + 273.15;
         ctx.beginPath();
@@ -1191,7 +1191,7 @@
         ctx.lineTo(c.x, c.y);
       });
       ctx.closePath();
-      ctx.fillStyle = 'rgba(74, 181, 110, 0.06)';
+      ctx.fillStyle = 'rgba(74, 181, 110, 0.13)';
       ctx.fill();
 
       // --- Taupunkt (grün) ---
