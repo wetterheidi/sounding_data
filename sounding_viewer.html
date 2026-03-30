@@ -666,9 +666,11 @@
         const L = Math.log(Math.max(e_Pa / 611.2, 1e-10));
         return (243.5 * L) / (17.67 - L);
       },
-      // Neu: Mischungsverhältnis [kg/kg] aus Temperatur und Druck berechnen
+      // Mischungsverhältnis [kg/kg] aus Temperatur und Druck berechnen.
+      // Konvention für Skew-T-Isohumen: immer es_water (Taupunkt ist über Wasser definiert).
+      // Die RK4-Feuchtadiabate nutzt MET.es() direkt und ist davon unabhängig.
       mixing_ratio(T_C, p_hPa) {
-        const e = MET.es(T_C);
+        const e = MET.es_water(T_C);
         return 0.622 * e / (p_hPa * 100 - e);
       },
       // Neu: Temperatur [°C] für ein fixes Mischungsverhältnis und neuen Druck finden
