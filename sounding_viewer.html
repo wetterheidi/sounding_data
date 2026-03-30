@@ -586,6 +586,15 @@
           <tbody></tbody>
         </table>
       </details>
+      <details class="sidebar-section" closed>
+        <summary>Kondensstreifen (Appleman)</summary>
+        <table class="wind-table" id="contrail-table">
+          <thead>
+            <tr><th>Niveau</th><th>Prognose</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </details>
       <details class="sidebar-section" open>
         <summary>Troposphäre</summary>
         <div class="index-row"><span class="index-name">Tropopause (est.)</span><span class="index-val"
@@ -1761,6 +1770,105 @@
       }));
     }
 
+    // =========================================================================
+    // Kondensstreifen-Prognose nach Schmidt-Appleman-Kriterium
+    // Referenz: Schumann (1996), Appleman (1953)
+    // =========================================================================
+    function computeContrails(lvls) {
+      // --- Triebwerksparameter (modernes Turbofan, η=0.35, Kerosin) ---
+      const EI_H2O = 1.25;   // Emissionsindex Wasser [kg/kg Kraftstoff]
+      const cp_a   = 1004;   // Spez. Wärmekapazität Luft [J/(kg·K)]
+      const eps    = 0.622;  // Molverhältnis Wasser/Luft
+      const Q      = 43.2e6; // Unterer Heizwert Kerosin [J/kg]
+      const eta    = 0.35;   // Vortriebswirkungsgrad
+
+      // Magnus-Sättigungsdampfdruck über Wasser [Pa]
+      const esw = T_C => 611.2 * Math.exp(17.67 * T_C / (T_C + 243.5));
+      // Ableitung desw/dT
+      const desw = T_C => esw(T_C) * 17.67 * 243.5 / Math.pow(T_C + 243.5, 2);
+
+      /**
+       * Kritische Temperatur (Appleman-Schwelle) [°C] für gegebene Druck- und
+       * Feuchte-Bedingungen. Unterhalb dieser Temperatur bilden sich Kondensstreifen.
+       *   G = EI_H2O · cp · p / (ε · Q · (1−η))  [Pa/K]
+       * Geometrische Tangentenbedingung am Sättigungsdampfdruckverlauf.
+       */
+      function appleman_cutoff(p_hPa, RH_water_frac) {
+        const G = EI_H2O * cp_a * (p_hPa * 100) / (eps * Q * (1 - eta));
+
+        // 1) Tangenztemperatur T_t: desw(T_t) = G → Bisektionssuche in [-90, 0]°C
+        if (G < desw(-90) || G > desw(0)) return null; // außerhalb gültigem Bereich
+        let lo = -90, hi = 0;
+        for (let i = 0; i < 60; i++) {
+          const mid = (lo + hi) / 2;
+          (desw(mid) < G) ? lo = mid : hi = mid;
+        }
+        const T_t = (lo + hi) / 2;
+        const es_t = esw(T_t);
+
+        // 2) Kritische Umgebungstemperatur T_crit:
+        //    G · (T_t − T_a) = es_t − RH · esw(T_a)  → monoton fallend in T_a
+        const f = T_a => G * (T_t - T_a) - es_t + RH_water_frac * esw(T_a);
+        if (f(-90) < 0) return -90; // extrem trockene Luft
+        lo = -90; hi = T_t;
+        for (let i = 0; i < 60; i++) {
+          const mid = (lo + hi) / 2;
+          (f(mid) > 0) ? lo = mid : hi = mid;
+        }
+        return (lo + hi) / 2;
+      }
+
+      // Interpolation im Sondierungsprofil
+      const interp = (p, field) => {
+        if (lvls.length === 0) return null;
+        if (p >= lvls[0].p_hPa) return lvls[0][field];
+        for (let i = 0; i < lvls.length - 1; i++) {
+          if (lvls[i].p_hPa >= p && lvls[i + 1].p_hPa <= p) {
+            const f = (p - lvls[i].p_hPa) / (lvls[i + 1].p_hPa - lvls[i].p_hPa);
+            return lvls[i][field] + f * (lvls[i + 1][field] - lvls[i][field]);
+          }
+        }
+        return null;
+      };
+
+      // FL-Näherung aus Druck (ISA-Standardatmosphäre)
+      const pToFL = p => {
+        const h_m = 44307 * (1 - Math.pow(p / 1013.25, 0.190284));
+        return Math.round(h_m / 30.48 / 100) * 10;
+      };
+
+      const LEVELS = [400, 350, 300, 250, 200, 150];
+
+      return LEVELS.map(p => {
+        const T  = interp(p, 'T_C');
+        const Td = interp(p, 'Td_C');
+        const FL = pToFL(p);
+        const label = `FL${FL} (${p} hPa)`;
+
+        if (T === null || Td === null) return { label, prediction: '—', cat: -1 };
+
+        const RH_water = Math.max(0, Math.min(1, esw(Td) / esw(T)));
+        // RH über Eis für Persistenzbedingung (Eissupersättigung)
+        const RHi = MET.es_water(Td) / MET.es_ice(T) * 100;
+        const T_crit = appleman_cutoff(p, RH_water);
+
+        let prediction, cat;
+        if (T_crit === null || T > T_crit) {
+          prediction = 'Keine';   cat = 0;
+        } else if (RHi >= 100) {
+          prediction = 'Persistent'; cat = 3;
+        } else if (RHi >= 85) {
+          prediction = 'Teils persistent';  cat = 2;
+        } else if (RHi >= 30) {
+          prediction = 'Nicht persistent';    cat = 1;
+        } else {
+          prediction = 'Keine';   cat = 0;
+        }
+
+        return { label, prediction, cat };
+      });
+    }
+
     function computeAndDisplayIndices(snd) {
       if (!snd || !snd.levels) return;
       const lvls = snd.levels;
@@ -1981,6 +2089,22 @@
           tr.innerHTML = `<td>${label}</td>
             <td style="color:${color};font-weight:${catIdx >= 2 ? 'bold' : 'normal'}">${catText}</td>`;
           catTbody.appendChild(tr);
+        });
+      }
+
+      // --- Kondensstreifen (Appleman) ---
+      const contrailResults = computeContrails(lvls);
+      // cat: 0=Keine, 1=Kurz, 2=Länger, 3=Dauerhaft
+      const contrailColors = ['#4a5068', '#a0b8d8', '#5ba4fc', '#c8eaff'];
+      const contrailTbody = document.querySelector('#contrail-table tbody');
+      if (contrailTbody) {
+        contrailTbody.innerHTML = '';
+        contrailResults.forEach(({ label, prediction, cat }) => {
+          const tr = document.createElement('tr');
+          const color = cat < 0 ? '#4a5068' : contrailColors[Math.min(cat, 3)];
+          tr.innerHTML = `<td>${label}</td>
+            <td style="color:${color};font-weight:${cat >= 2 ? 'bold' : 'normal'}">${prediction}</td>`;
+          contrailTbody.appendChild(tr);
         });
       }
 
