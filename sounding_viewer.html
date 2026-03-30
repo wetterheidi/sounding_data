@@ -1495,6 +1495,20 @@
       let el_p = null;
       let above_lfc = false;
 
+      // Höhe am LFC interpolieren (analog zu SoundingFunctions.calculateCAPE in Java:
+      // Integration beginnt ab dem exakt interpolierten LFC-Niveau, nicht ab dem
+      // nächsten Sondierungslevel → korrekte untere Grenze für die erste CAPE-Schicht)
+      let z_lfc = null;
+      if (lfc_p !== null) {
+        for (let i = 0; i < lvls.length - 1; i++) {
+          if (lvls[i].p_hPa >= lfc_p && lvls[i + 1].p_hPa <= lfc_p) {
+            const frac = (lvls[i].p_hPa - lfc_p) / (lvls[i].p_hPa - lvls[i + 1].p_hPa);
+            z_lfc = lvls[i].z_m + frac * (lvls[i + 1].z_m - lvls[i].z_m);
+            break;
+          }
+        }
+      }
+
       for (let i = 0; i < lvls.length; i++) {
         const l = lvls[i];
         let Tp_K;
@@ -1508,17 +1522,21 @@
         // CAPE / CIN Integration (LFC aus obiger Berechnung verwenden)
         if (i > 0) {
           const prev = lvls[i - 1];
-          const dz = l.z_m - prev.z_m;
           const T_env_K = l.T_C + 273.15;
-          const buoy = 9.81 * (Tp_K - T_env_K) / T_env_K * dz;
 
           if (lfc_p !== null && l.p_hPa <= lfc_p) {
+            // Erste CAPE-Schicht: untere Grenze = LFC-Höhe (nicht Sondierungslevel darunter)
+            const z_lower = (prev.p_hPa > lfc_p && z_lfc !== null) ? z_lfc : prev.z_m;
+            const dz = l.z_m - z_lower;
+            const buoy = 9.81 * (Tp_K - T_env_K) / T_env_K * dz;
             if (buoy > 0) {
               above_lfc = true;
               cape += buoy;
               el_p = l.p_hPa;
             }
           } else {
+            const dz = l.z_m - prev.z_m;
+            const buoy = 9.81 * (Tp_K - T_env_K) / T_env_K * dz;
             if (buoy < 0) cin += buoy;
           }
         }
@@ -1988,6 +2006,18 @@
       }
 
       // 4. CAPE (CCL): Parcel steigt vom CCL feuchtadiabatisch auf
+      // CCL-Höhe interpolieren (entspricht SoundingFunctions.calculateCAPE-Startpunkt in Java)
+      let z_ccl = null;
+      if (p_ccl !== null) {
+        for (let i = 0; i < lvls.length - 1; i++) {
+          if (lvls[i].p_hPa >= p_ccl && lvls[i + 1].p_hPa <= p_ccl) {
+            const frac = (lvls[i].p_hPa - p_ccl) / (lvls[i].p_hPa - lvls[i + 1].p_hPa);
+            z_ccl = lvls[i].z_m + frac * (lvls[i + 1].z_m - lvls[i].z_m);
+            break;
+          }
+        }
+      }
+
       let cape_ccl = 0;
       if (p_ccl !== null && T_ccl !== null) {
         const T_ccl_K = T_ccl + 273.15;
@@ -1996,7 +2026,9 @@
           if (l.p_hPa > p_ccl) continue;  // Unter CCL: kein Beitrag
           const Tp_K = MET.moist_adiabat_T(T_ccl_K, p_ccl, l.p_hPa);
           const T_env_K = l.T_C + 273.15;
-          const dz = l.z_m - lvls[i - 1].z_m;
+          // Erste CAPE-Schicht: untere Grenze = CCL-Höhe (nicht Sondierungslevel darunter)
+          const z_lower = (lvls[i - 1].p_hPa > p_ccl && z_ccl !== null) ? z_ccl : lvls[i - 1].z_m;
+          const dz = l.z_m - z_lower;
           const buoy = 9.81 * (Tp_K - T_env_K) / T_env_K * dz;
           if (buoy > 0) cape_ccl += buoy;
         }
