@@ -544,6 +544,8 @@
         </div>
         <div class="index-row"><span class="index-name">Fröstl</span><span class="index-val" id="idx-froestl">—</span>
         </div>
+        <div class="index-row"><span class="index-name">Hagel (Moore/Pino)</span><span class="index-val" id="idx-hail">—</span>
+        </div>
         <div class="index-row"><span class="index-name">PPW (SFC–400 hPa)</span><span class="index-val"
             id="idx-pw">—</span></div>
       </details>
@@ -574,6 +576,15 @@
           <div class="index-row"><span class="index-name">Nakamura Böen</span><span class="index-val"
               id="idx-nakamura">—</span></div>
         </div>
+      </details>
+      <details class="sidebar-section" closed>
+        <summary>Turbulenz CAT (AFWGC 70-7)</summary>
+        <table class="wind-table" id="cat-table">
+          <thead>
+            <tr><th>Schicht</th><th>Klasse</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </details>
       <details class="sidebar-section" open>
         <summary>Troposphäre</summary>
@@ -621,11 +632,27 @@
     // Hilfsfunktionen Meteorologie
     // =========================================================================
     const MET = {
-      /** Dampfdruck [Pa] aus Temperatur [°C] (Magnus) */
-      es(T_C) {
+      /** Sättigungsdampfdruck über Wasser [Pa] (Magnus) */
+      es_water(T_C) {
         return 611.2 * Math.exp(17.67 * T_C / (T_C + 243.5));
       },
-      // Neu: Dampfdruck in Taupunkt [°C] umrechnen (Umkehrung der Magnus-Formel)
+      /** Sättigungsdampfdruck über Eis [Pa] (Murray 1967) */
+      es_ice(T_C) {
+        return 611.2 * Math.exp(21.87 * T_C / (T_C + 265.5));
+      },
+      /**
+       * Sättigungsdampfdruck [Pa] – Mixed-Phase:
+       *   T >   0°C → rein Wasser
+       *   T < −40°C → rein Eis
+       *   dazwischen → linearer Übergang (WMO-Standard)
+       */
+      es(T_C) {
+        if (T_C >= 0)   return MET.es_water(T_C);
+        if (T_C <= -40) return MET.es_ice(T_C);
+        const f = -T_C / 40; // 0 bei 0°C, 1 bei -40°C
+        return (1 - f) * MET.es_water(T_C) + f * MET.es_ice(T_C);
+      },
+      /** Dampfdruck in Taupunkt [°C] umrechnen (Umkehrung der Wasser-Magnus-Formel) */
       dewpoint_from_e(e_Pa) {
         const L = Math.log(Math.max(e_Pa / 611.2, 1e-10));
         return (243.5 * L) / (17.67 - L);
@@ -648,44 +675,51 @@
       },
       /** Trockenadiabatischer Temperaturgradient */
       dry_adiabat_T(T0_K, p0_hPa, p_hPa) {
-        const kappa = 0.2854;
+        const kappa = 287.05 / 1004.0; // Rd/cp = 0.28589
         return T0_K * Math.pow(p_hPa / p0_hPa, kappa);
       },
-      /** Präzise pseudoadiabatische Temperatur-Integration */
+      /** dT/dp [K/Pa] entlang der Pseudoadiabate – benötigt von RK4 */
+      _moist_dTdp(T_K, p_hPa) {
+        const T_C = T_K - 273.15;
+        const e_s_hPa = MET.es(T_C) / 100.0;
+        const r_s = 0.622 * e_s_hPa / Math.max(p_hPa - e_s_hPa, 0.01);
+        const Lv_water = 2500800 - 2360 * T_C;
+        const Lv_ice   = 2834000 - 340  * T_C;
+        const Lv = T_C >= 0   ? Lv_water
+                 : T_C <= -40 ? Lv_ice
+                 : (1 + T_C / 40) * Lv_water + (-T_C / 40) * Lv_ice;
+        const Rd = 287.05, cp = 1004.0;
+        const p_Pa = p_hPa * 100.0;
+        const num = Rd * T_K + Lv * r_s;
+        const den = p_Pa * cp + (p_Pa * Lv * Lv * r_s * 0.622) / (Rd * T_K * T_K);
+        return num / den; // [K/Pa]
+      },
+      /** Pseudoadiabatische Temperatur-Integration (Runge-Kutta 4. Ordnung) */
       moist_adiabat_T(T0_K, p0_hPa, p_hPa) {
+        if (Math.abs(p_hPa - p0_hPa) < 0.01) return T0_K;
         let T = T0_K;
         let p = p0_hPa;
-
-        // Fester numerischer Integrationsschritt (2 hPa) für Stabilität
-        const step = (p_hPa < p0_hPa) ? -2 : 2;
+        const step = (p_hPa < p0_hPa) ? -5 : 5; // 5 hPa Schritte reichen für RK4
 
         while ((step < 0 && p > p_hPa) || (step > 0 && p < p_hPa)) {
-          // Letzter Teilschritt, um exakt auf p_hPa zu landen
-          const dp_hPa = ((step < 0 && p + step < p_hPa) || (step > 0 && p + step > p_hPa))
+          const dp = ((step < 0 && p + step < p_hPa) || (step > 0 && p + step > p_hPa))
             ? (p_hPa - p) : step;
+          const dp_Pa = dp * 100.0;
 
-          const e_s_hPa = MET.es(T - 273.15) / 100.0;
-          const r_s = 0.622 * e_s_hPa / Math.max(p - e_s_hPa, 0.01);
+          // RK4
+          const k1 = MET._moist_dTdp(T,                  p)               * dp_Pa;
+          const k2 = MET._moist_dTdp(T + k1 / 2, p + dp / 2) * dp_Pa;
+          const k3 = MET._moist_dTdp(T + k2 / 2, p + dp / 2) * dp_Pa;
+          const k4 = MET._moist_dTdp(T + k3,     p + dp)     * dp_Pa;
 
-          const Lv = 2500000; // Verdampfungswärme [J/kg]
-          const Rd = 287.05;  // Gaskonstante trockene Luft
-          const cp = 1005;    // Spezifische Wärmekapazität
-
-          // dT/dp Formel für Feuchtadiabate [K/Pa]
-          const p_Pa = p * 100.0;
-          const num = Rd * T + Lv * r_s;
-          const den = p_Pa * cp + (p_Pa * Math.pow(Lv, 2) * r_s * 0.622) / (Rd * Math.pow(T, 2));
-          const dT_dPa = num / den;
-
-          // Umrechnung in hPa und anwenden
-          T += dT_dPa * (dp_hPa * 100.0);
-          p += dp_hPa;
+          T += (k1 + 2 * k2 + 2 * k3 + k4) / 6;
+          p += dp;
         }
         return T;
       },
       /** Potentielle Temperatur [K] */
       potential_T(T_K, p_hPa) {
-        return T_K * Math.pow(1000 / p_hPa, 0.2854);
+        return T_K * Math.pow(1000 / p_hPa, 287.05 / 1004.0);
       },
       /** Feucht-Pseudopotentielle Temperatur [K] (θ_sw) bei Sättigung */
       moist_potential_T(T_K, p_hPa) {
@@ -707,7 +741,7 @@
         const T_lcl = 1 / (1 / (Td_K - 56) + Math.log(T_K / Td_K) / 800) + 56;
         const e = MET.es(Td_C) / 100; // hPa
         const r = 0.622 * e / (p_hPa - e); // kg/kg
-        const theta = T_K * Math.pow(1000 / p_hPa, 0.2854 * (1 - 0.28 * r));
+        const theta = T_K * Math.pow(1000 / p_hPa, (287.05 / 1004.0) * (1 - 0.28 * r));
         return theta * Math.exp((3036 / T_lcl - 1.78) * r * (1 + 0.448 * r));
       },
       /** Windrichtung in Text */
@@ -725,17 +759,9 @@
      * Berechnet die relative Feuchte (%) aus Temperatur und Taupunkt (°C)
      */
     function calcRelativeHumidity(T_C, Td_C) {
-      if (T_C === null || Td_C === null || T_C === undefined || Td_C === undefined) return null;
-      // Magnus-Formel Konstanten
-      const a = 17.625;
-      const b = 243.04;
-
-      // Sättigungsdampfdruck für T und Td
-      const es = 6.112 * Math.exp((a * T_C) / (b + T_C));
-      const e = 6.112 * Math.exp((a * Td_C) / (b + Td_C));
-
-      const rh = (e / es) * 100;
-      return Math.max(0, Math.min(100, rh)); // Begrenzen auf 0-100%
+      if (T_C == null || Td_C == null) return null;
+      const rh = (MET.es_water(Td_C) / MET.es_water(T_C)) * 100;
+      return Math.max(0, Math.min(100, rh));
     }
 
     /**
@@ -1491,6 +1517,250 @@
       return { path: parcel, cape, cin, p_LCL, lfc_p, el_p };
     }
 
+    /**
+     * Hagelkorngröße nach Moore/Pino (1990).
+     * Ports das NinJo-Operator-Konzept (MoorePinoLFCHailOperator.java) nach JavaScript.
+     * Rückgabe: Durchmesser [m] oder null wenn nicht berechenbar.
+     */
+    function computeHailMoorePino(lvls, parcelData) {
+      // --- Konstanten (identisch mit Java-Operator) ---
+      const Rd = 287.05, g = 9.81;
+      const cal = 4.1868;                    // cal → J
+      const nuEA = 1.75e-5;                  // kinematische Viskosität Luft [m²/s]
+      const dStream = 0.1;                   // Stromdurchmesser [m]
+      const mue = 0.183 / 2000.0;            // Entrainment-Rate [m⁻¹]
+      const alpha = 0.5;                     // virtuelle Massenkoeffizient
+      const cd = 0.6;                        // Widerstandsbeiwert (Macklin & Ludlam 1961)
+      const rhoH = 900.0;                    // Eisdichte [kg/m³]
+      const pr = 0.71;                       // Prandtl-Zahl
+      const ka = 0.034;                      // Wärmeleitfähigkeit Luft [W/(m·K)]
+      const ksi = 0.76;                      // Wärmetransportfaktor
+      const sc = 0.6;                        // Schmidt-Zahl
+      const T0_K = 273.15;
+      const minus10_K = 263.15;
+
+      if (!parcelData?.lfc_p) return null;
+      const lfc_p = parcelData.lfc_p; // hPa
+
+      // LFC-Temperatur aus Umgebungsprofil interpolieren
+      let lfc_T_K = null;
+      for (let i = 0; i < lvls.length - 1; i++) {
+        if (lvls[i].p_hPa >= lfc_p && lvls[i + 1].p_hPa <= lfc_p) {
+          const frac = (lfc_p - lvls[i].p_hPa) / (lvls[i + 1].p_hPa - lvls[i].p_hPa);
+          lfc_T_K = (lvls[i].T_C + frac * (lvls[i + 1].T_C - lvls[i].T_C)) + T0_K;
+          break;
+        }
+      }
+      if (lfc_T_K === null || lfc_T_K <= minus10_K) return null;
+
+      // Druck, bei dem die Feuchtadiabate vom LFC -10°C erreicht (Bisektion)
+      if (MET.moist_adiabat_T(lfc_T_K, lfc_p, 100) > minus10_K) return null;
+      let p_lo = 100, p_hi = lfc_p;
+      for (let iter = 0; iter < 60; iter++) {
+        const p_mid = (p_lo + p_hi) / 2;
+        MET.moist_adiabat_T(lfc_T_K, lfc_p, p_mid) > minus10_K ? p_lo = p_mid : p_hi = p_mid;
+        if (p_hi - p_lo < 0.05) break;
+      }
+      const p_minus10 = (p_lo + p_hi) / 2; // hPa
+
+      // Hilfsfunktionen
+      const soundingAt = (p, field) => {
+        if (p >= lvls[0].p_hPa) return lvls[0][field];
+        for (let i = 0; i < lvls.length - 1; i++) {
+          if (lvls[i].p_hPa >= p && lvls[i + 1].p_hPa <= p) {
+            const f = (p - lvls[i].p_hPa) / (lvls[i + 1].p_hPa - lvls[i].p_hPa);
+            return lvls[i][field] + f * (lvls[i + 1][field] - lvls[i][field]);
+          }
+        }
+        return lvls[lvls.length - 1][field];
+      };
+      const virtualT = (T_K, Td_K, p_hPa) => {
+        const w = MET.mixing_ratio(Td_K - T0_K, p_hPa);
+        return T_K * (1 + w / 0.622) / (1 + w);
+      };
+      const layerDz = (T_mean_K, p1_hPa, p2_hPa) =>
+        (Rd / g) * T_mean_K * Math.log(p1_hPa / p2_hPa);
+
+      // === WACHSTUMSPHASE: LFC → -10°C-Niveau ===
+      let w_vert = 0.0;
+      const dp = 20; // hPa Schrittweite (= 2000 Pa wie im Java-Code)
+      for (let p_lower = lfc_p; p_lower > p_minus10; p_lower -= dp) {
+        const p_upper = Math.max(p_lower - dp, p_minus10);
+        const p_mean = (p_lower + p_upper) / 2;
+
+        const T_amb_C = soundingAt(p_mean, 'T_C');
+        if (T_amb_C === null) return null;
+        let Td_amb_C = soundingAt(p_mean, 'Td_C');
+        if (Td_amb_C === null) Td_amb_C = T_amb_C;
+
+        const T_amb_K = T_amb_C + T0_K;
+        const Tv_amb = virtualT(T_amb_K, Td_amb_C + T0_K, p_mean);
+        const w_mix = MET.mixing_ratio(T_amb_C, p_mean); // kg/kg
+
+        const T_wa_K = MET.moist_adiabat_T(lfc_T_K, lfc_p, p_mean);
+        const Tv_wa = virtualT(T_wa_K, T_wa_K, p_mean); // gesättigt: Td = T
+
+        const dz = layerDz(T_amb_K, p_lower, p_upper);
+        const expMueDz = Math.exp(mue * dz);
+        const Tv_parcel = (Tv_wa + Tv_amb * (expMueDz - 1)) / expMueDz;
+
+        w_vert = w_vert + 2 * dz * (
+          g * (Tv_parcel - Tv_amb) / ((1 + alpha) * Tv_amb) -
+          g * w_mix -
+          mue * w_vert
+        );
+      }
+      if (w_vert <= 0) return 0; // Abwind → kein Hagel
+
+      // Luftdichte am -10°C-Niveau
+      const Tv_m10 = virtualT(minus10_K, minus10_K, p_minus10);
+      const rhoA_m10 = (p_minus10 * 100) / (Rd * Tv_m10);
+
+      // Hageldurchmesser vor dem Fall [m]
+      let D_hail = 3 * rhoA_m10 * cd * w_vert / (2 * rhoH * g);
+
+      // === NASSKOLBEN-NULLGRAD-HÖHE ===
+      let wb0_z = null;
+      for (let i = 0; i < lvls.length - 1; i++) {
+        const l1 = lvls[i], l2 = lvls[i + 1];
+        if (l1.T_C == null || l1.Td_C == null || l2.T_C == null || l2.Td_C == null) continue;
+        const tw1 = MET.wet_bulb(l1.T_C, l1.Td_C, l1.p_hPa);
+        const tw2 = MET.wet_bulb(l2.T_C, l2.Td_C, l2.p_hPa);
+        if (tw1 >= 0 && tw2 < 0) {
+          const frac = tw1 / (tw1 - tw2);
+          wb0_z = l1.z_m + frac * (l2.z_m - l1.z_m);
+          break;
+        }
+      }
+      if (wb0_z === null) return null;
+
+      // Kein Abschmelzen wenn WBZ < 11000 ft (≈ 3353 m)
+      if (wb0_z < 11000 * 0.3048) return D_hail;
+
+      // === ABSCHMELZPHASE: -10°C-Niveau → Boden ===
+      let hail_r = D_hail / 2;
+      const p_sfc = lvls[0].p_hPa;
+
+      for (let p_top = p_minus10; p_top < p_sfc; p_top += dp) {
+        const p_bot = Math.min(p_top + dp, p_sfc);
+        const p_mean = (p_top + p_bot) / 2;
+
+        const T_amb_C = soundingAt(p_mean, 'T_C');
+        if (T_amb_C === null) return null;
+        let Td_amb_C = soundingAt(p_mean, 'Td_C');
+        if (Td_amb_C === null) Td_amb_C = T_amb_C;
+
+        const T_amb_K = T_amb_C + T0_K;
+        const Tv_amb = virtualT(T_amb_K, Td_amb_C + T0_K, p_mean);
+        const rhoA = (p_mean * 100) / (Rd * Tv_amb);
+
+        const v_fall = Math.sqrt(4 * rhoH * g * hail_r / (3 * rhoA * cd));
+        const deltaT = T0_K - T_amb_K; // negativ wenn Umgebung > 0°C
+
+        const D_diff = 2.11e-5 * Math.pow(T_amb_K / T0_K, 1.94) * (p_mean * 100) / 101325;
+        const Re = v_fall * dStream * rhoA / nuEA;
+
+        // Lv: Verdampfungswärme [J/kg] aus cal/g-Näherung (wie Java)
+        const lv = (597.3 - 0.566 * T_amb_C) * 1000 * cal;
+        // Lf: Schmelzwärme [J/kg]
+        const lf = (76.67 + 0.61 * T_amb_C) * 1000 * cal;
+
+        // dSigma [Pa/K]: Dampfdruckgradient zwischen Hagelkornoberfläche (0°C) und Umgebung
+        const dSigma = 0.21667 * (
+          MET.es_water(T_amb_C) / 100 / T_amb_K -
+          MET.es_water(0) / 100 / T0_K
+        );
+
+        const beta = Math.pow(pr, 1 / 3) * ka * deltaT +
+                     Math.pow(sc, 1 / 3) * lv * D_diff * dSigma;
+
+        const deltaA = (ksi * Math.sqrt(Re) * beta *
+                        Rd * Tv_amb / g * Math.log(p_bot / p_top)) /
+                       (2 * rhoH * lf * v_fall * hail_r);
+
+        if (deltaA < 0) hail_r += deltaA; // nur Abschmelzen, kein Wachstum
+        if (hail_r <= 0) return 0;
+      }
+
+      return 2 * hail_r; // Durchmesser [m]
+    }
+
+    /**
+     * Clear Air Turbulence nach AFWGC Techn. Memorandum 70-7.
+     * Port von CATOperator.java / CATLevelOperator.java.
+     * Gibt ein Array von 6 Objekten {label, cat} zurück (cat: 0=NIL … 4=EXTRM).
+     */
+    function computeCAT(lvls) {
+      // Druckniveaus in hPa (= PRESSURE_LEVELS / 100 aus Java)
+      const P = [500, 400, 300, 250, 200, 150, 100];
+      // FL-Labels für die 6 Schichten (aus CATLevelOperator: 180,240,300,350,390,450,520)
+      const LABELS = ['FL180–240', 'FL240–300', 'FL300–350', 'FL350–390', 'FL390–450', 'FL450–520'];
+
+      const LAPSE_RATE_CLASSES = [
+        -43.5, -22, -11, -8, -5, -3.5, -2, -1.1, -0.2, 0.5, 1.2, 1.8,
+        2.3, 2.9, 3.3, 3.8, 4.2, 4.5, 4.9, 5.3, 5.8, 6.1, 6.7, 7.1,
+        7.8, 8.9, 9.7, 10.5, 11.4, Infinity
+      ];
+      const SHEAR_LIMITS = [
+        [0.2,0.4,0.8,1.2],   [0.3,0.7,1.0,1.4],   [0.7,1.4,2.1,2.8],
+        [1.1,2.2,3.3,4.4],   [1.4,2.8,4.2,5.6],   [1.8,3.6,5.4,7.2],
+        [2.1,4.2,6.3,8.4],   [2.5,5.0,7.5,10.0],  [2.8,5.6,8.4,11.2],
+        [3.1,6.2,9.3,12.0],  [3.5,7.0,10.5,14.0], [3.9,7.8,11.7,15.6],
+        [4.1,8.2,12.3,16.5], [4.6,9.2,13.8,19.4], [5.0,10.0,15.0,20.0],
+        [5.3,10.6,15.9,21.6],[5.6,11.2,16.8,22.4], [6.0,12.0,18.0,24.0],
+        [6.5,13.0,18.5,25.0],[6.7,13.4,20.1,26.8], [7.1,14.2,21.3,28.4],
+        [6.2,12.4,18.6,24.8],[5.5,11.0,16.5,22.0], [4.9,9.8,14.7,19.6],
+        [3.9,7.8,11.7,15.6], [3.1,6.2,9.3,12.4],  [2.3,4.6,6.9,9.9],
+        [1.5,3.0,4.5,6.0],   [0.8,1.5,2.3,3.0],   [0.4,0.8,1.2,1.6]
+      ];
+
+      // Interpolation eines Feldes bei gegebenem Druck
+      const interp = (p, field) => {
+        if (p >= lvls[0].p_hPa) return lvls[0][field];
+        for (let i = 0; i < lvls.length - 1; i++) {
+          if (lvls[i].p_hPa >= p && lvls[i + 1].p_hPa <= p) {
+            const f = (p - lvls[i].p_hPa) / (lvls[i + 1].p_hPa - lvls[i].p_hPa);
+            return lvls[i][field] + f * (lvls[i + 1][field] - lvls[i][field]);
+          }
+        }
+        return null;
+      };
+
+      const catForLayer = (p_low, p_high) => {
+        const T_low  = interp(p_low,  'T_C');
+        const T_high = interp(p_high, 'T_C');
+        const w_low  = interp(p_low,  'wspd_kn');
+        const w_high = interp(p_high, 'wspd_kn');
+        const z_low  = interp(p_low,  'z_m');
+        const z_high = interp(p_high, 'z_m');
+        if ([T_low, T_high, w_low, w_high, z_low, z_high].some(v => v === null)) return null;
+
+        const deltaP_Pa = (p_low - p_high) * 100;
+        const deltaZ_kft = (z_high - z_low) / 0.3048 / 1000; // 1000 ft
+        if (deltaZ_kft <= 0) return null;
+
+        // Temperaturgradient in K / 5000 Pa (wie Java: deltaP / 5000)
+        const lapseRate = (T_low - T_high) / (deltaP_Pa / 5000);
+
+        // Windscherung in kt / 1000 ft (Java-Daten in m/s, unsere in kt → keine Konversion nötig)
+        const windShear = Math.abs(w_high - w_low) / deltaZ_kft;
+
+        // Lapserateklasse bestimmen
+        const lrIdx = LAPSE_RATE_CLASSES.findIndex(lrc => lapseRate <= lrc);
+        if (lrIdx < 0) return null;
+
+        // Turbulenzklasse aus Scherungsgrenzen
+        const limits = SHEAR_LIMITS[lrIdx];
+        const cat = limits.findIndex(lim => windShear <= lim);
+        return cat < 0 ? limits.length : cat; // 0=NIL … 4=EXTRM
+      };
+
+      return LABELS.map((label, i) => ({
+        label,
+        cat: catForLayer(P[i], P[i + 1])
+      }));
+    }
+
     function computeAndDisplayIndices(snd) {
       if (!snd || !snd.levels) return;
       const lvls = snd.levels;
@@ -1672,6 +1942,46 @@
           else if (T_top <= -15 && M_ft >= 7000) froestl = 'SHRA';    // mäßiger Schauer
           else if (T_top <= -10 && M_ft >= 5000) froestl = '-SHRA';   // leichter Schauer
         }
+      }
+
+      // --- Hagel Moore/Pino ---
+      const hailDiam_m = computeHailMoorePino(lvls, parcelData);
+      const hailEl = document.getElementById('idx-hail');
+      if (hailEl) {
+        if (hailDiam_m === null) {
+          hailEl.textContent = '—';
+          hailEl.className = 'index-val';
+        } else if (hailDiam_m === 0) {
+          hailEl.textContent = 'kein Hagel';
+          hailEl.className = 'index-val';
+        } else {
+          const mm = hailDiam_m * 1000;
+          let label;
+          if      (mm < 5)  label = `${mm.toFixed(1)} mm (Graupel)`;
+          else if (mm < 20) label = `${mm.toFixed(1)} mm (Hagel)`;
+          else if (mm < 50) label = `${mm.toFixed(0)} mm (Großhagel)`;
+          else              label = `${mm.toFixed(0)} mm (extremer Hagel)`;
+          hailEl.textContent = label;
+          hailEl.className = 'index-val' + (mm >= 20 ? ' warn' : '');
+        }
+      }
+
+      // --- CAT ---
+      const catResults = computeCAT(lvls);
+      const catColors = ['#4a5068', '#c8a020', '#d07020', '#c03030', '#800020'];
+      const catLabels = ['NIL', 'LGT', 'MOD', 'SEV', 'EXTRM'];
+      const catTbody = document.querySelector('#cat-table tbody');
+      if (catTbody) {
+        catTbody.innerHTML = '';
+        catResults.forEach(({ label, cat }) => {
+          const tr = document.createElement('tr');
+          const catIdx = cat ?? -1;
+          const catText = catIdx < 0 ? '—' : catLabels[Math.min(catIdx, 4)];
+          const color   = catIdx < 0 ? '#4a5068' : catColors[Math.min(catIdx, 4)];
+          tr.innerHTML = `<td>${label}</td>
+            <td style="color:${color};font-weight:${catIdx >= 2 ? 'bold' : 'normal'}">${catText}</td>`;
+          catTbody.appendChild(tr);
+        });
       }
 
       // --- Faust-Glover Böen ---
