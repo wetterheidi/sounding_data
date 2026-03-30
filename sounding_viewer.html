@@ -1283,24 +1283,21 @@
       }
 
       // --- Windbarbs (rechte Spalte) ---
+      // Mindestabstand in Pixeln zwischen zwei Windbarbs (zoom-unabhängig → mehr Barbs beim Zoomen)
+      const MIN_BARB_PX = 22;
       const barbX = m.left + proj.W + 60;
-      const p_barb_levels = [1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150];
-      p_barb_levels.forEach(pTarget => {
-        let best = null, bestDist = Infinity;
-        lvls.forEach(l => {
-          const d = Math.abs(l.p_hPa - pTarget);
-          if (d < bestDist) { bestDist = d; best = l; }
-        });
-        if (!best || bestDist > 30) return;
-
-        const y = proj.toCanvasY(best.p_hPa); // Geändert!
-        if (y < m.top || y > m.top + proj.H) return; // Verhindert Überlappung oben/unten
-
-        drawWindBarb(ctx, barbX, y, best.wspd_kn, best.wdir_deg, 18);
+      let lastBarbY = -Infinity;
+      lvls.forEach(l => {
+        if (l.wspd_kn == null || l.wdir_deg == null) return;
+        const y = proj.toCanvasY(l.p_hPa);
+        if (y < m.top || y > m.top + proj.H) return;
+        if (Math.abs(y - lastBarbY) < MIN_BARB_PX) return;
+        lastBarbY = y;
+        drawWindBarb(ctx, barbX, y, l.wspd_kn, l.wdir_deg, 18);
         ctx.fillStyle = '#3a4060';
         ctx.font = '9px IBM Plex Mono, monospace';
         ctx.textAlign = 'left';
-        ctx.fillText(pTarget, barbX + 14, y + 3);
+        ctx.fillText(Math.round(l.p_hPa), barbX + 14, y + 3);
       });
 
       // --- Titel ---
