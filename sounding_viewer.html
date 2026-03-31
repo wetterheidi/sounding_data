@@ -2688,21 +2688,27 @@
       bs1_kt = bulkShear(0, 1000);
 
       {
-        // Mittlerer Wind 0–6 km (massenmittel über Höhe)
-        let u_sum = 0, v_sum = 0, dz_sum = 0;
+        // Mittlerer Wind 0–6 km (dichtgewichtet: ρ = p / (Rd × Tv))
+        const Rd = 287.05;
+        const rho = l => {
+          const Tv = (l.T_C + 273.15) * (1 + 0.608 * ((l.Td_C != null) ? MET.mixing_ratio(l.Td_C, l.p_hPa) : 0));
+          return (l.p_hPa * 100) / (Rd * Tv);
+        };
+        let u_sum = 0, v_sum = 0, rho_sum = 0;
         for (let i = 0; i < lvls.length - 1; i++) {
           const la = lvls[i], lb = lvls[i + 1];
           if (la.z_m > 6000) break;
           const a = toUV(la), b = toUV(lb);
           if (!a || !b) continue;
-          const z_lo = la.z_m, z_hi = Math.min(lb.z_m, 6000);
-          const dz = z_hi - z_lo;
-          u_sum += ((a.u + b.u) / 2) * dz;
-          v_sum += ((a.v + b.v) / 2) * dz;
-          dz_sum += dz;
+          const ra = rho(la), rb = rho(lb);
+          const r_mid = (ra + rb) / 2;
+          const dz = Math.min(lb.z_m, 6000) - la.z_m;
+          u_sum += r_mid * ((a.u + b.u) / 2) * dz;
+          v_sum += r_mid * ((a.v + b.v) / 2) * dz;
+          rho_sum += r_mid * dz;
         }
-        if (dz_sum > 0) {
-          const u_mean = u_sum / dz_sum, v_mean = v_sum / dz_sum;
+        if (rho_sum > 0) {
+          const u_mean = u_sum / rho_sum, v_mean = v_sum / rho_sum;
           // Schervektor 0–6 km
           const uv0 = toUV(lvls[0]);
           const uv6 = uvAtZ(6000);
@@ -2726,7 +2732,7 @@
               const vb = a.v + frac * (b.v - a.v);
               srh += (u_storm - a.u) * (vb - a.v) - (v_storm - a.v) * (ub - a.u);
             }
-            srh_3km = -srh; // Vorzeichen: positiv für zyklonale Rotation (Nordhalbkugel)
+            srh_3km = srh; // positiv für zyklonale Rotation (veerend, Nordhalbkugel)
           }
         }
       }
