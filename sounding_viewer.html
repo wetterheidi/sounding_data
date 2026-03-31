@@ -273,7 +273,9 @@
     /* ------------------------------------------------------------------ */
     #sidebar {
       width: 310px;
-      min-width: 250px;
+      min-width: 200px;
+      max-width: 310px;
+      flex-shrink: 1;
       background: var(--bg2);
       border-left: 1px solid var(--border);
       overflow-y: auto;
@@ -281,6 +283,18 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+    }
+
+    @media (max-width: 700px) {
+      #sidebar {
+        width: 100%;
+        max-width: 100%;
+        border-left: none;
+        border-top: 1px solid var(--border);
+      }
+      #main {
+        flex-direction: column;
+      }
     }
 
     .sidebar-section h3 {
@@ -549,6 +563,9 @@
         </div>
         <div class="index-row"><span class="index-name">PPW (SFC–400 hPa)</span><span class="index-val"
             id="idx-pw">—</span></div>
+        <div class="index-row"><span class="index-name">SRH (0–3 km)</span><span class="index-val" id="idx-srh">—</span></div>
+        <div class="index-row"><span class="index-name">Bulk Shear (0–6 km)</span><span class="index-val" id="idx-bs6">—</span></div>
+        <div class="index-row"><span class="index-name">Bulk Shear (0–1 km)</span><span class="index-val" id="idx-bs1">—</span></div>
       </details>
       <details class="sidebar-section" open>
         <summary>Kondensationsniveaus</summary>
@@ -1261,6 +1278,26 @@
       }
       ctx.restore();
 
+      // --- Wolkenbalken-Legende ---
+      {
+        const legY = m.top + proj.H + 6;
+        const legItems = [
+          { label: 'SCT', color: 'rgba(210,220,230,0.60)' },
+          { label: 'BKN', color: 'rgba(120,138,155,0.85)' },
+          { label: 'OVC', color: 'rgba(55,70,85,1.00)'    },
+        ];
+        ctx.font = '9px IBM Plex Mono, monospace';
+        ctx.textAlign = 'left';
+        let lx = cbX;
+        legItems.forEach(({ label, color }) => {
+          ctx.fillStyle = color;
+          ctx.fillRect(lx, legY, 8, 8);
+          ctx.fillStyle = '#6c758f';
+          ctx.fillText(label, lx + 10, legY + 8);
+          lx += 36;
+        });
+      }
+
       // --- Temperaturfläche (schattierter Bereich zwischen T und Td) ---
       ctx.beginPath();
       lvls.forEach((l, i) => {
@@ -1679,16 +1716,20 @@
         }
         parcel.push({ p: l.p_hPa, T_C: Tp_K - 273.15 });
 
-        // CAPE / CIN Integration (LFC aus obiger Berechnung verwenden)
+        // CAPE / CIN Integration mit virtueller Temperaturkorrektur (Doswell & Rasmussen 1994)
+        // Tv = T × (1 + 0.608 × w), w = Mischungsverhältnis [kg/kg]
+        // Korrigiert CAPE typisch um +10–20 % gegenüber einfacher T-Differenz.
         if (i > 0) {
           const prev = lvls[i - 1];
-          const T_env_K = l.T_C + 273.15;
+          const w_env = (l.Td_C != null) ? MET.mixing_ratio(l.Td_C, l.p_hPa) : 0;
+          const w_pcl = MET.mixing_ratio(Tp_K - 273.15, l.p_hPa);
+          const Tv_env_K = (l.T_C + 273.15) * (1 + 0.608 * w_env);
+          const Tv_pcl_K = Tp_K * (1 + 0.608 * w_pcl);
 
           if (lfc_p !== null && l.p_hPa <= lfc_p) {
-            // Erste CAPE-Schicht: untere Grenze = LFC-Höhe (nicht Sondierungslevel darunter)
             const z_lower = (prev.p_hPa > lfc_p && z_lfc !== null) ? z_lfc : prev.z_m;
             const dz = l.z_m - z_lower;
-            const buoy = 9.81 * (Tp_K - T_env_K) / T_env_K * dz;
+            const buoy = 9.81 * (Tv_pcl_K - Tv_env_K) / Tv_env_K * dz;
             if (buoy > 0) {
               above_lfc = true;
               cape += buoy;
@@ -1696,7 +1737,7 @@
             }
           } else {
             const dz = l.z_m - prev.z_m;
-            const buoy = 9.81 * (Tp_K - T_env_K) / T_env_K * dz;
+            const buoy = 9.81 * (Tv_pcl_K - Tv_env_K) / Tv_env_K * dz;
             if (buoy < 0) cin += buoy;
           }
         }
@@ -2368,11 +2409,13 @@
           const l = lvls[i];
           if (l.p_hPa > p_ccl) continue;  // Unter CCL: kein Beitrag
           const Tp_K = MET.moist_adiabat_T(T_ccl_K, p_ccl, l.p_hPa);
-          const T_env_K = l.T_C + 273.15;
-          // Erste CAPE-Schicht: untere Grenze = CCL-Höhe (nicht Sondierungslevel darunter)
+          const w_env = (l.Td_C != null) ? MET.mixing_ratio(l.Td_C, l.p_hPa) : 0;
+          const w_pcl = MET.mixing_ratio(Tp_K - 273.15, l.p_hPa);
+          const Tv_env_K = (l.T_C + 273.15) * (1 + 0.608 * w_env);
+          const Tv_pcl_K = Tp_K * (1 + 0.608 * w_pcl);
           const z_lower = (lvls[i - 1].p_hPa > p_ccl && z_ccl !== null) ? z_ccl : lvls[i - 1].z_m;
           const dz = l.z_m - z_lower;
-          const buoy = 9.81 * (Tp_K - T_env_K) / T_env_K * dz;
+          const buoy = 9.81 * (Tv_pcl_K - Tv_env_K) / Tv_env_K * dz;
           if (buoy > 0) cape_ccl += buoy;
         }
       }
@@ -2584,7 +2627,13 @@
         if (id === 'idx-tti') cls = val > 50 ? 'pos' : val > 44 ? 'warn' : 'neg';
         if (id === 'idx-vt') cls = val > 28 ? 'pos' : val > 24 ? 'warn' : 'neg';
         if (id === 'idx-ko') cls = val < -6 ? 'pos' : val < -2 ? 'warn' : 'neg';
-        if (id === 'idx-pw') cls = val > 35 ? 'pos' : val > 25 ? 'warn' : '';
+        if (id === 'idx-pw')  cls = val > 35  ? 'pos' : val > 25  ? 'warn' : '';
+        // SRH: > 150 m²/s² Superzell möglich, > 300 m²/s² hohe Tornadogefahr
+        if (id === 'idx-srh') cls = val > 300 ? 'pos' : val > 150 ? 'warn' : '';
+        // Bulk Shear 0-6 km: > 40 kt organisierte Gewitter/Superzellen, > 25 kt Multizelle
+        if (id === 'idx-bs6') cls = val > 40  ? 'pos' : val > 25  ? 'warn' : '';
+        // Bulk Shear 0-1 km: > 20 kt erhöhte Tornadogefahr
+        if (id === 'idx-bs1') cls = val > 20  ? 'pos' : val > 10  ? 'warn' : '';
 
         if (cls !== '') el.classList.add(cls);
       }
@@ -2599,6 +2648,92 @@
       setIdx('idx-vt', vt, ' K');
       setIdx('idx-ko', ko, ' K');
       setIdx('idx-pw', pw_mm, ' mm', 1);
+
+      // --- SRH und Bulk Shear ---
+      // Windkomponenten aus Richtung und Geschwindigkeit (meteorologische Konvention)
+      const toUV = l => {
+        if (l.wspd_kn == null || l.wdir_deg == null) return null;
+        const spd = l.wspd_kn * 0.514444; // kt → m/s
+        const rad = l.wdir_deg * Math.PI / 180;
+        return { u: -spd * Math.sin(rad), v: -spd * Math.cos(rad) };
+      };
+
+      // Interpolation von u/v auf gegebene Höhe AGL
+      const uvAtZ = z_target => {
+        for (let i = 0; i < lvls.length - 1; i++) {
+          const la = lvls[i], lb = lvls[i + 1];
+          if (la.z_m <= z_target && lb.z_m >= z_target) {
+            const f = (z_target - la.z_m) / (lb.z_m - la.z_m);
+            const a = toUV(la), b = toUV(lb);
+            if (!a || !b) return null;
+            return { u: a.u + f * (b.u - a.u), v: a.v + f * (b.v - a.v) };
+          }
+        }
+        return null;
+      };
+
+      // Bulk Shear: Vektordifferenz zwischen Ober- und Untergrenze [m/s → kt]
+      const bulkShear = (z_lo, z_hi) => {
+        const lo = uvAtZ(z_lo) ?? toUV(lvls[0]);
+        const hi = uvAtZ(z_hi);
+        if (!lo || !hi) return null;
+        return Math.sqrt((hi.u - lo.u) ** 2 + (hi.v - lo.v) ** 2) / 0.514444; // m/s → kt
+      };
+
+      // Bunkers-Sturmzug (Bunkers et al. 2000) – Rechtsmover für SRH
+      // Vm = mittlerer Wind 0–6 km, Abweichung 7.5 m/s senkrecht zur Schere
+      let srh_3km = null;
+      let bs6_kt = null, bs1_kt = null;
+      bs6_kt = bulkShear(0, 6000);
+      bs1_kt = bulkShear(0, 1000);
+
+      {
+        // Mittlerer Wind 0–6 km (massenmittel über Höhe)
+        let u_sum = 0, v_sum = 0, dz_sum = 0;
+        for (let i = 0; i < lvls.length - 1; i++) {
+          const la = lvls[i], lb = lvls[i + 1];
+          if (la.z_m > 6000) break;
+          const a = toUV(la), b = toUV(lb);
+          if (!a || !b) continue;
+          const z_lo = la.z_m, z_hi = Math.min(lb.z_m, 6000);
+          const dz = z_hi - z_lo;
+          u_sum += ((a.u + b.u) / 2) * dz;
+          v_sum += ((a.v + b.v) / 2) * dz;
+          dz_sum += dz;
+        }
+        if (dz_sum > 0) {
+          const u_mean = u_sum / dz_sum, v_mean = v_sum / dz_sum;
+          // Schervektor 0–6 km
+          const uv0 = toUV(lvls[0]);
+          const uv6 = uvAtZ(6000);
+          if (uv0 && uv6) {
+            const du = uv6.u - uv0.u, dv = uv6.v - uv0.v;
+            const mag = Math.sqrt(du * du + dv * dv) || 1;
+            // Rechtsmover: 7.5 m/s senkrecht nach rechts zur Schere
+            const u_storm = u_mean + 7.5 * (dv / mag);
+            const v_storm = v_mean - 7.5 * (du / mag);
+
+            // SRH 0–3 km: Σ (u_storm - u_env)(v_{i+1} - v_i) - (v_storm - v_env)(u_{i+1} - u_i)
+            let srh = 0;
+            for (let i = 0; i < lvls.length - 1; i++) {
+              const la = lvls[i], lb = lvls[i + 1];
+              if (la.z_m >= 3000) break;
+              const a = toUV(la), b = toUV(lb);
+              if (!a || !b) continue;
+              // Schicht ggf. auf 3 km kappen
+              const frac = lb.z_m > 3000 ? (3000 - la.z_m) / (lb.z_m - la.z_m) : 1;
+              const ub = a.u + frac * (b.u - a.u);
+              const vb = a.v + frac * (b.v - a.v);
+              srh += (u_storm - a.u) * (vb - a.v) - (v_storm - a.v) * (ub - a.u);
+            }
+            srh_3km = -srh; // Vorzeichen: positiv für zyklonale Rotation (Nordhalbkugel)
+          }
+        }
+      }
+
+      setIdx('idx-srh', srh_3km, ' m²/s²', 0);
+      setIdx('idx-bs6', bs6_kt, ' kt', 0);
+      setIdx('idx-bs1', bs1_kt, ' kt', 0);
 
       // --- 0°C Grenze (Freezing Level) in m und ft AGL ---
       // --- Niederschlagsphase ---
