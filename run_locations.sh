@@ -35,7 +35,7 @@ if run_model "icon-d2"; then
   python3 fetch_sounding.py --lat 54.362 --lon 13.087 --model icon-d2 --step 0:24:1 --outdir ./data --alias Parow
 
   # Ort: Stiwoll 47.10537586454951, 15.214935030670695
-  python3 fetch_sounding.py --lat 47.105 --lon 15.215 --model icon-d2 --step 0:24:1 --outdir ./data --alias Parow
+  python3 fetch_sounding.py --lat 47.105 --lon 15.215 --model icon-d2 --step 0:24:1 --outdir ./data --alias Stiwoll
 fi
 
 # === ICON-EU (3-stündlich) ===
