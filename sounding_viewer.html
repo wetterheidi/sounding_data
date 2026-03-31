@@ -544,7 +544,8 @@
         </div>
         <div class="index-row"><span class="index-name">Fröstl</span><span class="index-val" id="idx-froestl">—</span>
         </div>
-        <div class="index-row"><span class="index-name">Hagel (Moore/Pino)</span><span class="index-val" id="idx-hail">—</span>
+        <div class="index-row"><span class="index-name">Hagel (Moore/Pino)</span><span class="index-val"
+            id="idx-hail">—</span>
         </div>
         <div class="index-row"><span class="index-name">PPW (SFC–400 hPa)</span><span class="index-val"
             id="idx-pw">—</span></div>
@@ -556,7 +557,8 @@
         <div class="index-row"><span class="index-name">CCL</span><span class="index-val" id="idx-ccl">—</span></div>
         <div class="index-row"><span class="index-name">TA</span><span class="index-val" id="idx-tc">—</span></div>
         <div class="index-row"><span class="index-name">EL LFC</span><span class="index-val" id="idx-el">—</span></div>
-        <div class="index-row"><span class="index-name">EL CCL</span><span class="index-val" id="idx-el-ccl">—</span></div>
+        <div class="index-row"><span class="index-name">EL CCL</span><span class="index-val" id="idx-el-ccl">—</span>
+        </div>
       </details>
       <details class="sidebar-section" closed>
         <summary>Wind (repr. Niveaus)</summary>
@@ -581,7 +583,10 @@
         <summary>Turbulenz CAT (AFWGC 70-7)</summary>
         <table class="wind-table" id="cat-table">
           <thead>
-            <tr><th>Schicht</th><th>Klasse</th></tr>
+            <tr>
+              <th>Schicht</th>
+              <th>Klasse</th>
+            </tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -590,7 +595,10 @@
         <summary>Kondensstreifen (Appleman)</summary>
         <table class="wind-table" id="contrail-table">
           <thead>
-            <tr><th>Niveau</th><th>Prognose</th></tr>
+            <tr>
+              <th>Schicht</th>
+              <th>Art</th>
+            </tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -656,7 +664,7 @@
        *   dazwischen → linearer Übergang (WMO-Standard)
        */
       es(T_C) {
-        if (T_C >= 0)   return MET.es_water(T_C);
+        if (T_C >= 0) return MET.es_water(T_C);
         if (T_C <= -40) return MET.es_ice(T_C);
         const f = -T_C / 40; // 0 bei 0°C, 1 bei -40°C
         return (1 - f) * MET.es_water(T_C) + f * MET.es_ice(T_C);
@@ -695,10 +703,10 @@
         const e_s_hPa = MET.es(T_C) / 100.0;
         const r_s = 0.622 * e_s_hPa / Math.max(p_hPa - e_s_hPa, 0.01);
         const Lv_water = 2500800 - 2360 * T_C;
-        const Lv_ice   = 2834000 - 340  * T_C;
-        const Lv = T_C >= 0   ? Lv_water
-                 : T_C <= -40 ? Lv_ice
-                 : (1 + T_C / 40) * Lv_water + (-T_C / 40) * Lv_ice;
+        const Lv_ice = 2834000 - 340 * T_C;
+        const Lv = T_C >= 0 ? Lv_water
+          : T_C <= -40 ? Lv_ice
+            : (1 + T_C / 40) * Lv_water + (-T_C / 40) * Lv_ice;
         const Rd = 287.05, cp = 1004.0;
         const p_Pa = p_hPa * 100.0;
         const num = Rd * T_K + Lv * r_s;
@@ -718,10 +726,10 @@
           const dp_Pa = dp * 100.0;
 
           // RK4
-          const k1 = MET._moist_dTdp(T,                  p)               * dp_Pa;
+          const k1 = MET._moist_dTdp(T, p) * dp_Pa;
           const k2 = MET._moist_dTdp(T + k1 / 2, p + dp / 2) * dp_Pa;
           const k3 = MET._moist_dTdp(T + k2 / 2, p + dp / 2) * dp_Pa;
-          const k4 = MET._moist_dTdp(T + k3,     p + dp)     * dp_Pa;
+          const k4 = MET._moist_dTdp(T + k3, p + dp) * dp_Pa;
 
           T += (k1 + 2 * k2 + 2 * k3 + k4) / 6;
           p += dp;
@@ -1701,11 +1709,11 @@
         );
 
         const beta = Math.pow(pr, 1 / 3) * ka * deltaT +
-                     Math.pow(sc, 1 / 3) * lv * D_diff * dSigma;
+          Math.pow(sc, 1 / 3) * lv * D_diff * dSigma;
 
         const deltaA = (ksi * Math.sqrt(Re) * beta *
-                        Rd * Tv_amb / g * Math.log(p_bot / p_top)) /
-                       (2 * rhoH * lf * v_fall * hail_r);
+          Rd * Tv_amb / g * Math.log(p_bot / p_top)) /
+          (2 * rhoH * lf * v_fall * hail_r);
 
         if (deltaA < 0) hail_r += deltaA; // nur Abschmelzen, kein Wachstum
         if (hail_r <= 0) return 0;
@@ -1731,16 +1739,16 @@
         7.8, 8.9, 9.7, 10.5, 11.4, Infinity
       ];
       const SHEAR_LIMITS = [
-        [0.2,0.4,0.8,1.2],   [0.3,0.7,1.0,1.4],   [0.7,1.4,2.1,2.8],
-        [1.1,2.2,3.3,4.4],   [1.4,2.8,4.2,5.6],   [1.8,3.6,5.4,7.2],
-        [2.1,4.2,6.3,8.4],   [2.5,5.0,7.5,10.0],  [2.8,5.6,8.4,11.2],
-        [3.1,6.2,9.3,12.0],  [3.5,7.0,10.5,14.0], [3.9,7.8,11.7,15.6],
-        [4.1,8.2,12.3,16.5], [4.6,9.2,13.8,19.4], [5.0,10.0,15.0,20.0],
-        [5.3,10.6,15.9,21.6],[5.6,11.2,16.8,22.4], [6.0,12.0,18.0,24.0],
-        [6.5,13.0,18.5,25.0],[6.7,13.4,20.1,26.8], [7.1,14.2,21.3,28.4],
-        [6.2,12.4,18.6,24.8],[5.5,11.0,16.5,22.0], [4.9,9.8,14.7,19.6],
-        [3.9,7.8,11.7,15.6], [3.1,6.2,9.3,12.4],  [2.3,4.6,6.9,9.9],
-        [1.5,3.0,4.5,6.0],   [0.8,1.5,2.3,3.0],   [0.4,0.8,1.2,1.6]
+        [0.2, 0.4, 0.8, 1.2], [0.3, 0.7, 1.0, 1.4], [0.7, 1.4, 2.1, 2.8],
+        [1.1, 2.2, 3.3, 4.4], [1.4, 2.8, 4.2, 5.6], [1.8, 3.6, 5.4, 7.2],
+        [2.1, 4.2, 6.3, 8.4], [2.5, 5.0, 7.5, 10.0], [2.8, 5.6, 8.4, 11.2],
+        [3.1, 6.2, 9.3, 12.0], [3.5, 7.0, 10.5, 14.0], [3.9, 7.8, 11.7, 15.6],
+        [4.1, 8.2, 12.3, 16.5], [4.6, 9.2, 13.8, 19.4], [5.0, 10.0, 15.0, 20.0],
+        [5.3, 10.6, 15.9, 21.6], [5.6, 11.2, 16.8, 22.4], [6.0, 12.0, 18.0, 24.0],
+        [6.5, 13.0, 18.5, 25.0], [6.7, 13.4, 20.1, 26.8], [7.1, 14.2, 21.3, 28.4],
+        [6.2, 12.4, 18.6, 24.8], [5.5, 11.0, 16.5, 22.0], [4.9, 9.8, 14.7, 19.6],
+        [3.9, 7.8, 11.7, 15.6], [3.1, 6.2, 9.3, 12.4], [2.3, 4.6, 6.9, 9.9],
+        [1.5, 3.0, 4.5, 6.0], [0.8, 1.5, 2.3, 3.0], [0.4, 0.8, 1.2, 1.6]
       ];
 
       // Interpolation eines Feldes bei gegebenem Druck
@@ -1756,11 +1764,11 @@
       };
 
       const catForLayer = (p_low, p_high) => {
-        const T_low  = interp(p_low,  'T_C');
+        const T_low = interp(p_low, 'T_C');
         const T_high = interp(p_high, 'T_C');
-        const w_low  = interp(p_low,  'wspd_kn');
+        const w_low = interp(p_low, 'wspd_kn');
         const w_high = interp(p_high, 'wspd_kn');
-        const z_low  = interp(p_low,  'z_m');
+        const z_low = interp(p_low, 'z_m');
         const z_high = interp(p_high, 'z_m');
         if ([T_low, T_high, w_low, w_high, z_low, z_high].some(v => v === null)) return null;
 
@@ -1797,10 +1805,10 @@
     function computeContrails(lvls) {
       // --- Triebwerksparameter (modernes Turbofan, η=0.35, Kerosin) ---
       const EI_H2O = 1.25;   // Emissionsindex Wasser [kg/kg Kraftstoff]
-      const cp_a   = 1004;   // Spez. Wärmekapazität Luft [J/(kg·K)]
-      const eps    = 0.622;  // Molverhältnis Wasser/Luft
-      const Q      = 43.2e6; // Unterer Heizwert Kerosin [J/kg]
-      const eta    = 0.35;   // Vortriebswirkungsgrad
+      const cp_a = 1004;   // Spez. Wärmekapazität Luft [J/(kg·K)]
+      const eps = 0.622;  // Molverhältnis Wasser/Luft
+      const Q = 43.2e6; // Unterer Heizwert Kerosin [J/kg]
+      const eta = 0.35;   // Vortriebswirkungsgrad
 
       // Magnus-Sättigungsdampfdruck über Wasser [Pa]
       const esw = T_C => 611.2 * Math.exp(17.67 * T_C / (T_C + 243.5));
@@ -1851,42 +1859,58 @@
         return null;
       };
 
-      // FL-Näherung aus Druck (ISA-Standardatmosphäre)
-      const pToFL = p => {
-        const h_m = 44307 * (1 - Math.pow(p / 1013.25, 0.190284));
-        return Math.round(h_m / 30.48 / 100) * 10;
-      };
-
-      const LEVELS = [400, 350, 300, 250, 200, 150];
-
-      return LEVELS.map(p => {
-        const T  = interp(p, 'T_C');
-        const Td = interp(p, 'Td_C');
-        const FL = pToFL(p);
-        const label = `FL${FL} (${p} hPa)`;
-
-        if (T === null || Td === null) return { label, prediction: '—', cat: -1 };
-
+      // Kategorie an gegebenem Druckniveau auswerten
+      const evalCat = p => {
+        const T = interp(p, 'T_C'), Td = interp(p, 'Td_C');
+        if (T === null || Td === null) return -1;
         const RH_water = Math.max(0, Math.min(1, esw(Td) / esw(T)));
-        // RH über Eis für Persistenzbedingung (Eissupersättigung)
         const RHi = MET.es_water(Td) / MET.es_ice(T) * 100;
         const T_crit = appleman_cutoff(p, RH_water);
+        if (T_crit === null || T > T_crit) return 0;
+        if (RHi >= 100) return 3;
+        if (RHi >= 85)  return 2;
+        if (RHi >= 30)  return 1;
+        return 0;
+      };
 
-        let prediction, cat;
-        if (T_crit === null || T > T_crit) {
-          prediction = 'Keine';   cat = 0;
-        } else if (RHi >= 100) {
-          prediction = 'Persistent'; cat = 3;
-        } else if (RHi >= 85) {
-          prediction = 'Teils persistent';  cat = 2;
-        } else if (RHi >= 30) {
-          prediction = 'Nicht persistent';    cat = 1;
+      const flFromZ = z_m => Math.round(z_m / 0.3048 / 100);
+
+      // Kontinuierlicher Scan in 5-hPa-Schritten (600–100 hPa)
+      const P_BOT = Math.min(600, lvls[0]?.p_hPa ?? 600);
+      const P_TOP = Math.max(100, lvls[lvls.length - 1]?.p_hPa ?? 100);
+      const samples = [];
+      for (let p = P_BOT; p >= P_TOP - 1; p -= 5) {
+        const pc = Math.max(p, P_TOP);
+        const z  = interp(pc, 'z_m');
+        const cat = evalCat(pc);
+        if (z === null || cat < 0) continue;
+        samples.push({ z, cat });
+      }
+
+      // Konsekutive Stichproben gleicher Kategorie zu Bändern zusammenfassen;
+      // Übergangshöhe = Mittelpunkt zwischen letzter und erster Probe des neuen Bands
+      const bands = [];
+      let cur = null;
+      for (const s of samples) {
+        if (cur === null) {
+          cur = { cat: s.cat, z_lo: s.z, z_hi: s.z };
+        } else if (s.cat === cur.cat) {
+          cur.z_hi = s.z;
         } else {
-          prediction = 'Keine';   cat = 0;
+          const z_mid = (cur.z_hi + s.z) / 2;
+          if (cur.cat > 0) bands.push({ cat: cur.cat, z_lo: cur.z_lo, z_hi: z_mid });
+          cur = { cat: s.cat, z_lo: z_mid, z_hi: s.z };
         }
+      }
+      if (cur && cur.cat > 0) bands.push({ cat: cur.cat, z_lo: cur.z_lo, z_hi: cur.z_hi });
 
-        return { label, prediction, cat };
-      });
+      const CAT_NAMES = ['', 'Nicht persistent', 'Teils persistent', 'Persistent'];
+      // Höchste Höhe zuerst
+      return bands.reverse().map(b => ({
+        cat:  b.cat,
+        label: `FL${flFromZ(b.z_lo)}–FL${flFromZ(b.z_hi)}`,
+        name: CAT_NAMES[b.cat],
+      }));
     }
 
     function computeAndDisplayIndices(snd) {
@@ -2099,10 +2123,10 @@
         } else {
           const mm = hailDiam_m * 1000;
           let label;
-          if      (mm < 5)  label = `${mm.toFixed(1)} mm (Graupel)`;
+          if (mm < 5) label = `${mm.toFixed(1)} mm (Graupel)`;
           else if (mm < 20) label = `${mm.toFixed(1)} mm (Hagel)`;
           else if (mm < 50) label = `${mm.toFixed(0)} mm (Großhagel)`;
-          else              label = `${mm.toFixed(0)} mm (extremer Hagel)`;
+          else label = `${mm.toFixed(0)} mm (extremer Hagel)`;
           hailEl.textContent = label;
           hailEl.className = 'index-val' + (mm >= 20 ? ' warn' : '');
         }
@@ -2115,11 +2139,11 @@
       const catTbody = document.querySelector('#cat-table tbody');
       if (catTbody) {
         catTbody.innerHTML = '';
-        catResults.forEach(({ label, cat }) => {
+        [...catResults].reverse().forEach(({ label, cat }) => {
           const tr = document.createElement('tr');
           const catIdx = cat ?? -1;
           const catText = catIdx < 0 ? '—' : catLabels[Math.min(catIdx, 4)];
-          const color   = catIdx < 0 ? '#4a5068' : catColors[Math.min(catIdx, 4)];
+          const color = catIdx < 0 ? '#4a5068' : catColors[Math.min(catIdx, 4)];
           tr.innerHTML = `<td>${label}</td>
             <td style="color:${color};font-weight:${catIdx >= 2 ? 'bold' : 'normal'}">${catText}</td>`;
           catTbody.appendChild(tr);
@@ -2127,19 +2151,25 @@
       }
 
       // --- Kondensstreifen (Appleman) ---
+      // Gibt Bänder zurück: [{cat, label (FL-Bereich), name}], höchste Höhe zuerst
       const contrailResults = computeContrails(lvls);
-      // cat: 0=Keine, 1=Kurz, 2=Länger, 3=Dauerhaft
       const contrailColors = ['#4a5068', '#a0b8d8', '#5ba4fc', '#c8eaff'];
       const contrailTbody = document.querySelector('#contrail-table tbody');
       if (contrailTbody) {
         contrailTbody.innerHTML = '';
-        contrailResults.forEach(({ label, prediction, cat }) => {
+        if (contrailResults.length === 0) {
           const tr = document.createElement('tr');
-          const color = cat < 0 ? '#4a5068' : contrailColors[Math.min(cat, 3)];
-          tr.innerHTML = `<td>${label}</td>
-            <td style="color:${color};font-weight:${cat >= 2 ? 'bold' : 'normal'}">${prediction}</td>`;
+          tr.innerHTML = `<td colspan="2" style="color:var(--text3)">Keine Kondensstreifen</td>`;
           contrailTbody.appendChild(tr);
-        });
+        } else {
+          contrailResults.forEach(({ label, name, cat }) => {
+            const tr = document.createElement('tr');
+            const color = contrailColors[Math.min(cat, 3)];
+            tr.innerHTML = `<td>${label}</td>
+              <td style="color:${color};font-weight:${cat >= 2 ? 'bold' : 'normal'}">${name}</td>`;
+            contrailTbody.appendChild(tr);
+          });
+        }
       }
 
       // --- Faust-Glover Böen ---
