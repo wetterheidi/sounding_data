@@ -272,7 +272,7 @@
     /* Seitenleiste: Indizes                                                */
     /* ------------------------------------------------------------------ */
     #sidebar {
-      width: 300px;
+      width: 310px;
       min-width: 250px;
       background: var(--bg2);
       border-left: 1px solid var(--border);
@@ -580,7 +580,7 @@
         </div>
       </details>
       <details class="sidebar-section" closed>
-        <summary>Turbulenz CAT (AFWGC 70-7)</summary>
+        <summary><input type="checkbox" id="chk-cat" style="margin-right:3px;">Turbulenz CAT (AFWGC 70-7) <label style="cursor:pointer;font-size:10px;margin-left:6px;text-transform:none;letter-spacing:0"></summary>
         <table class="wind-table" id="cat-table">
           <thead>
             <tr>
@@ -592,7 +592,7 @@
         </table>
       </details>
       <details class="sidebar-section" closed>
-        <summary>Kondensstreifen (Appleman)</summary>
+        <summary><input type="checkbox" id="chk-contrails" style="margin-right:3px;">Kondensstreifen (Appleman) <label style="cursor:pointer;font-size:10px;margin-left:6px;text-transform:none;letter-spacing:0"></summary>
         <table class="wind-table" id="contrail-table">
           <thead>
             <tr>
@@ -602,6 +602,12 @@
           </thead>
           <tbody></tbody>
         </table>
+      </details>
+      <details class="sidebar-section" closed>
+        <summary>Niederschlagsphase</summary>
+        <div class="index-row"><span class="index-name">Typ (Bourgouin)</span><span class="index-val" id="idx-precip-type">—</span></div>
+        <div class="index-row"><span class="index-name">Schneefallgrenze (DWD)</span><span class="index-val" id="idx-sfl-dwd">—</span></div>
+        <div class="index-row"><span class="index-name">Schneefallgrenze (einfach)</span><span class="index-val" id="idx-sfl-simple">—</span></div>
       </details>
       <details class="sidebar-section" open>
         <summary>Troposphäre</summary>
@@ -642,7 +648,11 @@
       mouseHover: null,
       showCapeLfc: false,
       showCapeCcl: false,
+      showCat: false,
+      showContrails: false,
       parcelData: null,
+      catData: null,
+      contrailData: null,
     };
 
     // =========================================================================
@@ -1327,6 +1337,83 @@
         }
       }
 
+      // --- CAT-Hintergrund (optional) ---
+      if (STATE.showCat && STATE.catData) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(m.left, m.top, proj.W, proj.H);
+        ctx.clip();
+        // cat: 0=NIL (nicht zeichnen), 1=LGT, 2=MOD, 3=SEV, 4=EXTRM
+        const catBgColors = [null, 'rgba(200,160,32,0.12)', 'rgba(208,112,32,0.18)', 'rgba(192,48,48,0.22)', 'rgba(128,0,32,0.28)'];
+        const catBorderColors = [null, '#c8a020', '#d07020', '#c03030', '#800020'];
+        STATE.catData.forEach(({ cat, p_lo, p_hi }) => {
+          if (!cat || cat <= 0) return;
+          const y_top = proj.toCanvasY(p_hi);
+          const y_bot = proj.toCanvasY(p_lo);
+          const bg = catBgColors[Math.min(cat, 4)];
+          const bc = catBorderColors[Math.min(cat, 4)];
+          if (!bg) return;
+          ctx.fillStyle = bg;
+          ctx.fillRect(m.left, y_top, proj.W, y_bot - y_top);
+          ctx.strokeStyle = bc;
+          ctx.lineWidth = 0.8;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          ctx.moveTo(m.left, y_top); ctx.lineTo(m.left + proj.W, y_top);
+          ctx.moveTo(m.left, y_bot); ctx.lineTo(m.left + proj.W, y_bot);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        });
+        ctx.restore();
+      }
+
+      // --- Kondensstreifen-Hintergrund (optional) ---
+      if (STATE.showContrails && STATE.contrailData) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(m.left, m.top, proj.W, proj.H);
+        ctx.clip();
+        // cat: 1=Nicht persistent, 2=Teils persistent, 3=Persistent
+        const ctBgColors = [null, 'rgba(160,184,216,0.12)', 'rgba(91,164,252,0.16)', 'rgba(200,234,255,0.20)'];
+        const ctBorderColors = [null, '#a0b8d8', '#5ba4fc', '#c8eaff'];
+        STATE.contrailData.forEach(({ cat, z_lo, z_hi }) => {
+          if (!cat || cat <= 0) return;
+          // z_m → Canvas-Y über Druckinterpolation vermeiden: toCanvasY(p) besser,
+          // aber z_m ist zuverlässiger bei Zoom. Wir nutzen proj.toCanvasYfromZ falls
+          // vorhanden, sonst Pressure interpolieren aus Sondierung.
+          const pFromZ = z => {
+            const snd = STATE.soundings[STATE.currentIdx];
+            if (!snd) return null;
+            const lv = snd.levels;
+            for (let i = 0; i < lv.length - 1; i++) {
+              if (lv[i].z_m <= z && lv[i + 1].z_m >= z) {
+                const f = (z - lv[i].z_m) / (lv[i + 1].z_m - lv[i].z_m);
+                return lv[i].p_hPa + f * (lv[i + 1].p_hPa - lv[i].p_hPa);
+              }
+            }
+            return null;
+          };
+          const p_lo = pFromZ(z_lo), p_hi = pFromZ(z_hi);
+          if (p_lo === null || p_hi === null) return;
+          const y_top = proj.toCanvasY(p_hi);
+          const y_bot = proj.toCanvasY(p_lo);
+          const bg = ctBgColors[Math.min(cat, 3)];
+          const bc = ctBorderColors[Math.min(cat, 3)];
+          if (!bg) return;
+          ctx.fillStyle = bg;
+          ctx.fillRect(m.left, y_top, proj.W, y_bot - y_top);
+          ctx.strokeStyle = bc;
+          ctx.lineWidth = 0.8;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          ctx.moveTo(m.left, y_top); ctx.lineTo(m.left + proj.W, y_top);
+          ctx.moveTo(m.left, y_bot); ctx.lineTo(m.left + proj.W, y_bot);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        });
+        ctx.restore();
+      }
+
       // --- Windbarbs (rechte Spalte) ---
       // Mindestabstand in Pixeln zwischen zwei Windbarbs (zoom-unabhängig → mehr Barbs beim Zoomen)
       const MIN_BARB_PX = 22;
@@ -1794,7 +1881,9 @@
 
       return LABELS.map((label, i) => ({
         label,
-        cat: catForLayer(P[i], P[i + 1])
+        cat: catForLayer(P[i], P[i + 1]),
+        p_lo: P[i],
+        p_hi: P[i + 1],
       }));
     }
 
@@ -1907,10 +1996,175 @@
       const CAT_NAMES = ['', 'Nicht persistent', 'Teils persistent', 'Persistent'];
       // Höchste Höhe zuerst
       return bands.reverse().map(b => ({
-        cat:  b.cat,
+        cat:   b.cat,
         label: `FL${flFromZ(b.z_lo)}–FL${flFromZ(b.z_hi)}`,
-        name: CAT_NAMES[b.cat],
+        name:  CAT_NAMES[b.cat],
+        z_lo:  b.z_lo,
+        z_hi:  b.z_hi,
       }));
+    }
+
+    // =========================================================================
+    // Niederschlagsphase: Bourgouin (1992) + DWD-Schneefallgrenze
+    // =========================================================================
+    function computePrecipPhase(lvls) {
+      // --- Hilfsfunktion: Energie einer Schicht in J/kg ---
+      // E = cp × ∫T d(ln p), Trapezregel im ln(p)-Raum.
+      // p1 > p2 (unten → oben) liefert positives ln(p1/p2) für warme Luft.
+      // Bourgouin (1992) gibt alle Schwellen in J/kg an (cp = 1004 J/(kg·K)).
+      const cp = 1004;
+      function layerEnergy(p1, T1, p2, T2) {
+        return cp * ((T1 + T2) / 2) * Math.log(p1 / p2);
+      }
+
+      // Profil von Boden nach oben scannen, alle Schichten mit T > 0 und T < 0 akkumulieren.
+      // Wir suchen Nulldurchgänge der Temperatur und berechnen je Segment die Energie.
+      // Konvention (Bourgouin): Abschnitte mit T > 0 → "warm" (positiv), T < 0 → "kalt" (negativ).
+
+      // Interpoliere Temperatur und Druck am exakten 0°C-Durchgang
+      function interpZero(l1, l2) {
+        const frac = l1.T_C / (l1.T_C - l2.T_C);
+        return {
+          p: l1.p_hPa + frac * (l2.p_hPa - l1.p_hPa),
+          z: l1.z_m   + frac * (l2.z_m   - l1.z_m),
+        };
+      }
+
+      // Sondierung von unten nach oben, nur bis 300 hPa relevant
+      const relevant = lvls.filter(l => l.p_hPa >= 300 && l.T_C != null);
+      if (relevant.length < 2) return null;
+
+      // Schichten mit Vorzeichen-Information aufbauen
+      // Jede Schicht: { E: Energie, warm: bool }
+      const zones = [];
+      let curE = 0;
+      let curWarm = relevant[0].T_C >= 0;
+
+      for (let i = 0; i < relevant.length - 1; i++) {
+        const l1 = relevant[i], l2 = relevant[i + 1];
+        // Vorzeichenwechsel in dieser Schicht?
+        if ((l1.T_C >= 0) !== (l2.T_C >= 0)) {
+          const zero = interpZero(l1, l2);
+          // Segment l1 → zero
+          curE += layerEnergy(l1.p_hPa, l1.T_C, zero.p, 0);
+          zones.push({ E: curE, warm: curWarm, z_lo: l1.z_m, z_hi: zero.z });
+          // Neues Segment ab zero
+          curE = 0;
+          curWarm = !curWarm;
+          curE += layerEnergy(zero.p, 0, l2.p_hPa, l2.T_C);
+        } else {
+          curE += layerEnergy(l1.p_hPa, l1.T_C, l2.p_hPa, l2.T_C);
+        }
+      }
+      // Letztes offenes Segment schließen
+      if (curE !== 0) {
+        const last = relevant[relevant.length - 1];
+        zones.push({ E: curE, warm: curWarm, z_lo: relevant[relevant.length - 2].z_m, z_hi: last.z_m });
+      }
+
+      // Warm/Kalt-Zonen von unten nach oben
+      const warm = zones.filter(z => z.warm);
+      const cold = zones.filter(z => !z.warm);
+
+      const nWarm = warm.length, nCold = cold.length;
+      const Ew = warm.map(z => z.E);   // alle warmen Energien (positiv)
+      const Ec = cold.map(z => -z.E);  // alle kalten Energien (Betrag, positiv)
+
+      // --- Bourgouin-Entscheidungsbaum ---
+      // Zonen von unten: zones[0] ist bodennahe Zone
+      let type;
+      const nZones = nWarm + nCold;
+
+      if (nWarm === 0) {
+        // Durchgehend unter 0°C → Schnee
+        type = 'SN';
+      } else if (nZones === 1) {
+        // Nur eine Zone (warm): Regen oder unbekannt
+        type = Ew[0] > 0 ? 'RA' : '?';
+      } else if (nZones === 2) {
+        // Eine warme + eine kalte (von unten: kalt–warm oder warm–kalt)
+        const bottomWarm = zones[0].warm;
+        if (bottomWarm) {
+          // Warm unten, Kalt oben → Schnee der durch warme Schicht fällt
+          if (Ew[0] > 13.2) type = 'RA';
+          else               type = 'RA/SN';
+        } else {
+          // Kalt unten, Warm oben → unterkühlter Regen / Eisregen
+          if (Ew[0] > 13.2) type = 'RA';
+          else               type = 'FZRA';
+        }
+      } else if (nZones === 3) {
+        // Drei Zonen: klassisch kalt–warm–kalt (Schnee–Schmelze–Wiedergefrieren)
+        const bottomWarm = zones[0].warm;
+        if (!bottomWarm) {
+          // Kalt unten: Schnee oder Eiskörnchen
+          if (Ec[0] > 66 + 0.66 * Ew[0]) type = 'SN';
+          else if (Ew[0] > 13.2)          type = 'PL';
+          else                             type = 'FZRA/PL';
+        } else {
+          // Warm unten: Rain/Freezing Rain Kombinationen
+          if (Ec.length >= 1 && Ew[0] > 13.2) type = 'RA';
+          else                                 type = 'FZRA/RA';
+        }
+      } else {
+        // Vier oder mehr Zonen: vereinfacht
+        const Eb = Ec[0] ?? 0;  // bodennahe Kaltzone
+        if (Eb > 66 + 0.66 * (Ew[0] ?? 0)) type = 'SN';
+        else if ((Ew[0] ?? 0) > 13.2)       type = 'RA';
+        else                                 type = 'PL/FZRA';
+      }
+
+      // --- Schneefallgrenze (einfach) ---
+      // SFL [m AGL] = h(850) + 100 × (T(850) − 2) / Temperaturgradient [K/100m]
+      // Die −2 K korrigieren den Schmelzweg der Schneeflocken (Evaporationseffekt).
+      let sfl_simple = null;
+      const l850 = relevant.find(l => Math.abs(l.p_hPa - 850) < 30);
+      const l500 = relevant.find(l => Math.abs(l.p_hPa - 500) < 30);
+      if (l850 && l500 && l850.z_m != null && l500.z_m != null) {
+        const dT = l850.T_C - l500.T_C;
+        const dz = l500.z_m - l850.z_m;
+        if (dT > 0 && dz > 0) {
+          const lapse = dT / dz * 100; // K/100m
+          sfl_simple = l850.z_m + 100 * (l850.T_C - 2) / lapse;
+        }
+      }
+
+      // --- Schneefallgrenze (DWD, energiebasiert) ---
+      // Startpunkt: tiefstes T<0-Niveau (Untergrenze der Kaltzone, d.h. obere 0°C-Grenze).
+      // Von dort nach unten zur Oberfläche: positive Temperaturen akkumulieren (Schmelzenergie).
+      // SFL = Höhe, bei der akkumulierte Energie E0 erstmals überschritten wird.
+      // E0 kalibriert auf T_sfc = 1,625°C und Normalgradient 6,5 K/km: ~24 J/kg.
+      let sfl_dwd = null;
+      {
+        const E0 = 24; // J/kg, kalibriert für T_sfc=1.625°C, Gradient=6.5K/km
+        // Tiefstes T<0-Niveau: von unten (Boden) nach oben suchen, erstes T<0
+        let startIdx = -1;
+        for (let i = 0; i < relevant.length; i++) {
+          if (relevant[i].T_C < 0) { startIdx = i; break; }
+        }
+        if (startIdx > 0) {
+          let E_acc = 0;
+          // Von der Untergrenze der Kaltzone abwärts zur Oberfläche (Index nimmt ab)
+          for (let i = startIdx - 1; i >= 0; i--) {
+            const l_hi = relevant[i + 1]; // höheres Niveau (niedrigerer Druck)
+            const l_lo = relevant[i];     // tieferes Niveau (höherer Druck)
+            // Nur positive Temperaturen tragen zur Schmelzenergie bei
+            const T_hi = Math.max(l_hi.T_C, 0);
+            const T_lo = Math.max(l_lo.T_C, 0);
+            // ln(p_lo/p_hi) > 0 da p_lo > p_hi → positive Energie für T > 0
+            const dE = cp * ((T_hi + T_lo) / 2) * Math.log(l_lo.p_hPa / l_hi.p_hPa);
+            E_acc += dE;
+            if (E_acc >= E0) {
+              const prevE = E_acc - dE;
+              const frac = dE > 0 ? (E0 - prevE) / dE : 0;
+              sfl_dwd = l_hi.z_m + frac * (l_lo.z_m - l_hi.z_m);
+              break;
+            }
+          }
+        }
+      }
+
+      return { type, sfl_simple, sfl_dwd };
     }
 
     function computeAndDisplayIndices(snd) {
@@ -2134,6 +2388,7 @@
 
       // --- CAT ---
       const catResults = computeCAT(lvls);
+      STATE.catData = catResults;
       const catColors = ['#4a5068', '#c8a020', '#d07020', '#c03030', '#800020'];
       const catLabels = ['NIL', 'LGT', 'MOD', 'SEV', 'EXTRM'];
       const catTbody = document.querySelector('#cat-table tbody');
@@ -2153,6 +2408,7 @@
       // --- Kondensstreifen (Appleman) ---
       // Gibt Bänder zurück: [{cat, label (FL-Bereich), name}], höchste Höhe zuerst
       const contrailResults = computeContrails(lvls);
+      STATE.contrailData = contrailResults;
       const contrailColors = ['#4a5068', '#a0b8d8', '#5ba4fc', '#c8eaff'];
       const contrailTbody = document.querySelector('#contrail-table tbody');
       if (contrailTbody) {
@@ -2282,6 +2538,33 @@
       setIdx('idx-pw', pw_mm, ' mm', 1);
 
       // --- 0°C Grenze (Freezing Level) in m und ft AGL ---
+      // --- Niederschlagsphase ---
+      const precip = computePrecipPhase(lvls);
+      const PRECIP_LABELS = {
+        'SN':      '❄ Schnee',
+        'RA':      '🌧 Regen',
+        'RA/SN':   '🌨 Schneeregen',
+        'FZRA':    '🌧❄ Gefrierender Regen',
+        'FZRA/RA': '🌧 Regen / Gef. Regen',
+        'PL':      '🧊 Eiskörner (PL)',
+        'FZRA/PL': '🧊❄ Eiskörner / Gef. Regen',
+        'PL/FZRA': '🧊❄ Eiskörner / Gef. Regen',
+      };
+      const fmtSFL = z => {
+        if (z === null) return '—';
+        if (z <= 0) return 'SFC';
+        return `${Math.round(z)} m / ${Math.round(z * 3.28084)} ft AGL`;
+      };
+      const precipTypeEl = document.getElementById('idx-precip-type');
+      const sflDwdEl     = document.getElementById('idx-sfl-dwd');
+      const sflSimpleEl  = document.getElementById('idx-sfl-simple');
+      if (precipTypeEl) {
+        precipTypeEl.textContent = precip ? (PRECIP_LABELS[precip.type] ?? precip.type) : '—';
+        precipTypeEl.className = 'index-val';
+      }
+      if (sflDwdEl)    { sflDwdEl.textContent    = precip ? fmtSFL(precip.sfl_dwd)    : '—'; }
+      if (sflSimpleEl) { sflSimpleEl.textContent  = precip ? fmtSFL(precip.sfl_simple) : '—'; }
+
       const isoEl = document.getElementById('idx-iso0');
       if (iso0_m !== null) {
         isoEl.textContent = `${Math.round(iso0_m)} m / ${Math.round(iso0_m * 3.28084)} ft AGL`;
@@ -2891,6 +3174,14 @@
     });
     document.getElementById('chk-cape-ccl').addEventListener('change', (e) => {
       STATE.showCapeCcl = e.target.checked;
+      redraw();
+    });
+    document.getElementById('chk-cat').addEventListener('change', (e) => {
+      STATE.showCat = e.target.checked;
+      redraw();
+    });
+    document.getElementById('chk-contrails').addEventListener('change', (e) => {
+      STATE.showContrails = e.target.checked;
       redraw();
     });
 
