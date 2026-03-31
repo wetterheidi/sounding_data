@@ -37,15 +37,15 @@ fi
 
 # === ICON-EU (3-stündlich) ===
 if run_model "icon-eu"; then
-  # Ort: München
-  # python3 fetch_sounding.py --lat 48.35 --lon 11.79 --model icon-eu --step 0:48:6 --outdir ./data --alias EDDM
+  # Ort: AlJafr 30.344, 36.148
+  python3 fetch_sounding.py --lat 30.344 --lon 36.148 --model icon-eu --step 0:48:6 --outdir ./data --alias AlJafr
   :
 fi
 
 # === ICON Global (6-stündlich) ===
 if run_model "icon"; then
-  # Ort: Phoenix
-  # python3 fetch_sounding.py --lat 33.113 --lon -112.270 --model icon --step 0:24:6 --outdir ./data --alias KPHX
+  # Ort: Eloy 32.749, -111.573
+  python3 fetch_sounding.py --lat 32.749 --lon -111.573 --model icon --step 0:24:6 --outdir ./data --alias Eloy
 
   # Ort: Karibik (CAPE Test)
   # python3 fetch_sounding.py --lat 18.036 --lon -72.150 --model icon --step 0:6:6 --outdir ./data
