@@ -9,7 +9,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 943.31,
     "n_levels_loaded": 65,
     "levels": [
@@ -610,7 +610,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 944.04,
     "n_levels_loaded": 65,
     "levels": [
@@ -1211,7 +1211,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 944.67,
     "n_levels_loaded": 65,
     "levels": [
@@ -1812,7 +1812,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 944.9,
     "n_levels_loaded": 65,
     "levels": [
@@ -2413,7 +2413,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 944.22,
     "n_levels_loaded": 65,
     "levels": [
@@ -3014,7 +3014,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 944.0,
     "n_levels_loaded": 65,
     "levels": [
@@ -3615,7 +3615,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 943.82,
     "n_levels_loaded": 65,
     "levels": [
@@ -4216,7 +4216,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 943.88,
     "n_levels_loaded": 65,
     "levels": [
@@ -4817,7 +4817,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 944.57,
     "n_levels_loaded": 65,
     "levels": [
@@ -5418,7 +5418,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 945.66,
     "n_levels_loaded": 65,
     "levels": [
@@ -6019,7 +6019,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 946.69,
     "n_levels_loaded": 65,
     "levels": [
@@ -6620,7 +6620,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 946.81,
     "n_levels_loaded": 65,
     "levels": [
@@ -7221,7 +7221,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 947.04,
     "n_levels_loaded": 65,
     "levels": [
@@ -7822,7 +7822,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 947.28,
     "n_levels_loaded": 65,
     "levels": [
@@ -8423,7 +8423,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 947.57,
     "n_levels_loaded": 65,
     "levels": [
@@ -9024,7 +9024,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 947.55,
     "n_levels_loaded": 65,
     "levels": [
@@ -9625,7 +9625,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 947.46,
     "n_levels_loaded": 65,
     "levels": [
@@ -10226,7 +10226,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 947.5,
     "n_levels_loaded": 65,
     "levels": [
@@ -10827,7 +10827,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 947.37,
     "n_levels_loaded": 65,
     "levels": [
@@ -11428,7 +11428,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 947.25,
     "n_levels_loaded": 65,
     "levels": [
@@ -12029,7 +12029,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 947.59,
     "n_levels_loaded": 65,
     "levels": [
@@ -12630,7 +12630,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 947.8,
     "n_levels_loaded": 65,
     "levels": [
@@ -13231,7 +13231,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 947.91,
     "n_levels_loaded": 65,
     "levels": [
@@ -13832,7 +13832,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 947.86,
     "n_levels_loaded": 65,
     "levels": [
@@ -14433,7 +14433,7 @@
     "target_lon": 15.215,
     "grid_lat": 47.105,
     "grid_lon": 15.215,
-    "location_alias": "Parow",
+    "location_alias": "Stiwoll",
     "surface_p_hPa": 947.72,
     "n_levels_loaded": 65,
     "levels": [
