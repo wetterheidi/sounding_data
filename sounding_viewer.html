@@ -563,6 +563,7 @@
         </div>
         <div class="index-row"><span class="index-name">PPW (SFC–400 hPa)</span><span class="index-val"
             id="idx-pw">—</span></div>
+        <div class="index-row"><span class="index-name">MU-CAPE</span><span class="index-val" id="idx-mu-cape">—</span></div>
         <div class="index-row"><span class="index-name">SRH (0–3 km)</span><span class="index-val" id="idx-srh">—</span></div>
         <div class="index-row"><span class="index-name">Bulk Shear (0–6 km)</span><span class="index-val" id="idx-bs6">—</span></div>
         <div class="index-row"><span class="index-name">Bulk Shear (0–1 km)</span><span class="index-val" id="idx-bs1">—</span></div>
@@ -2628,6 +2629,8 @@
         if (id === 'idx-vt') cls = val > 28 ? 'pos' : val > 24 ? 'warn' : 'neg';
         if (id === 'idx-ko') cls = val < -6 ? 'pos' : val < -2 ? 'warn' : 'neg';
         if (id === 'idx-pw')  cls = val > 35  ? 'pos' : val > 25  ? 'warn' : '';
+        // MU-CAPE: identische Schwellen wie CAPE
+        if (id === 'idx-mu-cape') cls = val > 2500 ? 'pos' : val > 1000 ? 'warn' : val > 0 ? '' : 'neg';
         // SRH: > 150 m²/s² Superzell möglich, > 300 m²/s² hohe Tornadogefahr
         if (id === 'idx-srh') cls = val > 300 ? 'pos' : val > 150 ? 'warn' : '';
         // Bulk Shear 0-6 km: > 40 kt organisierte Gewitter/Superzellen, > 25 kt Multizelle
@@ -2680,53 +2683,205 @@
         return Math.sqrt((hi.u - lo.u) ** 2 + (hi.v - lo.v) ** 2) / 0.514444; // m/s → kt
       };
 
-      // Bunkers-Sturmzug (Bunkers et al. 2000) – Rechtsmover für SRH
-      // Vm = mittlerer Wind 0–6 km, Abweichung 7.5 m/s senkrecht zur Schere
+      // --- MU-Parcel: Level mit maximaler äquivalentpotentieller Temperatur (θe) ---
+      // in den untersten 300 hPa. Liefert MU-CAPE und MU-EL-Höhe für Bunkers 2014.
+      const Rd = 287.05;
+      const rhoL = l => {
+        const Tv = (l.T_C + 273.15) * (1 + 0.608 * ((l.Td_C != null) ? MET.mixing_ratio(l.Td_C, l.p_hPa) : 0));
+        return (l.p_hPa * 100) / (Rd * Tv);
+      };
+
+      let mu_cape = null, mu_el_z = null;
+      {
+        const p_top_mu = lvls[0].p_hPa - 300;
+        let muIdx = 0;
+        let maxThetaE = -Infinity;
+        for (let i = 0; i < lvls.length; i++) {
+          const l = lvls[i];
+          if (l.p_hPa < p_top_mu) break;
+          if (l.T_C == null || l.Td_C == null) continue;
+          // θe ≈ θ × exp(Lv × w / (cp × T))  (Bolton 1980, vereinfacht)
+          const w = MET.mixing_ratio(l.Td_C, l.p_hPa);
+          const theta = MET.potential_T(l.T_C + 273.15, l.p_hPa);
+          const thetaE = theta * Math.exp(2501000 * w / (1004 * (l.T_C + 273.15)));
+          if (thetaE > maxThetaE) { maxThetaE = thetaE; muIdx = i; }
+        }
+        // MU-Parcel heben: trocken bis LCL, dann feuchtadiabatisch; CAPE + EL berechnen
+        const mu = lvls[muIdx];
+        if (mu.T_C != null && mu.Td_C != null) {
+          const w_mu = MET.mixing_ratio(mu.Td_C, mu.p_hPa);
+          const potT_mu = MET.potential_T(mu.T_C + 273.15, mu.p_hPa);
+          // LCL des MU-Parcels
+          let p_lcl_mu = mu.p_hPa, T_lcl_mu = mu.T_C + 273.15;
+          let dp = 50;
+          for (let s = 0; s < 500; s++) {
+            p_lcl_mu -= dp;
+            if (p_lcl_mu <= 50) break;
+            T_lcl_mu = MET.dry_adiabat_T(potT_mu, 1000, p_lcl_mu);
+            const diff = MET.mixing_ratio(T_lcl_mu - 273.15, p_lcl_mu) - w_mu;
+            if (Math.abs(diff) < 0.00002) break;
+            if (diff < 0) { p_lcl_mu += dp; dp /= 10; if (dp < 0.001) break; }
+          }
+          // LFC des MU-Parcels
+          let lfc_mu = null;
+          for (let p = p_lcl_mu - 2; p >= 100; p -= 2) {
+            const Tp = MET.moist_adiabat_T(T_lcl_mu, p_lcl_mu, p);
+            const Te = (() => {
+              if (p >= lvls[0].p_hPa) return lvls[0].T_C + 273.15;
+              for (let i = 1; i < lvls.length; i++) {
+                if (lvls[i].p_hPa <= p) {
+                  const f = (p - lvls[i-1].p_hPa) / (lvls[i].p_hPa - lvls[i-1].p_hPa);
+                  return (lvls[i-1].T_C + 273.15) + f * ((lvls[i].T_C + 273.15) - (lvls[i-1].T_C + 273.15));
+                }
+              }
+              return lvls[lvls.length-1].T_C + 273.15;
+            })();
+            if (Tp > Te) { lfc_mu = p; break; }
+          }
+          // CAPE-Integration und EL
+          let cape_mu = 0;
+          let el_p_mu = null;
+          if (lfc_mu !== null) {
+            for (let i = 1; i < lvls.length; i++) {
+              const l = lvls[i], prev = lvls[i-1];
+              if (l.p_hPa > lfc_mu) continue;
+              const Tp_K = MET.moist_adiabat_T(T_lcl_mu, p_lcl_mu, l.p_hPa);
+              const w_env = (l.Td_C != null) ? MET.mixing_ratio(l.Td_C, l.p_hPa) : 0;
+              const w_pcl = MET.mixing_ratio(Tp_K - 273.15, l.p_hPa);
+              const Tv_env = (l.T_C + 273.15) * (1 + 0.608 * w_env);
+              const Tv_pcl = Tp_K * (1 + 0.608 * w_pcl);
+              const dz = l.z_m - prev.z_m;
+              const buoy = 9.81 * (Tv_pcl - Tv_env) / Tv_env * dz;
+              if (buoy > 0) { cape_mu += buoy; el_p_mu = l.p_hPa; }
+            }
+          }
+          if (cape_mu > 0) {
+            mu_cape = cape_mu;
+            // EL-Höhe interpolieren
+            if (el_p_mu !== null) {
+              for (let i = 0; i < lvls.length - 1; i++) {
+                if (lvls[i].p_hPa >= el_p_mu && lvls[i+1].p_hPa <= el_p_mu) {
+                  const f = (lvls[i].p_hPa - el_p_mu) / (lvls[i].p_hPa - lvls[i+1].p_hPa);
+                  mu_el_z = lvls[i].z_m + f * (lvls[i+1].z_m - lvls[i].z_m);
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // --- Effective Inflow Layer (EIL) ---
+      // Tiefste zusammenhängende Schicht mit CAPE ≥ 100 J/kg und CIN ≥ −250 J/kg
+      // (Thompson et al. 2004, operationelle Definition)
+      let eil_base_z = null, eil_top_z = null;
+      {
+        const p_sfc = lvls[0].p_hPa;
+        for (let i = 0; i < lvls.length; i++) {
+          const l = lvls[i];
+          if (l.p_hPa < p_sfc - 400) break; // über 400 hPa hinaus nicht sinnvoll
+          if (l.T_C == null || l.Td_C == null) continue;
+          // Mini-Parcel von diesem Level: trocken bis LCL, dann feuchtadiabatisch
+          const w_l = MET.mixing_ratio(l.Td_C, l.p_hPa);
+          const potT_l = MET.potential_T(l.T_C + 273.15, l.p_hPa);
+          let p_lcl_l = l.p_hPa, T_lcl_l = l.T_C + 273.15;
+          let dp = 50;
+          for (let s = 0; s < 500; s++) {
+            p_lcl_l -= dp;
+            if (p_lcl_l <= 50) break;
+            T_lcl_l = MET.dry_adiabat_T(potT_l, 1000, p_lcl_l);
+            const diff = MET.mixing_ratio(T_lcl_l - 273.15, p_lcl_l) - w_l;
+            if (Math.abs(diff) < 0.00002) break;
+            if (diff < 0) { p_lcl_l += dp; dp /= 10; if (dp < 0.001) break; }
+          }
+          // LFC
+          let lfc_l = null;
+          for (let p = p_lcl_l - 2; p >= 100; p -= 2) {
+            const Tp = MET.moist_adiabat_T(T_lcl_l, p_lcl_l, p);
+            let Te = lvls[lvls.length-1].T_C + 273.15;
+            for (let j = 1; j < lvls.length; j++) {
+              if (lvls[j].p_hPa <= p) {
+                const f = (p - lvls[j-1].p_hPa) / (lvls[j].p_hPa - lvls[j-1].p_hPa);
+                Te = (lvls[j-1].T_C + 273.15) + f * ((lvls[j].T_C + 273.15) - (lvls[j-1].T_C + 273.15));
+                break;
+              }
+            }
+            if (Tp > Te) { lfc_l = p; break; }
+          }
+          // CAPE und CIN
+          let cape_l = 0, cin_l = 0;
+          for (let j = 1; j < lvls.length; j++) {
+            const lj = lvls[j], lprev = lvls[j-1];
+            const Tp_K = lj.p_hPa >= p_lcl_l
+              ? MET.dry_adiabat_T(potT_l, 1000, lj.p_hPa)
+              : MET.moist_adiabat_T(T_lcl_l, p_lcl_l, lj.p_hPa);
+            const w_env = (lj.Td_C != null) ? MET.mixing_ratio(lj.Td_C, lj.p_hPa) : 0;
+            const w_pcl = MET.mixing_ratio(Tp_K - 273.15, lj.p_hPa);
+            const Tv_env = (lj.T_C + 273.15) * (1 + 0.608 * w_env);
+            const Tv_pcl = Tp_K * (1 + 0.608 * w_pcl);
+            const dz = lj.z_m - lprev.z_m;
+            const buoy = 9.81 * (Tv_pcl - Tv_env) / Tv_env * dz;
+            if (lfc_l !== null && lj.p_hPa <= lfc_l) {
+              if (buoy > 0) cape_l += buoy;
+            } else {
+              if (buoy < 0) cin_l += buoy;
+            }
+          }
+          if (cape_l >= 100 && cin_l >= -250) {
+            if (eil_base_z === null) eil_base_z = l.z_m;
+            eil_top_z = l.z_m;
+          } else if (eil_base_z !== null) {
+            break; // EIL endet bei erster nicht-erfüllter Schicht
+          }
+        }
+      }
+
+      // --- Bunkers 2014 (Effective Layer) – Sturmzug für SRH ---
+      // Mittlerer Wind: dichtgewichtet von EIL-Basis bis 65% MU-EL
+      // Fällt zurück auf Bunkers 2000 (0–6 km) falls EIL oder MU-EL nicht verfügbar
       let srh_3km = null;
       let bs6_kt = null, bs1_kt = null;
       bs6_kt = bulkShear(0, 6000);
       bs1_kt = bulkShear(0, 1000);
 
       {
-        // Mittlerer Wind 0–6 km (dichtgewichtet: ρ = p / (Rd × Tv))
-        const Rd = 287.05;
-        const rho = l => {
-          const Tv = (l.T_C + 273.15) * (1 + 0.608 * ((l.Td_C != null) ? MET.mixing_ratio(l.Td_C, l.p_hPa) : 0));
-          return (l.p_hPa * 100) / (Rd * Tv);
-        };
+        const z_lo = eil_base_z ?? lvls[0].z_m;
+        const z_hi = (mu_el_z !== null) ? mu_el_z * 0.65 : 6000;
+
         let u_sum = 0, v_sum = 0, rho_sum = 0;
         for (let i = 0; i < lvls.length - 1; i++) {
           const la = lvls[i], lb = lvls[i + 1];
-          if (la.z_m > 6000) break;
+          if (la.z_m > z_hi) break;
+          if (lb.z_m < z_lo) continue;
           const a = toUV(la), b = toUV(lb);
           if (!a || !b) continue;
-          const ra = rho(la), rb = rho(lb);
+          const ra = rhoL(la), rb = rhoL(lb);
           const r_mid = (ra + rb) / 2;
-          const dz = Math.min(lb.z_m, 6000) - la.z_m;
+          const dz = Math.min(lb.z_m, z_hi) - Math.max(la.z_m, z_lo);
+          if (dz <= 0) continue;
           u_sum += r_mid * ((a.u + b.u) / 2) * dz;
           v_sum += r_mid * ((a.v + b.v) / 2) * dz;
           rho_sum += r_mid * dz;
         }
         if (rho_sum > 0) {
           const u_mean = u_sum / rho_sum, v_mean = v_sum / rho_sum;
-          // Schervektor 0–6 km
-          const uv0 = toUV(lvls[0]);
-          const uv6 = uvAtZ(6000);
-          if (uv0 && uv6) {
-            const du = uv6.u - uv0.u, dv = uv6.v - uv0.v;
+          // Schervektor EIL-Basis → 65% MU-EL
+          const uv_lo = uvAtZ(z_lo) ?? toUV(lvls[0]);
+          const uv_hi = uvAtZ(z_hi);
+          if (uv_lo && uv_hi) {
+            const du = uv_hi.u - uv_lo.u, dv = uv_hi.v - uv_lo.v;
             const mag = Math.sqrt(du * du + dv * dv) || 1;
-            // Rechtsmover: 7.5 m/s senkrecht nach rechts zur Schere
+            // Rechtsmover: 7.5 m/s senkrecht nach rechts zur Schere (Bunkers 2000/2014)
             const u_storm = u_mean + 7.5 * (dv / mag);
             const v_storm = v_mean - 7.5 * (du / mag);
 
-            // SRH 0–3 km: Σ (u_storm - u_env)(v_{i+1} - v_i) - (v_storm - v_env)(u_{i+1} - u_i)
+            // SRH 0–3 km
             let srh = 0;
             for (let i = 0; i < lvls.length - 1; i++) {
               const la = lvls[i], lb = lvls[i + 1];
               if (la.z_m >= 3000) break;
               const a = toUV(la), b = toUV(lb);
               if (!a || !b) continue;
-              // Schicht ggf. auf 3 km kappen
               const frac = lb.z_m > 3000 ? (3000 - la.z_m) / (lb.z_m - la.z_m) : 1;
               const ub = a.u + frac * (b.u - a.u);
               const vb = a.v + frac * (b.v - a.v);
@@ -2737,6 +2892,7 @@
         }
       }
 
+      setIdx('idx-mu-cape', mu_cape, ' J/kg', 0);
       setIdx('idx-srh', srh_3km, ' m²/s²', 0);
       setIdx('idx-bs6', bs6_kt, ' kt', 0);
       setIdx('idx-bs1', bs1_kt, ' kt', 0);
