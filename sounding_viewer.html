@@ -610,7 +610,7 @@
         <div class="index-row"><span class="index-name">Schneefallgrenze (einfach)</span><span class="index-val" id="idx-sfl-simple">—</span></div>
       </details>
       <details class="sidebar-section" open>
-        <summary>Troposphäre</summary>
+        <summary>Troposphäre <label style="cursor:pointer;font-size:10px;margin-left:6px;text-transform:none;letter-spacing:0"><input type="checkbox" id="chk-clouds" style="margin-right:3px;">Wolken im Diagramm</label></summary>
         <div class="index-row"><span class="index-name">Tropopause (est.)</span><span class="index-val"
             id="idx-tropo">—</span></div>
         <div class="index-row"><span class="index-name">0°C Grenze</span><span class="index-val" id="idx-iso0">—</span>
@@ -650,6 +650,7 @@
       showCapeCcl: false,
       showCat: false,
       showContrails: false,
+      showClouds: false,
       parcelData: null,
       catData: null,
       contrailData: null,
@@ -782,10 +783,14 @@
       }
     };
 
-    // --- NEU: Hilfsfunktionen für Wolkenauswertung ---
+    // --- Hilfsfunktionen für Wolkenauswertung ---
 
     /**
-     * Berechnet die relative Feuchte (%) aus Temperatur und Taupunkt (°C)
+     * Berechnet die relative Feuchte (%) aus Temperatur und Taupunkt (°C).
+     * Verwendet immer es_water im Nenner (Definition des Taupunkts).
+     * Für den Vergleich mit Bewölkungsschwellen wird RH über Eis (RHi) benötigt:
+     * RHi = es_water(Td) / es_ice(T) × 100
+     * Dies spiegelt das DWD/NinJo-Verfahren wider: Eiskristalle benötigen keine 100% RH_w.
      */
     function calcRelativeHumidity(T_C, Td_C) {
       if (T_C == null || Td_C == null) return null;
@@ -794,13 +799,43 @@
     }
 
     /**
-     * Gibt die Farbe für den Wolkenbalken basierend auf der RH zurück
+     * Effektive RH für Wolkenauswertung: RHi unter 0°C, RHw darüber.
+     * Nahtloser Übergang analog zu MET.es() Mixed-Phase.
      */
-    function getCloudColor(rh) {
-      if (rh === null || rh < 65) return null; // Kein Balken
-      if (rh < 85) return 'rgb(208, 208, 208)'; // Hellgrau (FEW-SCT)
-      if (rh < 95) return 'rgb(144, 144, 144)'; // Mittelgrau (BKN)
-      return 'rgb(80, 80, 80)';                // Dunkelgrau (OVC)
+    function cloudRH(T_C, Td_C) {
+      if (T_C == null || Td_C == null) return null;
+      const e = MET.es_water(Td_C); // aktueller Dampfdruck [Pa]
+      let es;
+      if (T_C >= 0)   es = MET.es_water(T_C);
+      else if (T_C <= -40) es = MET.es_ice(T_C);
+      else {
+        const f = -T_C / 40;
+        es = (1 - f) * MET.es_water(T_C) + f * MET.es_ice(T_C);
+      }
+      return Math.max(0, Math.min(120, e / es * 100)); // >100% möglich bei Übersättigung
+    }
+
+    /**
+     * Oktas-Klasse aus effektiver RH:
+     *   < 65%  → keine Wolken
+     *   65–84% → SCT  (3–4/8)
+     *   85–99% → BKN  (5–7/8)
+     *  ≥ 100%  → OVC  (8/8)
+     */
+    function cloudOktas(T_C, Td_C) {
+      const rh = cloudRH(T_C, Td_C);
+      if (rh === null || rh < 65) return 0;
+      if (rh < 85)  return 1; // SCT
+      if (rh < 100) return 2; // BKN
+      return 3;                // OVC
+    }
+
+    function getCloudColor(T_C, Td_C) {
+      const oktas = cloudOktas(T_C, Td_C);
+      if (oktas === 0) return null;
+      if (oktas === 1) return 'rgba(210,220,230,0.60)'; // SCT – Hellgrau
+      if (oktas === 2) return 'rgba(120,138,155,0.85)'; // BKN – Mittelgrau
+      return 'rgba(55,70,85,1.00)';                     // OVC – Dunkelgrau
     }
 
     // =========================================================================
@@ -1170,6 +1205,35 @@
       );
       if (lvls.length === 0) return;
 
+      // --- Wolken-Überlagerung im Diagramm (optional) ---
+      if (STATE.showClouds) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(m.left, m.top, proj.W, proj.H);
+        ctx.clip();
+        // OkTas-Farben: SCT/BKN/OVC mit geringer Deckkraft, kein störendes Überdecken
+        const cloudDiagColors = [null,
+          'rgba(190,205,220,0.25)',  // SCT
+          'rgba(120,140,160,0.45)',  // BKN
+          'rgba(60,78,95,0.65)',     // OVC
+        ];
+        for (let i = 0; i < lvls.length - 1; i++) {
+          const l1 = lvls[i], l2 = lvls[i + 1];
+          if (l1.T_C == null || l1.Td_C == null || l2.T_C == null || l2.Td_C == null) continue;
+          const T_mid  = (l1.T_C  + l2.T_C)  / 2;
+          const Td_mid = (l1.Td_C + l2.Td_C) / 2;
+          const oktas = cloudOktas(T_mid, Td_mid);
+          if (oktas === 0) continue;
+          const col = cloudDiagColors[oktas];
+          if (!col) continue;
+          const y1 = proj.toCanvasY(l1.p_hPa);
+          const y2 = proj.toCanvasY(l2.p_hPa);
+          ctx.fillStyle = col;
+          ctx.fillRect(m.left, y2, proj.W, y1 - y2);
+        }
+        ctx.restore();
+      }
+
       // --- NEU: Wolkenbalken zeichnen ---
       const cbWidth = 16; // Breite des Wolkenbalkens
       const cbX = m.left + proj.W + 15; // Exakt zwischen Diagramm und Windfiedern
@@ -1181,11 +1245,10 @@
 
         if (l1.T_C == null || l1.Td_C == null || l2.T_C == null || l2.Td_C == null) continue;
 
-        const rh1 = calcRelativeHumidity(l1.T_C, l1.Td_C);
-        const rh2 = calcRelativeHumidity(l2.T_C, l2.Td_C);
-        const rhAvg = (rh1 + rh2) / 2;
-
-        const color = getCloudColor(rhAvg);
+        // Repräsentative Schichtmitte für Wolkenfarbe
+        const T_mid  = (l1.T_C  + l2.T_C)  / 2;
+        const Td_mid = (l1.Td_C + l2.Td_C) / 2;
+        const color = getCloudColor(T_mid, Td_mid);
 
         if (color) {
           const y1 = proj.toCanvasY(l1.p_hPa);
@@ -3182,6 +3245,10 @@
     });
     document.getElementById('chk-contrails').addEventListener('change', (e) => {
       STATE.showContrails = e.target.checked;
+      redraw();
+    });
+    document.getElementById('chk-clouds').addEventListener('change', (e) => {
+      STATE.showClouds = e.target.checked;
       redraw();
     });
 
