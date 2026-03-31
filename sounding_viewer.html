@@ -1534,10 +1534,13 @@
       });
 
       // --- Titel ---
-      const runStr = `${snd.model} ${snd.run_date} ${snd.run_hour}Z +${String(snd.step_h).padStart(3, '0')}h`;
-      const coordStr = `${snd.grid_lat ?? snd.target_lat}°N  ${snd.grid_lon ?? snd.target_lon}°E`;
-      const locLabel = getLocLabel(getLocKey(snd));
-      const locStr = locLabel !== coordStr ? locLabel : coordStr;
+      const runStr = snd.model === 'Radiosonde'
+        ? `Radiosonde  ${snd.valid_time ? snd.valid_time.replace('T', '  ').replace('Z', ' UTC') : ''}`
+        : `${snd.model} ${snd.run_date} ${snd.run_hour}Z +${String(snd.step_h).padStart(3, '0')}h`;
+      const coordStr = (snd.target_lat != null || snd.grid_lat != null)
+        ? `${snd.grid_lat ?? snd.target_lat}°N  ${snd.grid_lon ?? snd.target_lon}°E` : '';
+      const locLabel = coordStr ? getLocLabel(getLocKey(snd)) : (snd.location_alias ?? '');
+      const locStr = locLabel && locLabel !== coordStr ? locLabel : coordStr;
       ctx.fillStyle = '#4a5068';
       ctx.font = '11px IBM Plex Mono, monospace';
       ctx.textAlign = 'left';
@@ -3035,7 +3038,9 @@
         const span = document.createElement('span');
         span.className = 'tick-label' + (i === STATE.currentIdx ? ' active' : '');
         span.style.left = pct + '%';
-        span.textContent = `+${snd.step_h}h`;
+        span.textContent = snd.model === 'Radiosonde'
+          ? (snd.valid_time ? snd.valid_time.slice(11, 16) + 'Z' : `#${i+1}`)
+          : `+${snd.step_h}h`;
         span.onclick = () => jumpTo(i);
         ticks.appendChild(span);
       });
@@ -3045,8 +3050,11 @@
       STATE.currentIdx = Math.max(0, Math.min(idx, STATE.soundings.length - 1));
       const snd = STATE.soundings[STATE.currentIdx];
       document.getElementById('timeslider').value = STATE.currentIdx;
-      document.getElementById('time-display').textContent =
-        snd ? `+${String(snd.step_h).padStart(3, '0')}h · ${snd.valid_time ?? ''}` : '—';
+      document.getElementById('time-display').textContent = snd
+        ? (snd.model === 'Radiosonde'
+            ? `Radiosonde · ${snd.valid_time ? snd.valid_time.replace('T', ' ').replace('Z', ' UTC') : '—'}`
+            : `+${String(snd.step_h).padStart(3, '0')}h · ${snd.valid_time ?? ''}`)
+        : '—';
       updateChips(snd);
       updateTimeslider();
       redraw();
@@ -3054,8 +3062,11 @@
 
     function updateChips(snd) {
       if (!snd) return;
+      const timeStr = snd.model === 'Radiosonde'
+        ? (snd.valid_time ? snd.valid_time.replace('T', ' ').replace('Z', ' UTC') : '')
+        : `VHZ +${String(snd.step_h).padStart(3, '0')}h`;
       document.getElementById('chip-time').textContent =
-        `VHZ +${String(snd.step_h).padStart(3, '0')}h  ${snd.n_levels_loaded ?? '?'} Level`;
+        `${timeStr}  ${snd.n_levels_loaded ?? '?'} Level`;
     }
 
     document.getElementById('timeslider').addEventListener('input', e => {
@@ -3096,6 +3107,7 @@
 
     // Hilfsfunktion: Erzeugt einen sauberen Text (Key) aus den Koordinaten eines Profils
     function getLocKey(snd) {
+      if (snd.model === 'Radiosonde') return snd.location_alias ?? 'Radiosonde';
       const lat = snd.target_lat ?? snd.grid_lat;
       const lon = snd.target_lon ?? snd.grid_lon;
       const latS = lat >= 0 ? `${lat}°N` : `${-lat}°S`;
@@ -3111,6 +3123,7 @@
 
     // Hilfsfunktion: Erzeugt einen sauberen Text für den Lauf (z.B. "20260327 06Z")
     function getRunKey(snd) {
+      if (snd.model === 'Radiosonde') return 'Radiosonde';
       return `${snd.model} ${snd.run_date} ${snd.run_hour}Z`;
     }
 
@@ -3160,8 +3173,12 @@
         getRunKey(snd) === STATE.currentRunKey
       );
 
-      // 2. Diese nur noch nach Vorhersagestunde (step_h) sortieren
-      STATE.soundings = filtered.sort((a, b) => a.step_h - b.step_h);
+      // 2. Nach Vorhersagestunde (Modell) bzw. valid_time (Radiosonde) sortieren
+      STATE.soundings = filtered.sort((a, b) =>
+        a.model === 'Radiosonde'
+          ? (a.valid_time ?? '').localeCompare(b.valid_time ?? '')
+          : a.step_h - b.step_h
+      );
 
       // 3. Zeitleiste auf 0 setzen und Bild neu zeichnen
       STATE.currentIdx = 0;
@@ -3215,27 +3232,111 @@
       filterByLocation();
     });
 
-    function readJsonFiles(fileList) {
+    // -------------------------------------------------------------------------
+    // Radiosonden-ASCII-Parser (Windsond HEIDIS-Format)
+    // Dateiname: YYYY-MM-DD_hhmm_Sondennummer[...].txt
+    // Header:    Height[m]  Pressure[hPa]  Temperature[°C]  Dewpoint[°C]  Wind direction[°]  Wind speed[m/s]
+    // -------------------------------------------------------------------------
+    function parseRadiosondeAscii(text, filename) {
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      if (lines.length < 2) return null;
+
+      // Header-Zeile prüfen
+      const header = lines[0].toLowerCase();
+      if (!header.includes('height') || !header.includes('pressure')) return null;
+
+      // Metadaten aus Dateiname: YYYY-MM-DD_hhmm_...
+      let valid_time = null, sonde_id = null;
+      const fnMatch = filename.match(/(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})_(\d+)/);
+      if (fnMatch) {
+        valid_time = `${fnMatch[1]}T${fnMatch[2]}:${fnMatch[3]}Z`;
+        sonde_id = fnMatch[4];
+      }
+      const location_alias = sonde_id ? `Sonde ${sonde_id}` : 'Radiosonde';
+
+      // Datenpunkte parsen
+      const raw = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(/\s+/);
+        if (cols.length < 6) continue;
+        const z    = parseFloat(cols[0]);
+        const p    = parseFloat(cols[1]);
+        const T    = parseFloat(cols[2]);
+        const Td   = parseFloat(cols[3]);
+        const wdir = parseFloat(cols[4]);
+        const wspd = parseFloat(cols[5]); // m/s
+        if ([z, p, T, Td, wdir, wspd].some(isNaN)) continue;
+        raw.push({ z_m: z, p_hPa: p, T_C: T, Td_C: Td, wdir_deg: wdir, wspd_kn: wspd / 0.514444 });
+      }
+      if (raw.length < 2) return null;
+
+      // Automatische Dezimierung bei Hochauflösung (mittl. Abstand < 20 m → auf 50 m-Bins)
+      const meanDz = (raw[raw.length - 1].z_m - raw[0].z_m) / (raw.length - 1);
+      let levels = raw;
+      let decimated = false;
+      if (meanDz < 20) {
+        const BIN = 50;
+        const binMap = new Map();
+        for (const l of raw) {
+          const bin = Math.round(l.z_m / BIN) * BIN;
+          if (!binMap.has(bin)) binMap.set(bin, l); // erstes Level im Bin (nächstes zum Mittelpunkt)
+          else {
+            const cur = binMap.get(bin);
+            if (Math.abs(l.z_m - bin) < Math.abs(cur.z_m - bin)) binMap.set(bin, l);
+          }
+        }
+        levels = Array.from(binMap.values()).sort((a, b) => a.z_m - b.z_m);
+        decimated = true;
+      }
+
+      return {
+        model: 'Radiosonde',
+        valid_time,
+        location_alias,
+        sonde_id,
+        n_levels_loaded: levels.length,
+        n_levels_raw: raw.length,
+        decimated,
+        levels
+      };
+    }
+
+    // Liest sowohl JSON- als auch ASCII-Dateien (automatische Erkennung)
+    function readFiles(fileList) {
       const promises = Array.from(fileList).map(f => {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = e => {
-            try { resolve(JSON.parse(e.target.result)); }
-            catch (err) { reject(err); }
+            const text = e.target.result;
+            // ASCII-Erkennung: erste nicht-leere Zeile enthält 'Height' oder 'h(mAGL)'
+            const firstLine = text.trimStart().split('\n')[0].toLowerCase();
+            if (firstLine.includes('height') && firstLine.includes('pressure')) {
+              const snd = parseRadiosondeAscii(text, f.name);
+              if (snd) resolve(snd);
+              else reject(new Error(`Unbekanntes ASCII-Format: ${f.name}`));
+            } else {
+              try { resolve(JSON.parse(text)); }
+              catch (err) { reject(new Error(`JSON-Fehler in ${f.name}: ${err.message}`)); }
+            }
           };
           reader.onerror = reject;
           reader.readAsText(f);
         });
       });
       Promise.all(promises).then(results => {
-        // Flatten: einzelne Soundings und Arrays (kombinierte Dateien) zusammenführen
         const all = results.flatMap(r => Array.isArray(r) ? r : [r]);
+        // Hinweis bei dezimierter Radiosonde
+        const dec = all.filter(s => s.decimated);
+        if (dec.length > 0) {
+          const info = dec.map(s => `${s.location_alias}: ${s.n_levels_raw} → ${s.n_levels_loaded} Level`).join(', ');
+          console.info(`Radiosonde dezimiert (50 m-Bins): ${info}`);
+        }
         loadSoundings(all);
       }).catch(err => alert('Fehler: ' + err));
     }
 
     document.getElementById('file-input').addEventListener('change', e => {
-      readJsonFiles(e.target.files);
+      readFiles(e.target.files);
     });
 
     // Drag & Drop
@@ -3250,7 +3351,7 @@
     document.body.addEventListener('drop', e => {
       e.preventDefault();
       document.body.classList.remove('drag-over');
-      if (e.dataTransfer.files.length) readJsonFiles(e.dataTransfer.files);
+      if (e.dataTransfer.files.length) readFiles(e.dataTransfer.files);
     });
 
     // =========================================================================
