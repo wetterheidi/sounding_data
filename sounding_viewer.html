@@ -741,7 +741,9 @@
       /** dT/dp [K/Pa] entlang der Pseudoadiabate – benötigt von RK4 */
       _moist_dTdp(T_K, p_hPa) {
         const T_C = T_K - 273.15;
-        const e_s_hPa = MET.es(T_C) / 100.0;
+        // Tetens-Formel nur bis −80°C physikalisch validiert; darunter r_s → 0 und
+        // die Feuchtadiabate konvergiert ohnehin zur Trockenadiabate.
+        const e_s_hPa = MET.es(Math.max(T_C, -80)) / 100.0;
         const r_s = 0.622 * e_s_hPa / Math.max(p_hPa - e_s_hPa, 0.01);
         const Lv_water = 2500800 - 2360 * T_C;
         const Lv_ice = 2834000 - 340 * T_C;
