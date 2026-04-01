@@ -1613,6 +1613,48 @@
         ctx.fillText(Math.round(l.p_hPa), barbX + 14, y + 3);
       });
 
+      // --- Kondensationsniveau-Ticks auf der T-Kurve ---
+      // Kurzer horizontaler Strich auf der Temperaturkurve + Label rechts daneben.
+      // Niveaus: LCL (cyan), LFC (orange), EL (rot), CCL (blaugrün)
+      if (STATE.parcelData) {
+        const pd = STATE.parcelData;
+        const tickLen = 10; // px halbe Länge (Tick ±tickLen)
+        const levels_to_mark = [
+          { p: pd.p_LCL,    label: 'LCL',    color: '#5ba4fc' },
+          { p: pd.lfc_p,    label: 'LFC',    color: '#f0a040' },
+          { p: pd.el_p,     label: 'EL',     color: '#e05c3a' },
+          { p: pd.ccl_p,    label: 'CCL',    color: '#40c0a0' },
+          { p: pd.el_ccl_p, label: 'EL CCL', color: '#c090ff' },
+        ];
+        ctx.save();
+        ctx.font = '9px IBM Plex Mono, monospace';
+        ctx.textAlign = 'left';
+        ctx.lineWidth = 1.5;
+        for (const nl of levels_to_mark) {
+          if (!nl.p) continue;
+          // T-Wert der Umgebung am Niveau (interpoliert)
+          let T_at_p = null;
+          for (let i = 0; i < lvls.length - 1; i++) {
+            if (lvls[i].p_hPa >= nl.p && lvls[i+1].p_hPa <= nl.p) {
+              const f = (lvls[i].p_hPa - nl.p) / (lvls[i].p_hPa - lvls[i+1].p_hPa);
+              T_at_p = lvls[i].T_C + f * (lvls[i+1].T_C - lvls[i].T_C);
+              break;
+            }
+          }
+          if (T_at_p === null) continue;
+          const c = proj.toCanvas(T_at_p, nl.p);
+          if (c.y < m.top || c.y > m.top + proj.H) continue;
+          ctx.strokeStyle = nl.color;
+          ctx.fillStyle   = nl.color;
+          ctx.beginPath();
+          ctx.moveTo(c.x - tickLen, c.y);
+          ctx.lineTo(c.x + tickLen, c.y);
+          ctx.stroke();
+          ctx.fillText(nl.label, c.x + tickLen + 3, c.y + 3);
+        }
+        ctx.restore();
+      }
+
       // --- Titel ---
       const runStr = snd.model === 'Radiosonde'
         ? `Radiosonde  ${snd.valid_time ? snd.valid_time.replace('T', '  ').replace('Z', ' UTC') : ''}`
