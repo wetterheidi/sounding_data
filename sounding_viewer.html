@@ -1034,15 +1034,15 @@
     // =========================================================================
     // Windbarb-Zeichner
     // =========================================================================
-    function drawWindBarb(ctx, x, y, wspd_kn, wdir_deg, size = 20) {
+    function drawWindBarb(ctx, x, y, wspd_kn, wdir_deg, size = 20, color = null) {
       if (wspd_kn == null || wdir_deg == null) return;
 
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(wdir_deg * Math.PI / 180);
 
-      const col = getComputedStyle(document.documentElement)
-        .getPropertyValue('--wind-bb').trim() || '#c8cdd8';
+      const col = color ?? (getComputedStyle(document.documentElement)
+        .getPropertyValue('--wind-bb').trim() || '#c8cdd8');
       ctx.strokeStyle = col;
       ctx.fillStyle = col;
       ctx.lineWidth = 1.0;
@@ -1206,6 +1206,37 @@
         }
         ctx.stroke();
       }
+
+      // --- Isohumen (gestrichelt, g/kg) ---
+      // Mischungsverhältnis w = const → T(p) = MET.T_from_mixing_ratio(w, p)
+      // Konvention: es_water (konsistent mit Taupunkt-Definition)
+      ctx.strokeStyle = '#3a8860';
+      ctx.lineWidth = 0.7;
+      ctx.setLineDash([3, 4]);
+      for (const w_gkg of [0.5, 1, 2, 4, 7, 10, 16, 24]) {
+        const w = w_gkg / 1000; // kg/kg
+        ctx.beginPath();
+        let first = true;
+        for (let p = proj.p_bot; p >= proj.p_top - 10; p -= 5) {
+          const T_C = MET.T_from_mixing_ratio(w, p);
+          const cp = proj.toCanvas(T_C, p);
+          if (first) { ctx.moveTo(cp.x, cp.y); first = false; }
+          else ctx.lineTo(cp.x, cp.y);
+        }
+        ctx.stroke();
+        // Label am unteren Rand
+        const T_bot = MET.T_from_mixing_ratio(w, proj.p_bot);
+        const cp_bot = proj.toCanvas(T_bot, proj.p_bot);
+        if (cp_bot.x >= m.left && cp_bot.x <= m.left + proj.W) {
+          ctx.save();
+          ctx.fillStyle = '#3a8860';
+          ctx.font = '8px IBM Plex Mono, monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(w_gkg, cp_bot.x, m.top + proj.H - 4);
+          ctx.restore();
+        }
+      }
+      ctx.setLineDash([]);
 
       // --- END CLIPPING ---
       ctx.restore();
@@ -1533,14 +1564,49 @@
       // Mindestabstand in Pixeln zwischen zwei Windbarbs (zoom-unabhängig → mehr Barbs beim Zoomen)
       const MIN_BARB_PX = 22;
       const barbX = m.left + proj.W + 60;
+
+      // Hilfsfunktion: Richtungsdifferenz mit 360°-Wrap [-180, +180]
+      const dirDelta = (a, b) => { let d = a - b; if (d > 180) d -= 360; if (d < -180) d += 360; return d; };
+
+      // Pass 1: Welche Level-Indizes werden angezeigt?
+      const visibleIdx = [];
       let lastBarbY = -Infinity;
-      lvls.forEach(l => {
+      lvls.forEach((l, idx) => {
         if (l.wspd_kn == null || l.wdir_deg == null) return;
         const y = proj.toCanvasY(l.p_hPa);
         if (y < m.top || y > m.top + proj.H) return;
         if (Math.abs(y - lastBarbY) < MIN_BARB_PX) return;
         lastBarbY = y;
-        drawWindBarb(ctx, barbX, y, l.wspd_kn, l.wdir_deg, 18);
+        visibleIdx.push(idx);
+      });
+
+      // Pass 2: Für jeden angezeigten Barb die dominante Advektion der abgedeckten Schicht bestimmen.
+      // Jeder Barb vertritt alle Level von seinem Vorgänger (exkl.) bis zu sich selbst (inkl.).
+      // Dominanz = maximaler |Δdir| in der Schicht, Schwellwert 15°, Mindestwind 5 kt.
+      const layerAdvectionColor = (visIdx) => {
+        const shown = visibleIdx[visIdx];
+        const prevShown = visIdx > 0 ? visibleIdx[visIdx - 1] : null;
+        const fromIdx = prevShown !== null ? prevShown + 1 : 1; // erstes Level nach dem vorherigen Barb
+
+        let maxDelta = 0, dominantColor = null;
+        for (let i = fromIdx; i <= shown; i++) {
+          const cur  = lvls[i];
+          const prev = lvls[i - 1];
+          if (!cur || !prev) continue;
+          if ((cur.wspd_kn ?? 0) < 5 || (prev.wspd_kn ?? 0) < 5) continue;
+          const delta = dirDelta(cur.wdir_deg, prev.wdir_deg);
+          if (Math.abs(delta) > Math.abs(maxDelta)) maxDelta = delta;
+        }
+        if (maxDelta > 15)  dominantColor = 'rgba(220, 80,  60, 0.6)'; // Veering → WAA
+        if (maxDelta < -15) dominantColor = 'rgba(60,  130, 210, 0.6)'; // Backing → KAA
+        return dominantColor;
+      };
+
+      // Zeichnen
+      visibleIdx.forEach((idx, visIdx) => {
+        const l = lvls[idx];
+        const y = proj.toCanvasY(l.p_hPa);
+        drawWindBarb(ctx, barbX, y, l.wspd_kn, l.wdir_deg, 18, layerAdvectionColor(visIdx));
         ctx.fillStyle = '#6c758f';
         ctx.font = '9px IBM Plex Mono, monospace';
         ctx.textAlign = 'left';
