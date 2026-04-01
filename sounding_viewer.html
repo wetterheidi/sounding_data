@@ -566,7 +566,8 @@
         </div>
         <div class="index-row"><span class="index-name">PPW (SFC–400 hPa)</span><span class="index-val"
             id="idx-pw">—</span></div>
-        <div class="index-row"><span class="index-name">SRH (0–3 km)</span><span class="index-val" id="idx-srh">—</span>
+        <div class="index-row"><span class="index-name"><label style="cursor:pointer"><input type="checkbox"
+                id="chk-hodograph" style="margin-right:3px;">SRH (0–3 km)</label></span><span class="index-val" id="idx-srh">—</span>
         </div>
         <div class="index-row"><span class="index-name">Bulk Shear (0–6 km)</span><span class="index-val"
             id="idx-bs6">—</span></div>
@@ -681,6 +682,8 @@
       showCat: false,
       showContrails: false,
       showClouds: false,
+      showHodograph: false,
+      hodographLarge: false,
       parcelData: null,
       catData: null,
       contrailData: null,
@@ -1670,6 +1673,214 @@
       ctx.fillText(locStr, m.left + 6, m.top + 26);
     }
 
+    // =========================================================================
+    // Hodograph
+    // =========================================================================
+    function drawHodograph() {
+      if (!STATE.showHodograph) return;
+      const snd = STATE.soundings[STATE.currentIdx];
+      if (!snd || !snd.levels) return;
+      const lvls = snd.levels;
+
+      // Overlay-Position: oben rechts im Diagramm
+      const m = proj.margin;
+      const SIZE  = STATE.hodographLarge ? 340 : 200; // px Kantenlänge
+      const PAD   = 10;
+      const ox = m.left + proj.W - SIZE - PAD; // rechte obere Ecke
+      const oy = m.top + PAD;
+      const cx = ox + SIZE / 2; // Ursprung (0,0 m/s)
+      const cy = oy + SIZE / 2;
+      const MAX_SPD = 50; // m/s → Radius des äußersten Rings
+      const scale   = (SIZE / 2) / MAX_SPD;
+
+      const dpr = window.devicePixelRatio || 1;
+
+      // Hintergrund
+      ctx.save();
+      ctx.fillStyle = 'rgba(20, 24, 40, 0.82)';
+      ctx.strokeStyle = '#3d455c';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(ox, oy, SIZE, SIZE, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      // Expand-Button oben rechts (außerhalb Clip, damit er klickbar bleibt)
+      ctx.fillStyle = '#4a5580';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(STATE.hodographLarge ? '⊡' : '⤢', ox + SIZE - 4, oy + 12);
+
+      // Clip auf Overlay
+      ctx.beginPath();
+      ctx.roundRect(ox, oy, SIZE, SIZE, 6);
+      ctx.clip();
+
+      // Konzentrische Ringe (20, 40, 60 kt → 10.3, 20.6, 30.9 m/s)
+      ctx.lineWidth = 0.6;
+      for (const spd_kt of [20, 40, 60]) {
+        const r = spd_kt * 0.514444 * scale;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.strokeStyle = '#3a4060';
+        ctx.stroke();
+        ctx.fillStyle = '#4a5580';
+        ctx.font = '7px IBM Plex Mono, monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(`${spd_kt}kt`, cx + r + 2, cy - 2);
+      }
+
+      // Kreuz (u=0, v=0)
+      ctx.strokeStyle = '#3a4060';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(ox, cy); ctx.lineTo(ox + SIZE, cy);
+      ctx.moveTo(cx, oy); ctx.lineTo(cx, oy + SIZE);
+      ctx.stroke();
+
+      // Hodograph-Kurve, farbcodiert nach Höhe
+      const toUV = l => {
+        if (l.wspd_kn == null || l.wdir_deg == null) return null;
+        const spd = l.wspd_kn * 0.514444;
+        const rad = l.wdir_deg * Math.PI / 180;
+        return { u: -spd * Math.sin(rad), v: -spd * Math.cos(rad) };
+      };
+
+      const segments = [
+        { z_max: 1000, color: '#e05c3a', label: '1 km' },
+        { z_max: 3000, color: '#f0a040', label: '3 km' },
+        { z_max: 6000, color: '#4ab56e', label: '6 km' },
+        { z_max: Infinity, color: '#6c758f', label: null  },
+      ];
+
+      let segIdx = 0;
+      let prevUV = null;
+      ctx.lineWidth = 1.8;
+
+      for (let i = 0; i < lvls.length; i++) {
+        const l = lvls[i];
+        const uv = toUV(l);
+        if (!uv) { prevUV = null; continue; }
+
+        // Segmentfarbe nach Höhe
+        while (segIdx < segments.length - 1 && l.z_m > segments[segIdx].z_max) segIdx++;
+        ctx.strokeStyle = segments[segIdx].color;
+
+        if (prevUV) {
+          ctx.beginPath();
+          ctx.moveTo(cx + prevUV.u * scale, cy - prevUV.v * scale);
+          ctx.lineTo(cx + uv.u * scale,     cy - uv.v * scale);
+          ctx.stroke();
+        }
+
+        // Höhenmarken-Punkte bei 1, 3, 6 km
+        for (const seg of segments) {
+          if (seg.label && i > 0 && lvls[i-1].z_m < seg.z_max && l.z_m >= seg.z_max) {
+            // Interpoliere exakt auf Höhe
+            const f = (seg.z_max - lvls[i-1].z_m) / (l.z_m - lvls[i-1].z_m);
+            const puv = toUV(lvls[i-1]);
+            if (puv) {
+              const ux = cx + (puv.u + f*(uv.u - puv.u)) * scale;
+              const vy = cy - (puv.v + f*(uv.v - puv.v)) * scale;
+              ctx.beginPath();
+              ctx.arc(ux, vy, 3, 0, Math.PI * 2);
+              ctx.fillStyle = seg.color;
+              ctx.fill();
+              ctx.fillStyle = '#e0e4f0';
+              ctx.font = 'bold 8px IBM Plex Mono, monospace';
+              ctx.textAlign = 'left';
+              ctx.fillText(seg.label, ux + 4, vy - 2);
+            }
+          }
+        }
+        prevUV = uv;
+      }
+
+      // Bunkers-Sturmzug (Rechtsmover) einzeichnen
+      if (STATE.parcelData) {
+        // Sturmzug aus gespeicherten Daten rekonstruieren (gleiche Logik wie in computeAndDisplayIndices)
+        const eil_base_z = null; // vereinfacht: SFC
+        const mu_el_z = null;
+        const z_lo = lvls[0].z_m;
+        const z_hi = 6000;
+        const Rd = 287.05;
+        const rho = l => {
+          const w = (l.Td_C != null) ? MET.mixing_ratio(l.Td_C, l.p_hPa) : 0;
+          const Tv = (l.T_C + 273.15) * (1 + 0.608 * w);
+          return (l.p_hPa * 100) / (Rd * Tv);
+        };
+        let u_sum = 0, v_sum = 0, rho_sum = 0;
+        for (let i = 0; i < lvls.length - 1; i++) {
+          const la = lvls[i], lb = lvls[i+1];
+          if (la.z_m > z_hi || lb.z_m < z_lo) continue;
+          const a = toUV(la), b = toUV(lb);
+          if (!a || !b) continue;
+          const r_mid = (rho(la) + rho(lb)) / 2;
+          const dz = Math.min(lb.z_m, z_hi) - Math.max(la.z_m, z_lo);
+          if (dz <= 0) continue;
+          u_sum += r_mid * ((a.u + b.u) / 2) * dz;
+          v_sum += r_mid * ((a.v + b.v) / 2) * dz;
+          rho_sum += r_mid * dz;
+        }
+        if (rho_sum > 0) {
+          const u_mean = u_sum / rho_sum, v_mean = v_sum / rho_sum;
+          const uvAtZ = z => {
+            for (let i = 0; i < lvls.length - 1; i++) {
+              if (lvls[i].z_m <= z && lvls[i+1].z_m >= z) {
+                const f = (z - lvls[i].z_m) / (lvls[i+1].z_m - lvls[i].z_m);
+                const a = toUV(lvls[i]), b = toUV(lvls[i+1]);
+                if (!a || !b) return null;
+                return { u: a.u + f*(b.u-a.u), v: a.v + f*(b.v-a.v) };
+              }
+            }
+            return null;
+          };
+          const uv0 = toUV(lvls[0]), uv6 = uvAtZ(6000);
+          if (uv0 && uv6) {
+            const du = uv6.u - uv0.u, dv = uv6.v - uv0.v;
+            const mag = Math.sqrt(du*du + dv*dv) || 1;
+            const us = u_mean + 7.5 * (dv / mag);
+            const vs = v_mean - 7.5 * (du / mag);
+            const sx = cx + us * scale, sy = cy - vs * scale;
+            // Kreuz für Sturmzug
+            const CS = 6;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(sx - CS, sy); ctx.lineTo(sx + CS, sy);
+            ctx.moveTo(sx, sy - CS); ctx.lineTo(sx, sy + CS);
+            ctx.stroke();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '7px IBM Plex Mono, monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('RM', sx + CS + 2, sy + 3);
+          }
+        }
+      }
+
+      ctx.restore();
+
+      // Legende außerhalb des Clips
+      ctx.save();
+      const legX = ox + 4, legY = oy + SIZE + 12;
+      ctx.font = '8px IBM Plex Mono, monospace';
+      const segs = [
+        { color: '#e05c3a', label: '0–1 km' },
+        { color: '#f0a040', label: '1–3 km' },
+        { color: '#4ab56e', label: '3–6 km' },
+        { color: '#6c758f', label: '>6 km'  },
+      ];
+      let lx = legX;
+      for (const s of segs) {
+        ctx.fillStyle = s.color;
+        ctx.fillRect(lx, legY - 6, 18, 4);
+        ctx.fillStyle = '#8890a8';
+        ctx.fillText(s.label, lx + 20, legY);
+        lx += 62;
+      }
+      ctx.restore();
+    }
+
     function redraw() {
       if (!proj) return;
       const W = canvas.width / (window.devicePixelRatio || 1);
@@ -1681,6 +1892,7 @@
         drawSounding(STATE.soundings[STATE.currentIdx]);
       }
       drawInteractiveLines(); // HIER zeichnen wir die neuen Maus-Linien!
+      drawHodograph();
     }
 
     // =========================================================================
@@ -3532,6 +3744,27 @@
       redraw();
     });
 
+    // Klick auf Hodograph-Expand-Button
+    canvas.addEventListener('click', e => {
+      if (!STATE.showHodograph || !proj) return;
+      const rect = canvas.getBoundingClientRect();
+      const dpr  = window.devicePixelRatio || 1;
+      const mx   = (e.clientX - rect.left) * dpr;
+      const my   = (e.clientY - rect.top)  * dpr;
+      // Overlay-Koordinaten (in CSS-Pixeln, vor DPR-Skalierung)
+      const m    = proj.margin;
+      const SIZE = STATE.hodographLarge ? 340 : 200;
+      const PAD  = 10;
+      const ox   = (m.left + proj.W - SIZE - PAD) * dpr;
+      const oy   = (m.top  + PAD) * dpr;
+      // Trefferbereich: obere rechte Ecke (Expand-Button ~20×16 px)
+      if (mx >= ox + (SIZE - 22) * dpr && mx <= ox + SIZE * dpr &&
+          my >= oy && my <= oy + 16 * dpr) {
+        STATE.hodographLarge = !STATE.hodographLarge;
+        redraw();
+      }
+    });
+
     canvas.addEventListener('wheel', e => {
       if (!proj) return;
       e.preventDefault(); // Verhindert das Scrollen der gesamten Webseite
@@ -3782,6 +4015,10 @@
     });
     document.getElementById('chk-clouds').addEventListener('change', (e) => {
       STATE.showClouds = e.target.checked;
+      redraw();
+    });
+    document.getElementById('chk-hodograph').addEventListener('change', (e) => {
+      STATE.showHodograph = e.target.checked;
       redraw();
     });
 
