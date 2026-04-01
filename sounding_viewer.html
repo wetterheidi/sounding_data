@@ -292,6 +292,7 @@
         border-left: none;
         border-top: 1px solid var(--border);
       }
+
       #main {
         flex-direction: column;
       }
@@ -546,6 +547,8 @@
         <div class="index-row"><span class="index-name"><label style="cursor:pointer"><input type="checkbox"
                 id="chk-cape-ccl" style="margin-right:3px;">CAPE (CCL)</label></span><span class="index-val"
             id="idx-cape-ccl">—</span></div>
+        <div class="index-row"><span class="index-name">MU-CAPE</span><span class="index-val" id="idx-mu-cape">—</span>
+        </div>
         <div class="index-row"><span class="index-name">CIN</span><span class="index-val" id="idx-cin">—</span></div>
         <div class="index-row"><span class="index-name">Lifted Index</span><span class="index-val" id="idx-li">—</span>
         </div>
@@ -563,10 +566,12 @@
         </div>
         <div class="index-row"><span class="index-name">PPW (SFC–400 hPa)</span><span class="index-val"
             id="idx-pw">—</span></div>
-        <div class="index-row"><span class="index-name">MU-CAPE</span><span class="index-val" id="idx-mu-cape">—</span></div>
-        <div class="index-row"><span class="index-name">SRH (0–3 km)</span><span class="index-val" id="idx-srh">—</span></div>
-        <div class="index-row"><span class="index-name">Bulk Shear (0–6 km)</span><span class="index-val" id="idx-bs6">—</span></div>
-        <div class="index-row"><span class="index-name">Bulk Shear (0–1 km)</span><span class="index-val" id="idx-bs1">—</span></div>
+        <div class="index-row"><span class="index-name">SRH (0–3 km)</span><span class="index-val" id="idx-srh">—</span>
+        </div>
+        <div class="index-row"><span class="index-name">Bulk Shear (0–6 km)</span><span class="index-val"
+            id="idx-bs6">—</span></div>
+        <div class="index-row"><span class="index-name">Bulk Shear (0–1 km)</span><span class="index-val"
+            id="idx-bs1">—</span></div>
       </details>
       <details class="sidebar-section" open>
         <summary>Kondensationsniveaus</summary>
@@ -598,7 +603,8 @@
         </div>
       </details>
       <details class="sidebar-section" closed>
-        <summary><input type="checkbox" id="chk-cat" style="margin-right:3px;">Turbulenz CAT (AFWGC 70-7) <label style="cursor:pointer;font-size:10px;margin-left:6px;text-transform:none;letter-spacing:0"></summary>
+        <summary><input type="checkbox" id="chk-cat" style="margin-right:3px;">Turbulenz CAT (AFWGC 70-7) <label
+            style="cursor:pointer;font-size:10px;margin-left:6px;text-transform:none;letter-spacing:0"></summary>
         <table class="wind-table" id="cat-table">
           <thead>
             <tr>
@@ -610,7 +616,8 @@
         </table>
       </details>
       <details class="sidebar-section" closed>
-        <summary><input type="checkbox" id="chk-contrails" style="margin-right:3px;">Kondensstreifen (Appleman) <label style="cursor:pointer;font-size:10px;margin-left:6px;text-transform:none;letter-spacing:0"></summary>
+        <summary><input type="checkbox" id="chk-contrails" style="margin-right:3px;">Kondensstreifen (Appleman) <label
+            style="cursor:pointer;font-size:10px;margin-left:6px;text-transform:none;letter-spacing:0"></summary>
         <table class="wind-table" id="contrail-table">
           <thead>
             <tr>
@@ -623,12 +630,17 @@
       </details>
       <details class="sidebar-section" closed>
         <summary>Niederschlagsphase</summary>
-        <div class="index-row"><span class="index-name">Typ (Bourgouin)</span><span class="index-val" id="idx-precip-type">—</span></div>
-        <div class="index-row"><span class="index-name">Schneefallgrenze (DWD)</span><span class="index-val" id="idx-sfl-dwd">—</span></div>
-        <div class="index-row"><span class="index-name">Schneefallgrenze (einfach)</span><span class="index-val" id="idx-sfl-simple">—</span></div>
+        <div class="index-row"><span class="index-name">Typ (Bourgouin)</span><span class="index-val"
+            id="idx-precip-type">—</span></div>
+        <div class="index-row"><span class="index-name">Schneefallgrenze (DWD)</span><span class="index-val"
+            id="idx-sfl-dwd">—</span></div>
+        <div class="index-row"><span class="index-name">Schneefallgrenze (einfach)</span><span class="index-val"
+            id="idx-sfl-simple">—</span></div>
       </details>
       <details class="sidebar-section" open>
-        <summary>Troposphäre <label style="cursor:pointer;font-size:10px;margin-left:6px;text-transform:none;letter-spacing:0"><input type="checkbox" id="chk-clouds" style="margin-right:3px;">Wolken im Diagramm</label></summary>
+        <summary>Troposphäre <label
+            style="cursor:pointer;font-size:10px;margin-left:6px;text-transform:none;letter-spacing:0"><input
+              type="checkbox" id="chk-clouds" style="margin-right:3px;">Wolken im Diagramm</label></summary>
         <div class="index-row"><span class="index-name">Tropopause (est.)</span><span class="index-val"
             id="idx-tropo">—</span></div>
         <div class="index-row"><span class="index-name">0°C Grenze</span><span class="index-val" id="idx-iso0">—</span>
@@ -824,7 +836,7 @@
       if (T_C == null || Td_C == null) return null;
       const e = MET.es_water(Td_C); // aktueller Dampfdruck [Pa]
       let es;
-      if (T_C >= 0)   es = MET.es_water(T_C);
+      if (T_C >= 0) es = MET.es_water(T_C);
       else if (T_C <= -40) es = MET.es_ice(T_C);
       else {
         const f = -T_C / 40;
@@ -843,7 +855,7 @@
     function cloudOktas(T_C, Td_C) {
       const rh = cloudRH(T_C, Td_C);
       if (rh === null || rh < 65) return 0;
-      if (rh < 85)  return 1; // SCT
+      if (rh < 85) return 1; // SCT
       if (rh < 100) return 2; // BKN
       return 3;                // OVC
     }
@@ -1238,7 +1250,7 @@
         for (let i = 0; i < lvls.length - 1; i++) {
           const l1 = lvls[i], l2 = lvls[i + 1];
           if (l1.T_C == null || l1.Td_C == null || l2.T_C == null || l2.Td_C == null) continue;
-          const T_mid  = (l1.T_C  + l2.T_C)  / 2;
+          const T_mid = (l1.T_C + l2.T_C) / 2;
           const Td_mid = (l1.Td_C + l2.Td_C) / 2;
           const oktas = cloudOktas(T_mid, Td_mid);
           if (oktas === 0) continue;
@@ -1264,7 +1276,7 @@
         if (l1.T_C == null || l1.Td_C == null || l2.T_C == null || l2.Td_C == null) continue;
 
         // Repräsentative Schichtmitte für Wolkenfarbe
-        const T_mid  = (l1.T_C  + l2.T_C)  / 2;
+        const T_mid = (l1.T_C + l2.T_C) / 2;
         const Td_mid = (l1.Td_C + l2.Td_C) / 2;
         const color = getCloudColor(T_mid, Td_mid);
 
@@ -1285,7 +1297,7 @@
         const legItems = [
           { label: 'SCT', color: 'rgba(210,220,230,0.60)' },
           { label: 'BKN', color: 'rgba(120,138,155,0.85)' },
-          { label: 'OVC', color: 'rgba(55,70,85,1.00)'    },
+          { label: 'OVC', color: 'rgba(55,70,85,1.00)' },
         ];
         ctx.font = '9px IBM Plex Mono, monospace';
         ctx.textAlign = 'left';
@@ -2065,8 +2077,8 @@
         const T_crit = appleman_cutoff(p, RH_water);
         if (T_crit === null || T > T_crit) return 0;
         if (RHi >= 100) return 3;
-        if (RHi >= 85)  return 2;
-        if (RHi >= 30)  return 1;
+        if (RHi >= 85) return 2;
+        if (RHi >= 30) return 1;
         return 0;
       };
 
@@ -2078,7 +2090,7 @@
       const samples = [];
       for (let p = P_BOT; p >= P_TOP - 1; p -= 5) {
         const pc = Math.max(p, P_TOP);
-        const z  = interp(pc, 'z_m');
+        const z = interp(pc, 'z_m');
         const cat = evalCat(pc);
         if (z === null || cat < 0) continue;
         samples.push({ z, cat });
@@ -2104,11 +2116,11 @@
       const CAT_NAMES = ['', 'Nicht persistent', 'Teils persistent', 'Persistent'];
       // Höchste Höhe zuerst
       return bands.reverse().map(b => ({
-        cat:   b.cat,
+        cat: b.cat,
         label: `FL${flFromZ(b.z_lo)}–FL${flFromZ(b.z_hi)}`,
-        name:  CAT_NAMES[b.cat],
-        z_lo:  b.z_lo,
-        z_hi:  b.z_hi,
+        name: CAT_NAMES[b.cat],
+        z_lo: b.z_lo,
+        z_hi: b.z_hi,
       }));
     }
 
@@ -2134,7 +2146,7 @@
         const frac = l1.T_C / (l1.T_C - l2.T_C);
         return {
           p: l1.p_hPa + frac * (l2.p_hPa - l1.p_hPa),
-          z: l1.z_m   + frac * (l2.z_m   - l1.z_m),
+          z: l1.z_m + frac * (l2.z_m - l1.z_m),
         };
       }
 
@@ -2195,11 +2207,11 @@
         if (bottomWarm) {
           // Warm unten, Kalt oben → Schnee der durch warme Schicht fällt
           if (Ew[0] > 13.2) type = 'RA';
-          else               type = 'RA/SN';
+          else type = 'RA/SN';
         } else {
           // Kalt unten, Warm oben → unterkühlter Regen / Eisregen
           if (Ew[0] > 13.2) type = 'RA';
-          else               type = 'FZRA';
+          else type = 'FZRA';
         }
       } else if (nZones === 3) {
         // Drei Zonen: klassisch kalt–warm–kalt (Schnee–Schmelze–Wiedergefrieren)
@@ -2207,19 +2219,19 @@
         if (!bottomWarm) {
           // Kalt unten: Schnee oder Eiskörnchen
           if (Ec[0] > 66 + 0.66 * Ew[0]) type = 'SN';
-          else if (Ew[0] > 13.2)          type = 'PL';
-          else                             type = 'FZRA/PL';
+          else if (Ew[0] > 13.2) type = 'PL';
+          else type = 'FZRA/PL';
         } else {
           // Warm unten: Rain/Freezing Rain Kombinationen
           if (Ec.length >= 1 && Ew[0] > 13.2) type = 'RA';
-          else                                 type = 'FZRA/RA';
+          else type = 'FZRA/RA';
         }
       } else {
         // Vier oder mehr Zonen: vereinfacht
         const Eb = Ec[0] ?? 0;  // bodennahe Kaltzone
         if (Eb > 66 + 0.66 * (Ew[0] ?? 0)) type = 'SN';
-        else if ((Ew[0] ?? 0) > 13.2)       type = 'RA';
-        else                                 type = 'PL/FZRA';
+        else if ((Ew[0] ?? 0) > 13.2) type = 'RA';
+        else type = 'PL/FZRA';
       }
 
       // --- Schneefallgrenze (einfach) ---
@@ -2335,16 +2347,29 @@
         }
       }
 
-      // Tropopausenerkennung
-      for (let i = 0; i < lvls.length - 3; i++) {
-        if (lvls[i].p_hPa < 350 && lvls[i].p_hPa > 100) {
-          const lapse_rate = (lvls[i + 2].T_C - lvls[i].T_C) / (lvls[i + 2].z_m - lvls[i].z_m) * -1000;
-          if (lapse_rate < 2.0) {
-            tropo_m = lvls[i].z_m;
-            break;
-          }
+      // Tropopausenerkennung nach WMO-Definition (WMO-No. 8, 2018):
+      // Unterste Niveau zwischen 350 und 100 hPa, bei dem:
+      //   1. Temperaturgradient (Lapserate) ≤ 2 K/km
+      //   2. Mittlerer Gradient zwischen diesem Niveau und ALLEN Niveaus
+      //      innerhalb der nächsten 2 km darüber ebenfalls ≤ 2 K/km
+      for (let i = 0; i < lvls.length - 1; i++) {
+        const l0 = lvls[i];
+        if (l0.p_hPa > 350 || l0.p_hPa < 100) continue;
+        // Bedingung 1: lokaler Gradient zum nächsten Level ≤ 2 K/km
+        const l1 = lvls[i + 1];
+        if (!l1) continue;
+        const lr_local = (l0.T_C - l1.T_C) / (l1.z_m - l0.z_m) * 1000; // K/km, positiv = kühlt mit Höhe
+        if (lr_local > 2.0) continue;
+        // Bedingung 2: mittlerer Gradient zu jedem Level innerhalb 2 km darüber ≤ 2 K/km
+        let wmo_ok = true;
+        for (let j = i + 1; j < lvls.length; j++) {
+          const lj = lvls[j];
+          if (lj.z_m > l0.z_m + 2000) break;
+          const lr_mean = (l0.T_C - lj.T_C) / (lj.z_m - l0.z_m) * 1000;
+          if (lr_mean > 2.0) { wmo_ok = false; break; }
         }
-      } // <--- WICHTIG: Hier endet die Tropopausen-Schleife!
+        if (wmo_ok) { tropo_m = l0.z_m; break; }
+      }
 
       // --- NEU: CCL und Auslösetemperatur (Mixed Layer 100 hPa) ---
       const sfc_p = lSfc.p_hPa;
@@ -2631,15 +2656,15 @@
         if (id === 'idx-tti') cls = val > 50 ? 'pos' : val > 44 ? 'warn' : 'neg';
         if (id === 'idx-vt') cls = val > 28 ? 'pos' : val > 24 ? 'warn' : 'neg';
         if (id === 'idx-ko') cls = val < -6 ? 'pos' : val < -2 ? 'warn' : 'neg';
-        if (id === 'idx-pw')  cls = val > 35  ? 'pos' : val > 25  ? 'warn' : '';
+        if (id === 'idx-pw') cls = val > 35 ? 'pos' : val > 25 ? 'warn' : '';
         // MU-CAPE: identische Schwellen wie CAPE
         if (id === 'idx-mu-cape') cls = val > 2500 ? 'pos' : val > 1000 ? 'warn' : val > 0 ? '' : 'neg';
         // SRH: > 150 m²/s² Superzell möglich, > 300 m²/s² hohe Tornadogefahr
         if (id === 'idx-srh') cls = val > 300 ? 'pos' : val > 150 ? 'warn' : '';
         // Bulk Shear 0-6 km: > 40 kt organisierte Gewitter/Superzellen, > 25 kt Multizelle
-        if (id === 'idx-bs6') cls = val > 40  ? 'pos' : val > 25  ? 'warn' : '';
+        if (id === 'idx-bs6') cls = val > 40 ? 'pos' : val > 25 ? 'warn' : '';
         // Bulk Shear 0-1 km: > 20 kt erhöhte Tornadogefahr
-        if (id === 'idx-bs1') cls = val > 20  ? 'pos' : val > 10  ? 'warn' : '';
+        if (id === 'idx-bs1') cls = val > 20 ? 'pos' : val > 10 ? 'warn' : '';
 
         if (cls !== '') el.classList.add(cls);
       }
@@ -2733,11 +2758,11 @@
               if (p >= lvls[0].p_hPa) return lvls[0].T_C + 273.15;
               for (let i = 1; i < lvls.length; i++) {
                 if (lvls[i].p_hPa <= p) {
-                  const f = (p - lvls[i-1].p_hPa) / (lvls[i].p_hPa - lvls[i-1].p_hPa);
-                  return (lvls[i-1].T_C + 273.15) + f * ((lvls[i].T_C + 273.15) - (lvls[i-1].T_C + 273.15));
+                  const f = (p - lvls[i - 1].p_hPa) / (lvls[i].p_hPa - lvls[i - 1].p_hPa);
+                  return (lvls[i - 1].T_C + 273.15) + f * ((lvls[i].T_C + 273.15) - (lvls[i - 1].T_C + 273.15));
                 }
               }
-              return lvls[lvls.length-1].T_C + 273.15;
+              return lvls[lvls.length - 1].T_C + 273.15;
             })();
             if (Tp > Te) { lfc_mu = p; break; }
           }
@@ -2746,7 +2771,7 @@
           let el_p_mu = null;
           if (lfc_mu !== null) {
             for (let i = 1; i < lvls.length; i++) {
-              const l = lvls[i], prev = lvls[i-1];
+              const l = lvls[i], prev = lvls[i - 1];
               if (l.p_hPa > lfc_mu) continue;
               const Tp_K = MET.moist_adiabat_T(T_lcl_mu, p_lcl_mu, l.p_hPa);
               const w_env = (l.Td_C != null) ? MET.mixing_ratio(l.Td_C, l.p_hPa) : 0;
@@ -2763,9 +2788,9 @@
             // EL-Höhe interpolieren
             if (el_p_mu !== null) {
               for (let i = 0; i < lvls.length - 1; i++) {
-                if (lvls[i].p_hPa >= el_p_mu && lvls[i+1].p_hPa <= el_p_mu) {
-                  const f = (lvls[i].p_hPa - el_p_mu) / (lvls[i].p_hPa - lvls[i+1].p_hPa);
-                  mu_el_z = lvls[i].z_m + f * (lvls[i+1].z_m - lvls[i].z_m);
+                if (lvls[i].p_hPa >= el_p_mu && lvls[i + 1].p_hPa <= el_p_mu) {
+                  const f = (lvls[i].p_hPa - el_p_mu) / (lvls[i].p_hPa - lvls[i + 1].p_hPa);
+                  mu_el_z = lvls[i].z_m + f * (lvls[i + 1].z_m - lvls[i].z_m);
                   break;
                 }
               }
@@ -2801,11 +2826,11 @@
           let lfc_l = null;
           for (let p = p_lcl_l - 2; p >= 100; p -= 2) {
             const Tp = MET.moist_adiabat_T(T_lcl_l, p_lcl_l, p);
-            let Te = lvls[lvls.length-1].T_C + 273.15;
+            let Te = lvls[lvls.length - 1].T_C + 273.15;
             for (let j = 1; j < lvls.length; j++) {
               if (lvls[j].p_hPa <= p) {
-                const f = (p - lvls[j-1].p_hPa) / (lvls[j].p_hPa - lvls[j-1].p_hPa);
-                Te = (lvls[j-1].T_C + 273.15) + f * ((lvls[j].T_C + 273.15) - (lvls[j-1].T_C + 273.15));
+                const f = (p - lvls[j - 1].p_hPa) / (lvls[j].p_hPa - lvls[j - 1].p_hPa);
+                Te = (lvls[j - 1].T_C + 273.15) + f * ((lvls[j].T_C + 273.15) - (lvls[j - 1].T_C + 273.15));
                 break;
               }
             }
@@ -2814,7 +2839,7 @@
           // CAPE und CIN
           let cape_l = 0, cin_l = 0;
           for (let j = 1; j < lvls.length; j++) {
-            const lj = lvls[j], lprev = lvls[j-1];
+            const lj = lvls[j], lprev = lvls[j - 1];
             const Tp_K = lj.p_hPa >= p_lcl_l
               ? MET.dry_adiabat_T(potT_l, 1000, lj.p_hPa)
               : MET.moist_adiabat_T(T_lcl_l, p_lcl_l, lj.p_hPa);
@@ -2904,12 +2929,12 @@
       // --- Niederschlagsphase ---
       const precip = computePrecipPhase(lvls);
       const PRECIP_LABELS = {
-        'SN':      '❄ Schnee',
-        'RA':      '🌧 Regen',
-        'RA/SN':   '🌨 Schneeregen',
-        'FZRA':    '🌧❄ Gefrierender Regen',
+        'SN': '❄ Schnee',
+        'RA': '🌧 Regen',
+        'RA/SN': '🌨 Schneeregen',
+        'FZRA': '🌧❄ Gefrierender Regen',
         'FZRA/RA': '🌧 Regen / Gef. Regen',
-        'PL':      '🧊 Eiskörner (PL)',
+        'PL': '🧊 Eiskörner (PL)',
         'FZRA/PL': '🧊❄ Eiskörner / Gef. Regen',
         'PL/FZRA': '🧊❄ Eiskörner / Gef. Regen',
       };
@@ -2919,14 +2944,14 @@
         return `${Math.round(z)} m / ${Math.round(z * 3.28084)} ft AGL`;
       };
       const precipTypeEl = document.getElementById('idx-precip-type');
-      const sflDwdEl     = document.getElementById('idx-sfl-dwd');
-      const sflSimpleEl  = document.getElementById('idx-sfl-simple');
+      const sflDwdEl = document.getElementById('idx-sfl-dwd');
+      const sflSimpleEl = document.getElementById('idx-sfl-simple');
       if (precipTypeEl) {
         precipTypeEl.textContent = precip ? (PRECIP_LABELS[precip.type] ?? precip.type) : '—';
         precipTypeEl.className = 'index-val';
       }
-      if (sflDwdEl)    { sflDwdEl.textContent    = precip ? fmtSFL(precip.sfl_dwd)    : '—'; }
-      if (sflSimpleEl) { sflSimpleEl.textContent  = precip ? fmtSFL(precip.sfl_simple) : '—'; }
+      if (sflDwdEl) { sflDwdEl.textContent = precip ? fmtSFL(precip.sfl_dwd) : '—'; }
+      if (sflSimpleEl) { sflSimpleEl.textContent = precip ? fmtSFL(precip.sfl_simple) : '—'; }
 
       const isoEl = document.getElementById('idx-iso0');
       if (iso0_m !== null) {
@@ -3039,7 +3064,7 @@
         span.className = 'tick-label' + (i === STATE.currentIdx ? ' active' : '');
         span.style.left = pct + '%';
         span.textContent = snd.model === 'Radiosonde'
-          ? (snd.valid_time ? snd.valid_time.slice(11, 16) + 'Z' : `#${i+1}`)
+          ? (snd.valid_time ? snd.valid_time.slice(11, 16) + 'Z' : `#${i + 1}`)
           : `+${snd.step_h}h`;
         span.onclick = () => jumpTo(i);
         ticks.appendChild(span);
@@ -3052,8 +3077,8 @@
       document.getElementById('timeslider').value = STATE.currentIdx;
       document.getElementById('time-display').textContent = snd
         ? (snd.model === 'Radiosonde'
-            ? `Radiosonde · ${snd.valid_time ? snd.valid_time.replace('T', ' ').replace('Z', ' UTC') : '—'}`
-            : `+${String(snd.step_h).padStart(3, '0')}h · ${snd.valid_time ?? ''}`)
+          ? `Radiosonde · ${snd.valid_time ? snd.valid_time.replace('T', ' ').replace('Z', ' UTC') : '—'}`
+          : `+${String(snd.step_h).padStart(3, '0')}h · ${snd.valid_time ?? ''}`)
         : '—';
       updateChips(snd);
       updateTimeslider();
@@ -3259,10 +3284,10 @@
       for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(/\s+/);
         if (cols.length < 6) continue;
-        const z    = parseFloat(cols[0]);
-        const p    = parseFloat(cols[1]);
-        const T    = parseFloat(cols[2]);
-        const Td   = parseFloat(cols[3]);
+        const z = parseFloat(cols[0]);
+        const p = parseFloat(cols[1]);
+        const T = parseFloat(cols[2]);
+        const Td = parseFloat(cols[3]);
         const wdir = parseFloat(cols[4]);
         const wspd = parseFloat(cols[5]); // m/s
         if ([z, p, T, Td, wdir, wspd].some(isNaN)) continue;
