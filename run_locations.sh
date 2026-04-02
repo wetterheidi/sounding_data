@@ -37,18 +37,16 @@ if run_model "icon-d2"; then
   # Ort: Stiwoll 47.10537586454951, 15.214935030670695
   python3 fetch_sounding.py --lat 47.105 --lon 15.215 --model icon-d2 --step 0:24:1 --outdir ./data --alias Stiwoll
 fi
-
 # === ICON-EU (3-stündlich) ===
 if run_model "icon-eu"; then
   # Ort: AlJafr 30.344, 36.148
-  # python3 fetch_sounding.py --lat 30.344 --lon 36.148 --model icon-eu --step 0:48:6 --outdir ./data --alias AlJafr
+  python3 fetch_sounding.py --lat 30.344 --lon 36.148 --model icon-eu --step 0:48:6 --outdir ./data --alias AlJafr
 fi
-
 # === ICON Global (6-stündlich) ===
 if run_model "icon"; then
   # Ort: Eloy 32.749, -111.573
-  # python3 fetch_sounding.py --lat 32.749 --lon -111.573 --model icon --step 0:24:6 --outdir ./data --alias Eloy
+  python3 fetch_sounding.py --lat 32.749 --lon -111.573 --model icon --step 0:24:6 --outdir ./data --alias Eloy
 
   # Ort: Karibik (CAPE Test)
-  # python3 fetch_sounding.py --lat 18.036 --lon -72.150 --model icon --step 0:6:6 --outdir ./data
+  python3 fetch_sounding.py --lat 18.036 --lon -72.150 --model icon --step 0:6:6 --outdir ./data
 fi
