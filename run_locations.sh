@@ -51,5 +51,4 @@ if run_model "icon"; then
 
   # Ort: Karibik (CAPE Test)
   # python3 fetch_sounding.py --lat 18.036 --lon -72.150 --model icon --step 0:6:6 --outdir ./data
-  :
 fi
