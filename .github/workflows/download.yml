@@ -77,11 +77,11 @@ jobs:
         run: |
           git config --global user.name  "GitHub Action Bot"
           git config --global user.email "action@github.com"
-          # Erst stagen – Arbeitsverzeichnis muss sauber sein vor rebase
+          # Erst pullen – Index ist noch sauber, rebase funktioniert
+          git pull --rebase origin main
+          # Dann stagen
           git add -A ./data/
           # Frühzeitig beenden wenn nichts geändert wurde
           git diff --cached --quiet && { echo "Keine Änderungen."; exit 0; }
-          # Jetzt pullen – keine unstaged changes mehr vorhanden
-          git pull --rebase origin main
           git commit -m "Wetter-Update: ${{ steps.model.outputs.filter || 'alle' }} $(date -u +%Y%m%dT%H%MZ)"
           git push
