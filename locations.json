@@ -25,7 +25,7 @@
     "alias": "Parow",
     "lat": 54.362,
     "lon": 13.087,
-    "enabled": false,
+    "enabled": true,
     "models": {
       "icon-d2": {
         "step": "0:24:1"
