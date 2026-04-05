@@ -38,7 +38,7 @@ with open("$LOCATIONS") as fh:
 filter_model = "$MODEL_FILTER"
 
 for loc in locs:
-    if not loc.get("enabled", True):
+    if loc.get("enabled") is not True:
         continue
     for model, cfg in loc.get("models", {}).items():
         if filter_model and filter_model != model:
