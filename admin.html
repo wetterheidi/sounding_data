@@ -182,6 +182,18 @@
       transition: background .15s;
     }
     .btn-add:hover { background: var(--accent-dim); }
+    .btn-edit {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 13px;
+      padding: 5px 10px;
+      transition: border-color .15s, color .15s;
+      flex-shrink: 0;
+    }
+    .btn-edit:hover { border-color: var(--accent); color: var(--accent); }
 
     /* ---- Location card ---- */
     .location-card {
@@ -399,7 +411,7 @@
 
     <!-- Add-location panel (initially hidden) -->
     <div id="add-panel" class="hidden">
-      <h3>Neuen Ort hinzuf&uuml;gen</h3>
+      <h3 id="panel-title">Neuen Ort hinzuf&uuml;gen</h3>
 
       <div class="form-grid">
         <!-- Alias -->
@@ -519,6 +531,7 @@ const locationsList   = document.getElementById('locations-list');
 const locationsCount  = document.getElementById('locations-count');
 const globalBanner    = document.getElementById('global-banner');
 const addPanel        = document.getElementById('add-panel');
+const panelTitle      = document.getElementById('panel-title');
 const areaWarning     = document.getElementById('area-warning');
 const areaModelName   = document.getElementById('area-model-name');
 const formError       = document.getElementById('form-error');
@@ -539,6 +552,7 @@ let map           = null;
 let marker        = null;
 let overlayD2     = null;
 let overlayEU     = null;
+let editIdx       = -1;   // -1 = new entry, ≥0 = edit existing
 
 // =====================================================================
 // Token management
@@ -632,6 +646,7 @@ function renderLocations(locations) {
         <div class="location-coords">${loc.lat}, ${loc.lon}</div>
         <div class="location-models">${modelTags}</div>
       </div>
+      <button class="btn-edit" title="Bearbeiten">&#9998;</button>
       <div class="toggle-wrapper">
         <span class="toggle-label">${loc.enabled ? 'aktiv' : 'inaktiv'}</span>
         <label class="toggle" title="${loc.enabled ? 'Deaktivieren' : 'Aktivieren'}">
@@ -643,6 +658,8 @@ function renderLocations(locations) {
 
     card.querySelector('input[type=checkbox]')
         .addEventListener('change', () => handleToggle(idx, card));
+    card.querySelector('.btn-edit')
+        .addEventListener('click', () => openEditPanel(idx));
     locationsList.appendChild(card);
   });
 }
@@ -675,6 +692,10 @@ async function handleToggle(idx, card) {
 // Add-location panel
 // =====================================================================
 function openAddPanel() {
+  editIdx = -1;
+  panelTitle.textContent = 'Neuen Ort hinzufügen';
+  btnSaveLoc.textContent = 'Ort speichern';
+  addPanel.style.borderColor = '';
   addPanel.classList.remove('hidden');
   btnAdd.classList.add('hidden');
   resetForm();
@@ -682,8 +703,48 @@ function openAddPanel() {
   initMap();
 }
 
+function openEditPanel(idx) {
+  const loc = currentLocs[idx];
+  const modelName = Object.keys(loc.models || {})[0] || '';
+  const stepStr   = (loc.models[modelName] || {}).step || '0:24:1';
+  const [from, to, step] = stepStr.split(':').map(Number);
+
+  editIdx = idx;
+  panelTitle.textContent = `Ort bearbeiten: ${loc.alias}`;
+  btnSaveLoc.textContent = 'Änderungen speichern';
+  addPanel.style.borderColor = 'var(--warn-border)';
+  addPanel.classList.remove('hidden');
+  btnAdd.classList.add('hidden');
+
+  fAlias.value = loc.alias;
+  fModel.value = modelName;
+  fLat.value   = loc.lat;
+  fLon.value   = loc.lon;
+  fFrom.value  = isNaN(from) ? 0  : from;
+  fTo.value    = isNaN(to)   ? 24 : to;
+  fStep.value  = isNaN(step) ? 1  : step;
+
+  formError.innerHTML = '';
+  areaWarning.style.display = 'none';
+
+  addPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  initMap();
+
+  // Place existing marker and highlight overlay
+  const lat = parseFloat(loc.lat);
+  const lon = parseFloat(loc.lon);
+  if (!isNaN(lat) && !isNaN(lon)) {
+    placeMarker(lat, lon);
+    map.setView([lat, lon], 6);
+  }
+  updateOverlayHighlight(modelName);
+  checkArea();
+}
+
 function closeAddPanel() {
+  editIdx = -1;
   addPanel.classList.add('hidden');
+  addPanel.style.borderColor = '';
   btnAdd.classList.remove('hidden');
   formError.innerHTML = '';
   areaWarning.style.display = 'none';
@@ -743,6 +804,22 @@ function placeMarker(lat, lon) {
   marker = L.marker([lat, lon]).addTo(map);
 }
 
+// ---- Overlay highlight based on selected model ----
+function updateOverlayHighlight(model) {
+  if (!overlayD2 || !overlayEU) return;
+  if (model === 'icon-d2') {
+    overlayD2.setStyle({ weight: 3, opacity: 1,   color: '#dd8800' });
+    overlayEU.setStyle({ weight: 1, opacity: 0.25, color: '#2288dd' });
+  } else if (model === 'icon-eu') {
+    overlayEU.setStyle({ weight: 3, opacity: 1,   color: '#2288dd' });
+    overlayD2.setStyle({ weight: 1, opacity: 0.25, color: '#dd8800' });
+  } else {
+    // icon global or nothing selected → reset both equally
+    overlayD2.setStyle({ weight: 2, opacity: 1, color: '#dd8800' });
+    overlayEU.setStyle({ weight: 2, opacity: 1, color: '#2288dd' });
+  }
+}
+
 // ---- Out-of-area check ----
 function checkArea() {
   const model = fModel.value;
@@ -783,10 +860,11 @@ function validateForm() {
   if (to <= from)               return '"Bis" muss größer als "Von" sein.';
   if (isNaN(step) || step < 1)  return '"Schritt" muss ≥ 1 sein.';
 
-  // Duplicate: same lat/lon (rounded to 3 dec) AND same model
+  // Duplicate: same lat/lon (rounded to 3 dec) AND same model — skip own entry in edit mode
   const dupLat = lat.toFixed(3);
   const dupLon = parseFloat(fLon.value).toFixed(3);
-  const dup = currentLocs.find(loc => {
+  const dup = currentLocs.find((loc, i) => {
+    if (i === editIdx) return false; // skip the entry being edited
     const existingModel = Object.keys(loc.models || {})[0];
     return (
       parseFloat(loc.lat).toFixed(3) === dupLat &&
@@ -827,20 +905,36 @@ async function handleSaveLoc() {
   btnSaveLoc.textContent = 'Speichern…';
 
   try {
-    const updated = [...currentLocs, newEntry];
-    const ok = await saveLocations(updated, `admin: add ${alias} (${model})`);
+    let updated;
+    let commitMsg;
+    let successMsg;
+
+    if (editIdx === -1) {
+      // --- Add new ---
+      updated    = [...currentLocs, newEntry];
+      commitMsg  = `admin: add ${alias} (${model})`;
+      successMsg = `"${escHtml(alias)}" wurde hinzugefügt (deaktiviert). Zum Aktivieren den Toggle verwenden.`;
+    } else {
+      // --- Edit existing — preserve enabled state ---
+      newEntry.enabled = currentLocs[editIdx].enabled;
+      updated = currentLocs.map((loc, i) => i === editIdx ? newEntry : loc);
+      commitMsg  = `admin: edit ${alias} (${model})`;
+      successMsg = `"${escHtml(alias)}" wurde aktualisiert.`;
+    }
+
+    const ok = await saveLocations(updated, commitMsg);
     if (ok) {
       currentLocs = updated;
       renderLocations(currentLocs);
       closeAddPanel();
       clearGlobalBanner();
-      showGlobalBanner('success', `"${escHtml(alias)}" wurde hinzugefügt (deaktiviert). Zum Aktivieren den Toggle verwenden.`);
+      showGlobalBanner('success', successMsg);
     }
   } catch (err) {
     formError.innerHTML = makeBanner('error', err.message);
   } finally {
     btnSaveLoc.disabled = false;
-    btnSaveLoc.textContent = 'Ort speichern';
+    btnSaveLoc.textContent = editIdx === -1 ? 'Ort speichern' : 'Änderungen speichern';
   }
 }
 
@@ -909,11 +1003,12 @@ btnAdd.addEventListener('click', openAddPanel);
 btnCancel.addEventListener('click', closeAddPanel);
 btnSaveLoc.addEventListener('click', handleSaveLoc);
 
-// Model dropdown → set defaults & recheck area
+// Model dropdown → set defaults, recheck area, highlight overlay
 fModel.addEventListener('change', () => {
   const d = MODEL_DEFAULTS[fModel.value];
   if (d) { fFrom.value = d.from; fTo.value = d.to; fStep.value = d.step; }
   checkArea();
+  updateOverlayHighlight(fModel.value);
 });
 
 // Coord inputs → update marker & area check
