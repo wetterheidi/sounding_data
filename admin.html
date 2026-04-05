@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Sounding Locations</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --bg2: #1a1d27;
+      --bg3: #23273a;
+      --border: #2e3348;
+      --text: #d0d5e8;
+      --text-dim: #7a8099;
+      --accent: #4a7cf7;
+      --accent-dim: #2a4ea0;
+      --green: #2ecc71;
+      --green-dim: #1a7a44;
+      --red: #e74c3c;
+      --red-dim: #8a1f14;
+      --warn-bg: #3a2a00;
+      --warn-border: #c88a00;
+      --warn-text: #ffd166;
+      --error-bg: #3a0f0f;
+      --error-border: #c0392b;
+      --error-text: #ff8a80;
+      --radius: 8px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --mono: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 15px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ---- Layout ---- */
+    header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    header h1 {
+      font-size: 17px;
+      font-weight: 600;
+      flex: 1;
+      min-width: 0;
+    }
+    header .badge {
+      font-size: 11px;
+      background: var(--warn-bg);
+      color: var(--warn-text);
+      border: 1px solid var(--warn-border);
+      border-radius: 4px;
+      padding: 2px 8px;
+    }
+    .btn-logout {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      padding: 6px 14px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 13px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-logout:hover { border-color: var(--red); color: var(--red); }
+
+    main { max-width: 680px; margin: 0 auto; padding: 24px 16px 48px; }
+
+    /* ---- Security notice ---- */
+    .security-notice {
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      margin-bottom: 24px;
+      font-size: 13px;
+      color: var(--warn-text);
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .security-notice .icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+
+    /* ---- Token screen ---- */
+    #token-screen {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    #token-screen h2 { font-size: 16px; font-weight: 600; }
+    #token-screen p { font-size: 13px; color: var(--text-dim); }
+    .input-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .input-row input {
+      flex: 1;
+      min-width: 200px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .input-row input:focus { border-color: var(--accent); }
+    .btn-primary {
+      background: var(--accent);
+      border: none;
+      border-radius: var(--radius);
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 10px 20px;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-primary:hover { background: var(--accent-dim); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ---- Location list ---- */
+    #locations-screen { display: flex; flex-direction: column; gap: 12px; }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .section-header h2 { font-size: 16px; font-weight: 600; }
+    .section-header .count {
+      font-size: 12px;
+      color: var(--text-dim);
+      background: var(--bg3);
+      border-radius: 10px;
+      padding: 1px 8px;
+    }
+    .btn-reload {
+      margin-left: auto;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 12px;
+      padding: 5px 12px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-reload:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-reload:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ---- Location card ---- */
+    .location-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: border-color 0.15s;
+    }
+    .location-card:hover { border-color: var(--border2, #3d455c); }
+    .location-card.enabled { border-left: 3px solid var(--green); }
+    .location-card.disabled { border-left: 3px solid var(--border); }
+
+    .location-info { flex: 1; min-width: 0; }
+    .location-alias {
+      font-weight: 600;
+      font-size: 15px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .location-coords {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+    .location-models {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 6px;
+    }
+    .model-tag {
+      font-size: 11px;
+      font-family: var(--mono);
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px 7px;
+      color: var(--text-dim);
+    }
+
+    /* ---- Toggle ---- */
+    .toggle-wrapper { flex-shrink: 0; display: flex; align-items: center; gap: 10px; }
+    .toggle-label { font-size: 12px; color: var(--text-dim); min-width: 52px; text-align: right; }
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .toggle input:checked + .toggle-track { background: var(--green-dim); border-color: var(--green); }
+    .toggle input:disabled + .toggle-track { opacity: 0.4; cursor: not-allowed; }
+    .toggle-thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+      background: var(--text-dim);
+      border-radius: 50%;
+      pointer-events: none;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .toggle input:checked ~ .toggle-thumb { transform: translateX(20px); background: var(--green); }
+
+    /* ---- Status / Error banners ---- */
+    .banner {
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      font-size: 13px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      animation: fadein 0.2s ease;
+    }
+    @keyframes fadein { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; } }
+    .banner.error {
+      background: var(--error-bg);
+      border: 1px solid var(--error-border);
+      color: var(--error-text);
+    }
+    .banner.success {
+      background: #0d2a1a;
+      border: 1px solid #1a7a44;
+      color: #5af5a0;
+    }
+    .banner .close-btn {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      opacity: 0.7;
+      flex-shrink: 0;
+    }
+    .banner .close-btn:hover { opacity: 1; }
+
+    /* ---- Loading ---- */
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    /* ---- Utilities ---- */
+    .hidden { display: none !important; }
+
+    @media (max-width: 480px) {
+      .toggle-label { display: none; }
+      header h1 { font-size: 15px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Sounding Locations Admin</h1>
+  <span class="badge">PRIVAT — nicht teilen</span>
+  <button class="btn-logout hidden" id="btn-logout">Abmelden</button>
+</header>
+
+<main>
+  <!-- Security notice (always visible) -->
+  <div class="security-notice">
+    <span class="icon">&#9888;</span>
+    <div>
+      <strong>Hinweis:</strong> Diese Seite ist ausschlie&szlig;lich f&uuml;r den pers&ouml;nlichen
+      Gebrauch bestimmt. Bitte nicht verlinken, nicht teilen, nicht &ouml;ffentlich zug&auml;nglich
+      machen. Der GitHub-Token wird ausschlie&szlig;lich lokal in deinem Browser (localStorage)
+      gespeichert und nie an Dritte &uuml;bertragen.
+    </div>
+  </div>
+
+  <!-- Token screen -->
+  <div id="token-screen">
+    <h2>GitHub Token erforderlich</h2>
+    <p>
+      Gib deinen GitHub Personal Access Token ein (ben&ouml;tigt <code>repo</code>-Scope
+      oder feingranularen &bdquo;Contents: Read &amp; Write&ldquo;-Zugriff auf dieses Repository).
+    </p>
+    <div class="input-row">
+      <input type="password" id="token-input" placeholder="github_pat_..." autocomplete="off" spellcheck="false">
+      <button class="btn-primary" id="btn-save-token">Speichern &amp; Laden</button>
+    </div>
+    <div id="token-error"></div>
+  </div>
+
+  <!-- Locations screen -->
+  <div id="locations-screen" class="hidden">
+    <div id="global-banner"></div>
+    <div class="section-header">
+      <h2>Orte</h2>
+      <span class="count" id="locations-count"></span>
+      <button class="btn-reload" id="btn-reload">&#8635; Neu laden</button>
+    </div>
+    <div id="locations-list"></div>
+  </div>
+</main>
+
+<script>
+  // =====================================================================
+  // CONFIG — hier anpassen
+  // =====================================================================
+  const REPO_OWNER = 'wetterheidi';
+  const REPO_NAME  = 'sounding_data';
+  const FILE_PATH  = 'locations.json';
+  // =====================================================================
+
+  const API_BASE = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`;
+  const TOKEN_KEY = 'gh_admin_token';
+
+  // ---- DOM refs ----
+  const tokenScreen     = document.getElementById('token-screen');
+  const locationsScreen = document.getElementById('locations-screen');
+  const tokenInput      = document.getElementById('token-input');
+  const btnSaveToken    = document.getElementById('btn-save-token');
+  const btnLogout       = document.getElementById('btn-logout');
+  const btnReload       = document.getElementById('btn-reload');
+  const tokenError      = document.getElementById('token-error');
+  const locationsList   = document.getElementById('locations-list');
+  const locationsCount  = document.getElementById('locations-count');
+  const globalBanner    = document.getElementById('global-banner');
+
+  // ---- State ----
+  let currentSha = null;   // SHA of the current file version from GitHub API
+
+  // =====================================================================
+  // Token management
+  // =====================================================================
+  function getToken() { return localStorage.getItem(TOKEN_KEY); }
+  function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
+  function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+
+  function showTokenScreen(errorMsg) {
+    tokenScreen.classList.remove('hidden');
+    locationsScreen.classList.add('hidden');
+    btnLogout.classList.add('hidden');
+    tokenInput.value = '';
+    if (errorMsg) {
+      showInlineError(tokenError, errorMsg);
+    } else {
+      tokenError.innerHTML = '';
+    }
+  }
+
+  function showLocationsScreen() {
+    tokenScreen.classList.add('hidden');
+    locationsScreen.classList.remove('hidden');
+    btnLogout.classList.remove('hidden');
+  }
+
+  // =====================================================================
+  // GitHub API helpers
+  // =====================================================================
+  async function apiFetch(method, body) {
+    const token = getToken();
+    const opts = {
+      method,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    };
+    if (body !== undefined) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+    return fetch(API_BASE, opts);
+  }
+
+  async function loadLocations() {
+    const res = await apiFetch('GET');
+    if (res.status === 401) {
+      clearToken();
+      showTokenScreen('Token ungültig oder abgelaufen. Bitte neu eingeben.');
+      return null;
+    }
+    if (!res.ok) {
+      throw new Error(`GitHub API Fehler: ${res.status} ${res.statusText}`);
+    }
+    const data = await res.json();
+    currentSha = data.sha;
+    const decoded = atob(data.content.replace(/\n/g, ''));
+    return JSON.parse(decoded);
+  }
+
+  async function saveLocations(locations) {
+    if (!currentSha) throw new Error('SHA fehlt — bitte zuerst neu laden.');
+    const content = btoa(unescape(encodeURIComponent(
+      JSON.stringify(locations, null, 2) + '\n'
+    )));
+    const res = await apiFetch('PUT', {
+      message: `admin: toggle location via admin.html`,
+      content,
+      sha: currentSha,
+    });
+    if (res.status === 401) {
+      clearToken();
+      showTokenScreen('Token ungültig oder abgelaufen. Bitte neu eingeben.');
+      return false;
+    }
+    if (res.status === 409) {
+      throw new Error(
+        'Konflikt (HTTP 409): Die Datei wurde zwischenzeitlich geändert. ' +
+        'Bitte neu laden und die Änderung wiederholen.'
+      );
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(`Speichern fehlgeschlagen: ${res.status} — ${body.message || res.statusText}`);
+    }
+    const updated = await res.json();
+    currentSha = updated.content.sha;
+    return true;
+  }
+
+  // =====================================================================
+  // Render
+  // =====================================================================
+  function renderLocations(locations) {
+    locationsList.innerHTML = '';
+    locationsCount.textContent = `${locations.length} Orte`;
+
+    locations.forEach((loc, idx) => {
+      const card = document.createElement('div');
+      card.className = `location-card ${loc.enabled ? 'enabled' : 'disabled'}`;
+      card.id = `card-${idx}`;
+
+      const modelTags = Object.entries(loc.models || {})
+        .map(([name, cfg]) => `<span class="model-tag">${name} ${cfg.step || ''}</span>`)
+        .join('');
+
+      const toggleId = `toggle-${idx}`;
+      card.innerHTML = `
+        <div class="location-info">
+          <div class="location-alias">${escHtml(loc.alias)}</div>
+          <div class="location-coords">${loc.lat}, ${loc.lon}</div>
+          <div class="location-models">${modelTags}</div>
+        </div>
+        <div class="toggle-wrapper">
+          <span class="toggle-label">${loc.enabled ? 'aktiv' : 'inaktiv'}</span>
+          <label class="toggle" title="${loc.enabled ? 'Deaktivieren' : 'Aktivieren'}">
+            <input type="checkbox" id="${toggleId}" ${loc.enabled ? 'checked' : ''} data-idx="${idx}">
+            <span class="toggle-track"></span>
+            <span class="toggle-thumb"></span>
+          </label>
+        </div>
+      `;
+
+      const checkbox = card.querySelector('input[type=checkbox]');
+      checkbox.addEventListener('change', () => handleToggle(locations, idx, checkbox, card));
+
+      locationsList.appendChild(card);
+    });
+  }
+
+  async function handleToggle(locations, idx, checkbox, card) {
+    const newEnabled = checkbox.checked;
+    checkbox.disabled = true;
+
+    // Optimistic UI update
+    locations[idx].enabled = newEnabled;
+    card.className = `location-card ${newEnabled ? 'enabled' : 'disabled'}`;
+    card.querySelector('.toggle-label').textContent = newEnabled ? 'aktiv' : 'inaktiv';
+
+    clearGlobalBanner();
+    try {
+      const ok = await saveLocations(locations);
+      if (ok) {
+        showGlobalBanner('success', `"${escHtml(locations[idx].alias)}" wurde ${newEnabled ? 'aktiviert' : 'deaktiviert'}.`);
+      }
+    } catch (err) {
+      // Revert
+      locations[idx].enabled = !newEnabled;
+      checkbox.checked = !newEnabled;
+      card.className = `location-card ${!newEnabled ? 'enabled' : 'disabled'}`;
+      card.querySelector('.toggle-label').textContent = !newEnabled ? 'aktiv' : 'inaktiv';
+      showGlobalBanner('error', err.message);
+    } finally {
+      checkbox.disabled = false;
+    }
+  }
+
+  // =====================================================================
+  // Banner / error helpers
+  // =====================================================================
+  function showGlobalBanner(type, msg) {
+    globalBanner.innerHTML = `
+      <div class="banner ${type}">
+        <span>${escHtml(msg)}</span>
+        <button class="close-btn" aria-label="Schließen" onclick="this.closest('.banner').remove()">&#x2715;</button>
+      </div>
+    `;
+    if (type === 'success') {
+      setTimeout(() => { globalBanner.innerHTML = ''; }, 4000);
+    }
+  }
+
+  function clearGlobalBanner() { globalBanner.innerHTML = ''; }
+
+  function showInlineError(el, msg) {
+    el.innerHTML = `<div class="banner error" style="margin-top:8px"><span>${escHtml(msg)}</span></div>`;
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // =====================================================================
+  // Load flow
+  // =====================================================================
+  function setLoadingState(loading) {
+    btnReload.disabled = loading;
+    if (loading) {
+      locationsList.innerHTML = `
+        <div class="loading-row">
+          <span class="spinner"></span>
+          <span>Lade locations.json von GitHub…</span>
+        </div>`;
+      locationsCount.textContent = '';
+    }
+  }
+
+  async function loadAndRender() {
+    setLoadingState(true);
+    clearGlobalBanner();
+    try {
+      const locations = await loadLocations();
+      if (locations !== null) {
+        renderLocations(locations);
+      }
+    } catch (err) {
+      locationsList.innerHTML = '';
+      showGlobalBanner('error', err.message);
+    } finally {
+      setLoadingState(false);
+    }
+  }
+
+  // =====================================================================
+  // Event listeners
+  // =====================================================================
+  btnSaveToken.addEventListener('click', async () => {
+    const val = tokenInput.value.trim();
+    if (!val) {
+      showInlineError(tokenError, 'Bitte Token eingeben.');
+      return;
+    }
+    setToken(val);
+    tokenError.innerHTML = '';
+    showLocationsScreen();
+    await loadAndRender();
+  });
+
+  tokenInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') btnSaveToken.click();
+  });
+
+  btnLogout.addEventListener('click', () => {
+    clearToken();
+    currentSha = null;
+    showTokenScreen();
+  });
+
+  btnReload.addEventListener('click', loadAndRender);
+
+  // =====================================================================
+  // Init
+  // =====================================================================
+  if (getToken()) {
+    showLocationsScreen();
+    loadAndRender();
+  } else {
+    showTokenScreen();
+  }
+</script>
+</body>
+</html>
