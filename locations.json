@@ -36,7 +36,7 @@
     "alias": "Stiwoll",
     "lat": 47.105,
     "lon": 15.215,
-    "enabled": false,
+    "enabled": true,
     "models": {
       "icon-d2": {
         "step": "0:24:1"
