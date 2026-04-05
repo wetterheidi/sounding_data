@@ -5,16 +5,20 @@
     "lon": 11.235,
     "enabled": false,
     "models": {
-      "icon-d2": { "step": "0:24:1" }
+      "icon-d2": {
+        "step": "0:24:1"
+      }
     }
   },
   {
     "alias": "Muckberg",
-    "lat": 48.710,
+    "lat": 48.71,
     "lon": 8.784,
     "enabled": false,
     "models": {
-      "icon-d2": { "step": "0:24:1" }
+      "icon-d2": {
+        "step": "0:24:1"
+      }
     }
   },
   {
@@ -23,7 +27,9 @@
     "lon": 13.087,
     "enabled": false,
     "models": {
-      "icon-d2": { "step": "0:24:1" }
+      "icon-d2": {
+        "step": "0:24:1"
+      }
     }
   },
   {
@@ -32,16 +38,20 @@
     "lon": 15.215,
     "enabled": false,
     "models": {
-      "icon-d2": { "step": "0:24:1" }
+      "icon-d2": {
+        "step": "0:24:1"
+      }
     }
   },
   {
     "alias": "AlJafr",
     "lat": 30.344,
     "lon": 36.148,
-    "enabled": true,
+    "enabled": false,
     "models": {
-      "icon-eu": { "step": "0:6:6" }
+      "icon-eu": {
+        "step": "0:6:6"
+      }
     }
   },
   {
@@ -50,7 +60,9 @@
     "lon": -111.573,
     "enabled": false,
     "models": {
-      "icon": { "step": "0:24:6" }
+      "icon": {
+        "step": "0:24:6"
+      }
     }
   }
 ]
