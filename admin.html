@@ -4,31 +4,36 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin — Sounding Locations</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #0f1117;
-      --bg2: #1a1d27;
-      --bg3: #23273a;
-      --border: #2e3348;
-      --text: #d0d5e8;
-      --text-dim: #7a8099;
-      --accent: #4a7cf7;
-      --accent-dim: #2a4ea0;
-      --green: #2ecc71;
-      --green-dim: #1a7a44;
-      --red: #e74c3c;
-      --red-dim: #8a1f14;
-      --warn-bg: #3a2a00;
-      --warn-border: #c88a00;
-      --warn-text: #ffd166;
-      --error-bg: #3a0f0f;
+      --bg:           #0f1117;
+      --bg2:          #1a1d27;
+      --bg3:          #23273a;
+      --border:       #2e3348;
+      --border2:      #3d455c;
+      --text:         #d0d5e8;
+      --text-dim:     #7a8099;
+      --accent:       #4a7cf7;
+      --accent-dim:   #2a4ea0;
+      --green:        #2ecc71;
+      --green-dim:    #1a7a44;
+      --red:          #e74c3c;
+      --red-dim:      #8a1f14;
+      --warn-bg:      #3a2a00;
+      --warn-border:  #c88a00;
+      --warn-text:    #ffd166;
+      --error-bg:     #3a0f0f;
       --error-border: #c0392b;
-      --error-text: #ff8a80;
-      --radius: 8px;
-      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      --mono: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+      --error-text:   #ff8a80;
+      --radius:       8px;
+      --font:         -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --mono:         'SF Mono', 'Fira Code', 'Courier New', monospace;
     }
 
     body {
@@ -40,7 +45,7 @@
       min-height: 100vh;
     }
 
-    /* ---- Layout ---- */
+    /* ---- Header ---- */
     header {
       background: var(--bg2);
       border-bottom: 1px solid var(--border);
@@ -50,13 +55,8 @@
       gap: 12px;
       flex-wrap: wrap;
     }
-    header h1 {
-      font-size: 17px;
-      font-weight: 600;
-      flex: 1;
-      min-width: 0;
-    }
-    header .badge {
+    header h1 { font-size: 17px; font-weight: 600; flex: 1; min-width: 0; }
+    .badge {
       font-size: 11px;
       background: var(--warn-bg);
       color: var(--warn-text);
@@ -72,11 +72,11 @@
       border-radius: var(--radius);
       cursor: pointer;
       font-size: 13px;
-      transition: border-color 0.15s, color 0.15s;
+      transition: border-color .15s, color .15s;
     }
     .btn-logout:hover { border-color: var(--red); color: var(--red); }
 
-    main { max-width: 680px; margin: 0 auto; padding: 24px 16px 48px; }
+    main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
 
     /* ---- Security notice ---- */
     .security-notice {
@@ -94,21 +94,12 @@
     .security-notice .icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
 
     /* ---- Token screen ---- */
-    #token-screen {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
+    #token-screen { display: flex; flex-direction: column; gap: 16px; }
     #token-screen h2 { font-size: 16px; font-weight: 600; }
     #token-screen p { font-size: 13px; color: var(--text-dim); }
-    .input-row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
+    .input-row { display: flex; gap: 10px; flex-wrap: wrap; }
     .input-row input {
-      flex: 1;
-      min-width: 200px;
+      flex: 1; min-width: 200px;
       background: var(--bg2);
       border: 1px solid var(--border);
       border-radius: var(--radius);
@@ -117,9 +108,11 @@
       font-size: 13px;
       padding: 10px 14px;
       outline: none;
-      transition: border-color 0.15s;
+      transition: border-color .15s;
     }
     .input-row input:focus { border-color: var(--accent); }
+
+    /* ---- Buttons ---- */
     .btn-primary {
       background: var(--accent);
       border: none;
@@ -129,13 +122,26 @@
       font-size: 14px;
       font-weight: 500;
       padding: 10px 20px;
-      transition: background 0.15s;
+      transition: background .15s;
       white-space: nowrap;
     }
     .btn-primary:hover { background: var(--accent-dim); }
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
 
-    /* ---- Location list ---- */
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 10px 18px;
+      transition: border-color .15s, color .15s;
+      white-space: nowrap;
+    }
+    .btn-secondary:hover { border-color: var(--border2); color: var(--text); }
+
+    /* ---- Locations screen ---- */
     #locations-screen { display: flex; flex-direction: column; gap: 12px; }
     .section-header {
       display: flex;
@@ -144,7 +150,7 @@
       margin-bottom: 4px;
     }
     .section-header h2 { font-size: 16px; font-weight: 600; }
-    .section-header .count {
+    .count {
       font-size: 12px;
       color: var(--text-dim);
       background: var(--bg3);
@@ -152,7 +158,6 @@
       padding: 1px 8px;
     }
     .btn-reload {
-      margin-left: auto;
       background: transparent;
       border: 1px solid var(--border);
       color: var(--text-dim);
@@ -160,10 +165,23 @@
       cursor: pointer;
       font-size: 12px;
       padding: 5px 12px;
-      transition: border-color 0.15s, color 0.15s;
+      transition: border-color .15s, color .15s;
     }
     .btn-reload:hover { border-color: var(--accent); color: var(--accent); }
-    .btn-reload:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-reload:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-add {
+      margin-left: auto;
+      background: var(--accent);
+      border: none;
+      border-radius: var(--radius);
+      color: #fff;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 14px;
+      transition: background .15s;
+    }
+    .btn-add:hover { background: var(--accent-dim); }
 
     /* ---- Location card ---- */
     .location-card {
@@ -174,32 +192,15 @@
       display: flex;
       align-items: center;
       gap: 14px;
-      transition: border-color 0.15s;
+      transition: border-color .15s;
     }
-    .location-card:hover { border-color: var(--border2, #3d455c); }
-    .location-card.enabled { border-left: 3px solid var(--green); }
+    .location-card:hover { border-color: var(--border2); }
+    .location-card.enabled  { border-left: 3px solid var(--green); }
     .location-card.disabled { border-left: 3px solid var(--border); }
-
     .location-info { flex: 1; min-width: 0; }
-    .location-alias {
-      font-weight: 600;
-      font-size: 15px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .location-coords {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--text-dim);
-      margin-top: 2px;
-    }
-    .location-models {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 5px;
-      margin-top: 6px;
-    }
+    .location-alias { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .location-coords { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+    .location-models { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
     .model-tag {
       font-size: 11px;
       font-family: var(--mono);
@@ -213,38 +214,100 @@
     /* ---- Toggle ---- */
     .toggle-wrapper { flex-shrink: 0; display: flex; align-items: center; gap: 10px; }
     .toggle-label { font-size: 12px; color: var(--text-dim); min-width: 52px; text-align: right; }
-    .toggle {
-      position: relative;
-      width: 44px;
-      height: 24px;
-      flex-shrink: 0;
-    }
+    .toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
     .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
     .toggle-track {
-      position: absolute;
-      inset: 0;
+      position: absolute; inset: 0;
       background: var(--bg3);
       border: 1px solid var(--border);
       border-radius: 12px;
       cursor: pointer;
-      transition: background 0.2s, border-color 0.2s;
+      transition: background .2s, border-color .2s;
     }
     .toggle input:checked + .toggle-track { background: var(--green-dim); border-color: var(--green); }
-    .toggle input:disabled + .toggle-track { opacity: 0.4; cursor: not-allowed; }
+    .toggle input:disabled + .toggle-track { opacity: .4; cursor: not-allowed; }
     .toggle-thumb {
-      position: absolute;
-      top: 3px;
-      left: 3px;
-      width: 16px;
-      height: 16px;
+      position: absolute; top: 3px; left: 3px;
+      width: 16px; height: 16px;
       background: var(--text-dim);
       border-radius: 50%;
       pointer-events: none;
-      transition: transform 0.2s, background 0.2s;
+      transition: transform .2s, background .2s;
     }
     .toggle input:checked ~ .toggle-thumb { transform: translateX(20px); background: var(--green); }
 
-    /* ---- Status / Error banners ---- */
+    /* ---- Add-location panel ---- */
+    #add-panel {
+      background: var(--bg2);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      animation: fadein .2s ease;
+    }
+    #add-panel h3 { font-size: 15px; font-weight: 600; }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 520px) { .form-grid { grid-template-columns: 1fr; } }
+
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-group label { font-size: 12px; color: var(--text-dim); font-weight: 500; }
+    .form-group input,
+    .form-group select {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 14px;
+      padding: 9px 12px;
+      outline: none;
+      transition: border-color .15s;
+      width: 100%;
+    }
+    .form-group input:focus,
+    .form-group select:focus { border-color: var(--accent); }
+    .form-group select option { background: var(--bg3); }
+    .form-group .hint { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+    .step-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+
+    /* ---- Map ---- */
+    #map-container { display: flex; flex-direction: column; gap: 6px; }
+    #map-container label { font-size: 12px; color: var(--text-dim); font-weight: 500; }
+    #map {
+      height: 280px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      z-index: 0;
+    }
+    .map-hint { font-size: 11px; color: var(--text-dim); }
+
+    /* ---- Out-of-area warning ---- */
+    #area-warning {
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--warn-text);
+      display: none;
+    }
+
+    /* ---- Panel actions ---- */
+    .panel-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+
+    /* ---- Banners ---- */
     .banner {
       border-radius: var(--radius);
       padding: 10px 14px;
@@ -252,61 +315,41 @@
       display: flex;
       align-items: flex-start;
       gap: 10px;
-      animation: fadein 0.2s ease;
+      animation: fadein .2s ease;
     }
     @keyframes fadein { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; } }
-    .banner.error {
-      background: var(--error-bg);
-      border: 1px solid var(--error-border);
-      color: var(--error-text);
-    }
-    .banner.success {
-      background: #0d2a1a;
-      border: 1px solid #1a7a44;
-      color: #5af5a0;
-    }
+    .banner.error  { background: var(--error-bg);  border: 1px solid var(--error-border); color: var(--error-text); }
+    .banner.success{ background: #0d2a1a; border: 1px solid #1a7a44; color: #5af5a0; }
     .banner .close-btn {
       margin-left: auto;
-      background: none;
-      border: none;
-      color: inherit;
-      cursor: pointer;
-      font-size: 16px;
-      line-height: 1;
-      opacity: 0.7;
-      flex-shrink: 0;
+      background: none; border: none; color: inherit;
+      cursor: pointer; font-size: 16px; line-height: 1; opacity: .7; flex-shrink: 0;
     }
     .banner .close-btn:hover { opacity: 1; }
 
     /* ---- Loading ---- */
     .spinner {
       display: inline-block;
-      width: 16px;
-      height: 16px;
+      width: 16px; height: 16px;
       border: 2px solid var(--border);
       border-top-color: var(--accent);
       border-radius: 50%;
-      animation: spin 0.7s linear infinite;
+      animation: spin .7s linear infinite;
       flex-shrink: 0;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-
-    .loading-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 16px;
-      color: var(--text-dim);
-      font-size: 13px;
-    }
+    .loading-row { display: flex; align-items: center; gap: 10px; padding: 16px; color: var(--text-dim); font-size: 13px; }
 
     /* ---- Utilities ---- */
     .hidden { display: none !important; }
-
     @media (max-width: 480px) {
       .toggle-label { display: none; }
       header h1 { font-size: 15px; }
     }
+
+    /* Fix Leaflet z-index in dark page */
+    .leaflet-pane { z-index: 1 !important; }
+    .leaflet-top, .leaflet-bottom { z-index: 2 !important; }
   </style>
 </head>
 <body>
@@ -318,7 +361,7 @@
 </header>
 
 <main>
-  <!-- Security notice (always visible) -->
+  <!-- Security notice -->
   <div class="security-notice">
     <span class="icon">&#9888;</span>
     <div>
@@ -346,296 +389,551 @@
   <!-- Locations screen -->
   <div id="locations-screen" class="hidden">
     <div id="global-banner"></div>
+
     <div class="section-header">
       <h2>Orte</h2>
       <span class="count" id="locations-count"></span>
       <button class="btn-reload" id="btn-reload">&#8635; Neu laden</button>
+      <button class="btn-add" id="btn-add">+ Ort hinzuf&uuml;gen</button>
     </div>
+
+    <!-- Add-location panel (initially hidden) -->
+    <div id="add-panel" class="hidden">
+      <h3>Neuen Ort hinzuf&uuml;gen</h3>
+
+      <div class="form-grid">
+        <!-- Alias -->
+        <div class="form-group full">
+          <label for="f-alias">Alias <span style="color:var(--red)">*</span></label>
+          <input type="text" id="f-alias" placeholder="z.B. Startplatz" maxlength="64">
+        </div>
+
+        <!-- Model -->
+        <div class="form-group">
+          <label for="f-model">Modell <span style="color:var(--red)">*</span></label>
+          <select id="f-model">
+            <option value="">— bitte wählen —</option>
+            <option value="icon-d2">icon-d2 (Zentraleuropa)</option>
+            <option value="icon-eu">icon-eu (Europa / N-Afrika)</option>
+            <option value="icon">icon (global)</option>
+          </select>
+        </div>
+
+        <!-- Coords -->
+        <div class="form-group">
+          <label>Koordinaten <span style="color:var(--red)">*</span></label>
+          <div style="display:flex;gap:8px;">
+            <input type="number" id="f-lat" placeholder="Lat" step="0.001" min="-90"  max="90"  style="width:50%">
+            <input type="number" id="f-lon" placeholder="Lon" step="0.001" min="-180" max="180" style="width:50%">
+          </div>
+          <span class="hint">Dezimalgrad (WGS 84)</span>
+        </div>
+      </div>
+
+      <!-- Step fields -->
+      <div class="form-group">
+        <label>Vorhersagestunden ab Modellstart <span style="color:var(--red)">*</span></label>
+        <div class="step-row">
+          <div class="form-group">
+            <label for="f-from" style="font-size:11px">Von (h)</label>
+            <input type="number" id="f-from" value="0" min="0" step="1">
+          </div>
+          <div class="form-group">
+            <label for="f-to" style="font-size:11px">Bis (h)</label>
+            <input type="number" id="f-to"   value="24" min="1" step="1">
+          </div>
+          <div class="form-group">
+            <label for="f-step" style="font-size:11px">Schritt (h)</label>
+            <input type="number" id="f-step" value="1"  min="1" step="1">
+          </div>
+        </div>
+      </div>
+
+      <!-- Map -->
+      <div id="map-container">
+        <label>Kartenauswahl</label>
+        <div id="map"></div>
+        <span class="map-hint">Klick auf die Karte setzt die Koordinaten. Rahmen: <strong style="color:#2288dd">blau</strong> = ICON-EU, <strong style="color:#dd8800">orange</strong> = ICON-D2.</span>
+      </div>
+
+      <!-- Out-of-area warning -->
+      <div id="area-warning">
+        &#9888; Die gew&auml;hlten Koordinaten liegen au&szlig;erhalb des
+        <span id="area-model-name"></span>-Gebiets. Daten werden m&ouml;glicherweise nicht gefunden.
+      </div>
+
+      <!-- Form-level error -->
+      <div id="form-error"></div>
+
+      <div class="panel-actions">
+        <button class="btn-secondary" id="btn-cancel">Abbrechen</button>
+        <button class="btn-primary"   id="btn-save-loc">Ort speichern</button>
+      </div>
+    </div>
+
     <div id="locations-list"></div>
   </div>
 </main>
 
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <script>
-  // =====================================================================
-  // CONFIG — hier anpassen
-  // =====================================================================
-  const REPO_OWNER = 'wetterheidi';
-  const REPO_NAME  = 'sounding_data';
-  const FILE_PATH  = 'locations.json';
-  // =====================================================================
+// =====================================================================
+// CONFIG
+// =====================================================================
+const REPO_OWNER = 'wetterheidi';
+const REPO_NAME  = 'sounding_data';
+const FILE_PATH  = 'locations.json';
+// =====================================================================
 
-  const API_BASE = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`;
-  const TOKEN_KEY = 'gh_admin_token';
+const API_BASE = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`;
+const TOKEN_KEY = 'gh_admin_token';
 
-  // ---- DOM refs ----
-  const tokenScreen     = document.getElementById('token-screen');
-  const locationsScreen = document.getElementById('locations-screen');
-  const tokenInput      = document.getElementById('token-input');
-  const btnSaveToken    = document.getElementById('btn-save-token');
-  const btnLogout       = document.getElementById('btn-logout');
-  const btnReload       = document.getElementById('btn-reload');
-  const tokenError      = document.getElementById('token-error');
-  const locationsList   = document.getElementById('locations-list');
-  const locationsCount  = document.getElementById('locations-count');
-  const globalBanner    = document.getElementById('global-banner');
+// ICON model bounding boxes [minLat, maxLat, minLon, maxLon]
+const MODEL_BOUNDS = {
+  'icon-d2': { minLat: 43.0, maxLat: 57.0, minLon: -2.0, maxLon: 19.0 },
+  'icon-eu': { minLat: 29.5,  maxLat: 70.5,  minLon: -23.5, maxLon: 62.5  },
+  'icon':    null, // global — no restriction
+};
 
-  // ---- State ----
-  let currentSha = null;   // SHA of the current file version from GitHub API
+// Default step config per model
+const MODEL_DEFAULTS = {
+  'icon-d2': { from: 0, to: 24,  step: 1 },
+  'icon-eu': { from: 0, to: 48,  step: 3 },
+  'icon':    { from: 0, to: 120, step: 6 },
+};
 
-  // =====================================================================
-  // Token management
-  // =====================================================================
-  function getToken() { return localStorage.getItem(TOKEN_KEY); }
-  function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
-  function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+// ---- DOM refs ----
+const tokenScreen     = document.getElementById('token-screen');
+const locationsScreen = document.getElementById('locations-screen');
+const tokenInput      = document.getElementById('token-input');
+const btnSaveToken    = document.getElementById('btn-save-token');
+const btnLogout       = document.getElementById('btn-logout');
+const btnReload       = document.getElementById('btn-reload');
+const btnAdd          = document.getElementById('btn-add');
+const btnCancel       = document.getElementById('btn-cancel');
+const btnSaveLoc      = document.getElementById('btn-save-loc');
+const tokenError      = document.getElementById('token-error');
+const locationsList   = document.getElementById('locations-list');
+const locationsCount  = document.getElementById('locations-count');
+const globalBanner    = document.getElementById('global-banner');
+const addPanel        = document.getElementById('add-panel');
+const areaWarning     = document.getElementById('area-warning');
+const areaModelName   = document.getElementById('area-model-name');
+const formError       = document.getElementById('form-error');
 
-  function showTokenScreen(errorMsg) {
-    tokenScreen.classList.remove('hidden');
-    locationsScreen.classList.add('hidden');
-    btnLogout.classList.add('hidden');
-    tokenInput.value = '';
-    if (errorMsg) {
-      showInlineError(tokenError, errorMsg);
-    } else {
-      tokenError.innerHTML = '';
-    }
+// Form inputs
+const fAlias = document.getElementById('f-alias');
+const fModel = document.getElementById('f-model');
+const fLat   = document.getElementById('f-lat');
+const fLon   = document.getElementById('f-lon');
+const fFrom  = document.getElementById('f-from');
+const fTo    = document.getElementById('f-to');
+const fStep  = document.getElementById('f-step');
+
+// ---- State ----
+let currentSha    = null;
+let currentLocs   = [];
+let map           = null;
+let marker        = null;
+let overlayD2     = null;
+let overlayEU     = null;
+
+// =====================================================================
+// Token management
+// =====================================================================
+function getToken()    { return localStorage.getItem(TOKEN_KEY); }
+function setToken(t)   { localStorage.setItem(TOKEN_KEY, t); }
+function clearToken()  { localStorage.removeItem(TOKEN_KEY); }
+
+function showTokenScreen(errorMsg) {
+  tokenScreen.classList.remove('hidden');
+  locationsScreen.classList.add('hidden');
+  btnLogout.classList.add('hidden');
+  tokenInput.value = '';
+  tokenError.innerHTML = errorMsg ? makeBanner('error', errorMsg) : '';
+}
+
+function showLocationsScreen() {
+  tokenScreen.classList.add('hidden');
+  locationsScreen.classList.remove('hidden');
+  btnLogout.classList.remove('hidden');
+}
+
+// =====================================================================
+// GitHub API helpers
+// =====================================================================
+async function apiFetch(method, body) {
+  const opts = {
+    method,
+    headers: {
+      'Authorization': `Bearer ${getToken()}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+  };
+  if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
   }
+  return fetch(API_BASE, opts);
+}
 
-  function showLocationsScreen() {
-    tokenScreen.classList.add('hidden');
-    locationsScreen.classList.remove('hidden');
-    btnLogout.classList.remove('hidden');
+async function loadLocations() {
+  const res = await apiFetch('GET');
+  if (res.status === 401) { clearToken(); showTokenScreen('Token ungültig oder abgelaufen. Bitte neu eingeben.'); return null; }
+  if (!res.ok) throw new Error(`GitHub API Fehler: ${res.status} ${res.statusText}`);
+  const data = await res.json();
+  currentSha = data.sha;
+  return JSON.parse(atob(data.content.replace(/\n/g, '')));
+}
+
+async function saveLocations(locations, commitMsg) {
+  if (!currentSha) throw new Error('SHA fehlt — bitte zuerst neu laden.');
+  const content = btoa(unescape(encodeURIComponent(
+    JSON.stringify(locations, null, 2) + '\n'
+  )));
+  const res = await apiFetch('PUT', {
+    message: commitMsg || 'admin: update locations.json via admin.html',
+    content,
+    sha: currentSha,
+  });
+  if (res.status === 401) { clearToken(); showTokenScreen('Token ungültig oder abgelaufen. Bitte neu eingeben.'); return false; }
+  if (res.status === 409) throw new Error('Konflikt (HTTP 409): Die Datei wurde zwischenzeitlich geändert. Bitte neu laden und die Änderung wiederholen.');
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(`Speichern fehlgeschlagen: ${res.status} — ${body.message || res.statusText}`);
   }
+  const updated = await res.json();
+  currentSha = updated.content.sha;
+  return true;
+}
 
-  // =====================================================================
-  // GitHub API helpers
-  // =====================================================================
-  async function apiFetch(method, body) {
-    const token = getToken();
-    const opts = {
-      method,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-      },
-    };
-    if (body !== undefined) {
-      opts.headers['Content-Type'] = 'application/json';
-      opts.body = JSON.stringify(body);
-    }
-    return fetch(API_BASE, opts);
-  }
+// =====================================================================
+// Render location list
+// =====================================================================
+function renderLocations(locations) {
+  locationsList.innerHTML = '';
+  locationsCount.textContent = `${locations.length} Orte`;
 
-  async function loadLocations() {
-    const res = await apiFetch('GET');
-    if (res.status === 401) {
-      clearToken();
-      showTokenScreen('Token ungültig oder abgelaufen. Bitte neu eingeben.');
-      return null;
-    }
-    if (!res.ok) {
-      throw new Error(`GitHub API Fehler: ${res.status} ${res.statusText}`);
-    }
-    const data = await res.json();
-    currentSha = data.sha;
-    const decoded = atob(data.content.replace(/\n/g, ''));
-    return JSON.parse(decoded);
-  }
+  locations.forEach((loc, idx) => {
+    const card = document.createElement('div');
+    card.className = `location-card ${loc.enabled ? 'enabled' : 'disabled'}`;
 
-  async function saveLocations(locations) {
-    if (!currentSha) throw new Error('SHA fehlt — bitte zuerst neu laden.');
-    const content = btoa(unescape(encodeURIComponent(
-      JSON.stringify(locations, null, 2) + '\n'
-    )));
-    const res = await apiFetch('PUT', {
-      message: `admin: toggle location via admin.html`,
-      content,
-      sha: currentSha,
-    });
-    if (res.status === 401) {
-      clearToken();
-      showTokenScreen('Token ungültig oder abgelaufen. Bitte neu eingeben.');
-      return false;
-    }
-    if (res.status === 409) {
-      throw new Error(
-        'Konflikt (HTTP 409): Die Datei wurde zwischenzeitlich geändert. ' +
-        'Bitte neu laden und die Änderung wiederholen.'
-      );
-    }
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(`Speichern fehlgeschlagen: ${res.status} — ${body.message || res.statusText}`);
-    }
-    const updated = await res.json();
-    currentSha = updated.content.sha;
-    return true;
-  }
+    const modelTags = Object.entries(loc.models || {})
+      .map(([name, cfg]) => `<span class="model-tag">${escHtml(name)} ${escHtml(cfg.step || '')}</span>`)
+      .join('');
 
-  // =====================================================================
-  // Render
-  // =====================================================================
-  function renderLocations(locations) {
-    locationsList.innerHTML = '';
-    locationsCount.textContent = `${locations.length} Orte`;
-
-    locations.forEach((loc, idx) => {
-      const card = document.createElement('div');
-      card.className = `location-card ${loc.enabled ? 'enabled' : 'disabled'}`;
-      card.id = `card-${idx}`;
-
-      const modelTags = Object.entries(loc.models || {})
-        .map(([name, cfg]) => `<span class="model-tag">${name} ${cfg.step || ''}</span>`)
-        .join('');
-
-      const toggleId = `toggle-${idx}`;
-      card.innerHTML = `
-        <div class="location-info">
-          <div class="location-alias">${escHtml(loc.alias)}</div>
-          <div class="location-coords">${loc.lat}, ${loc.lon}</div>
-          <div class="location-models">${modelTags}</div>
-        </div>
-        <div class="toggle-wrapper">
-          <span class="toggle-label">${loc.enabled ? 'aktiv' : 'inaktiv'}</span>
-          <label class="toggle" title="${loc.enabled ? 'Deaktivieren' : 'Aktivieren'}">
-            <input type="checkbox" id="${toggleId}" ${loc.enabled ? 'checked' : ''} data-idx="${idx}">
-            <span class="toggle-track"></span>
-            <span class="toggle-thumb"></span>
-          </label>
-        </div>
-      `;
-
-      const checkbox = card.querySelector('input[type=checkbox]');
-      checkbox.addEventListener('change', () => handleToggle(locations, idx, checkbox, card));
-
-      locationsList.appendChild(card);
-    });
-  }
-
-  async function handleToggle(locations, idx, checkbox, card) {
-    const newEnabled = checkbox.checked;
-    checkbox.disabled = true;
-
-    // Optimistic UI update
-    locations[idx].enabled = newEnabled;
-    card.className = `location-card ${newEnabled ? 'enabled' : 'disabled'}`;
-    card.querySelector('.toggle-label').textContent = newEnabled ? 'aktiv' : 'inaktiv';
-
-    clearGlobalBanner();
-    try {
-      const ok = await saveLocations(locations);
-      if (ok) {
-        showGlobalBanner('success', `"${escHtml(locations[idx].alias)}" wurde ${newEnabled ? 'aktiviert' : 'deaktiviert'}.`);
-      }
-    } catch (err) {
-      // Revert
-      locations[idx].enabled = !newEnabled;
-      checkbox.checked = !newEnabled;
-      card.className = `location-card ${!newEnabled ? 'enabled' : 'disabled'}`;
-      card.querySelector('.toggle-label').textContent = !newEnabled ? 'aktiv' : 'inaktiv';
-      showGlobalBanner('error', err.message);
-    } finally {
-      checkbox.disabled = false;
-    }
-  }
-
-  // =====================================================================
-  // Banner / error helpers
-  // =====================================================================
-  function showGlobalBanner(type, msg) {
-    globalBanner.innerHTML = `
-      <div class="banner ${type}">
-        <span>${escHtml(msg)}</span>
-        <button class="close-btn" aria-label="Schließen" onclick="this.closest('.banner').remove()">&#x2715;</button>
+    const toggleId = `toggle-${idx}`;
+    card.innerHTML = `
+      <div class="location-info">
+        <div class="location-alias">${escHtml(loc.alias)}</div>
+        <div class="location-coords">${loc.lat}, ${loc.lon}</div>
+        <div class="location-models">${modelTags}</div>
       </div>
-    `;
-    if (type === 'success') {
-      setTimeout(() => { globalBanner.innerHTML = ''; }, 4000);
-    }
-  }
+      <div class="toggle-wrapper">
+        <span class="toggle-label">${loc.enabled ? 'aktiv' : 'inaktiv'}</span>
+        <label class="toggle" title="${loc.enabled ? 'Deaktivieren' : 'Aktivieren'}">
+          <input type="checkbox" id="${toggleId}" ${loc.enabled ? 'checked' : ''} data-idx="${idx}">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>`;
 
-  function clearGlobalBanner() { globalBanner.innerHTML = ''; }
-
-  function showInlineError(el, msg) {
-    el.innerHTML = `<div class="banner error" style="margin-top:8px"><span>${escHtml(msg)}</span></div>`;
-  }
-
-  function escHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  // =====================================================================
-  // Load flow
-  // =====================================================================
-  function setLoadingState(loading) {
-    btnReload.disabled = loading;
-    if (loading) {
-      locationsList.innerHTML = `
-        <div class="loading-row">
-          <span class="spinner"></span>
-          <span>Lade locations.json von GitHub…</span>
-        </div>`;
-      locationsCount.textContent = '';
-    }
-  }
-
-  async function loadAndRender() {
-    setLoadingState(true);
-    clearGlobalBanner();
-    try {
-      const locations = await loadLocations();
-      if (locations !== null) {
-        renderLocations(locations);
-      }
-    } catch (err) {
-      locationsList.innerHTML = '';
-      showGlobalBanner('error', err.message);
-    } finally {
-      setLoadingState(false);
-    }
-  }
-
-  // =====================================================================
-  // Event listeners
-  // =====================================================================
-  btnSaveToken.addEventListener('click', async () => {
-    const val = tokenInput.value.trim();
-    if (!val) {
-      showInlineError(tokenError, 'Bitte Token eingeben.');
-      return;
-    }
-    setToken(val);
-    tokenError.innerHTML = '';
-    showLocationsScreen();
-    await loadAndRender();
+    card.querySelector('input[type=checkbox]')
+        .addEventListener('change', () => handleToggle(idx, card));
+    locationsList.appendChild(card);
   });
+}
 
-  tokenInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') btnSaveToken.click();
+async function handleToggle(idx, card) {
+  const checkbox = card.querySelector('input[type=checkbox]');
+  const newEnabled = checkbox.checked;
+  checkbox.disabled = true;
+
+  currentLocs[idx].enabled = newEnabled;
+  card.className = `location-card ${newEnabled ? 'enabled' : 'disabled'}`;
+  card.querySelector('.toggle-label').textContent = newEnabled ? 'aktiv' : 'inaktiv';
+
+  clearGlobalBanner();
+  try {
+    const ok = await saveLocations(currentLocs, `admin: toggle ${currentLocs[idx].alias} ${newEnabled ? 'on' : 'off'}`);
+    if (ok) showGlobalBanner('success', `"${escHtml(currentLocs[idx].alias)}" wurde ${newEnabled ? 'aktiviert' : 'deaktiviert'}.`);
+  } catch (err) {
+    currentLocs[idx].enabled = !newEnabled;
+    checkbox.checked = !newEnabled;
+    card.className = `location-card ${!newEnabled ? 'enabled' : 'disabled'}`;
+    card.querySelector('.toggle-label').textContent = !newEnabled ? 'aktiv' : 'inaktiv';
+    showGlobalBanner('error', err.message);
+  } finally {
+    checkbox.disabled = false;
+  }
+}
+
+// =====================================================================
+// Add-location panel
+// =====================================================================
+function openAddPanel() {
+  addPanel.classList.remove('hidden');
+  btnAdd.classList.add('hidden');
+  resetForm();
+  addPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  initMap();
+}
+
+function closeAddPanel() {
+  addPanel.classList.add('hidden');
+  btnAdd.classList.remove('hidden');
+  formError.innerHTML = '';
+  areaWarning.style.display = 'none';
+}
+
+function resetForm() {
+  fAlias.value = '';
+  fModel.value = '';
+  fLat.value   = '';
+  fLon.value   = '';
+  fFrom.value  = '0';
+  fTo.value    = '24';
+  fStep.value  = '1';
+  formError.innerHTML = '';
+  areaWarning.style.display = 'none';
+  if (marker && map) { map.removeLayer(marker); marker = null; }
+}
+
+// ---- Map init ----
+function initMap() {
+  if (map) return; // already initialised
+
+  map = L.map('map').setView([47.5, 10.5], 4);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19,
+  }).addTo(map);
+
+  // ICON-EU overlay (blue dashed outline, no fill)
+  const euBounds = MODEL_BOUNDS['icon-eu'];
+  overlayEU = L.rectangle(
+    [[euBounds.minLat, euBounds.minLon], [euBounds.maxLat, euBounds.maxLon]],
+    { color: '#2288dd', weight: 2, dashArray: '6 4', fill: false }
+  ).addTo(map);
+
+  // ICON-D2 overlay (orange dashed outline, no fill)
+  const d2Bounds = MODEL_BOUNDS['icon-d2'];
+  overlayD2 = L.rectangle(
+    [[d2Bounds.minLat, d2Bounds.minLon], [d2Bounds.maxLat, d2Bounds.maxLon]],
+    { color: '#dd8800', weight: 2, dashArray: '6 4', fill: false }
+  ).addTo(map);
+
+  map.on('click', (e) => {
+    const lat = parseFloat(e.latlng.lat.toFixed(3));
+    const lon = parseFloat(e.latlng.lng.toFixed(3));
+    fLat.value = lat;
+    fLon.value = lon;
+    placeMarker(lat, lon);
+    checkArea();
   });
+}
 
-  btnLogout.addEventListener('click', () => {
-    clearToken();
-    currentSha = null;
-    showTokenScreen();
-  });
+function placeMarker(lat, lon) {
+  if (marker) map.removeLayer(marker);
+  marker = L.marker([lat, lon]).addTo(map);
+}
 
-  btnReload.addEventListener('click', loadAndRender);
+// ---- Out-of-area check ----
+function checkArea() {
+  const model = fModel.value;
+  const lat   = parseFloat(fLat.value);
+  const lon   = parseFloat(fLon.value);
+  if (!model || isNaN(lat) || isNaN(lon)) { areaWarning.style.display = 'none'; return; }
 
-  // =====================================================================
-  // Init
-  // =====================================================================
-  if (getToken()) {
-    showLocationsScreen();
-    loadAndRender();
+  const bounds = MODEL_BOUNDS[model];
+  if (!bounds) { areaWarning.style.display = 'none'; return; } // icon global
+
+  const inside = lat >= bounds.minLat && lat <= bounds.maxLat &&
+                 lon >= bounds.minLon && lon <= bounds.maxLon;
+  if (!inside) {
+    areaModelName.textContent = model.toUpperCase();
+    areaWarning.style.display = 'block';
   } else {
-    showTokenScreen();
+    areaWarning.style.display = 'none';
   }
+}
+
+// ---- Validation & duplicate check ----
+function validateForm() {
+  const alias = fAlias.value.trim();
+  const model = fModel.value;
+  const lat   = parseFloat(fLat.value);
+  const lon   = parseFloat(fLon.value);
+  const from  = parseInt(fFrom.value, 10);
+  const to    = parseInt(fTo.value, 10);
+  const step  = parseInt(fStep.value, 10);
+
+  if (!alias)             return 'Bitte einen Alias eingeben.';
+  if (!model)             return 'Bitte ein Modell auswählen.';
+  if (isNaN(lat) || isNaN(lon)) return 'Bitte gültige Koordinaten eingeben (oder Kartenklick nutzen).';
+  if (lat < -90  || lat > 90)   return 'Breitengrad muss zwischen −90 und 90 liegen.';
+  if (lon < -180 || lon > 180)  return 'Längengrad muss zwischen −180 und 180 liegen.';
+  if (isNaN(from) || from < 0)  return '"Von" muss ≥ 0 sein.';
+  if (isNaN(to)   || to < 1)    return '"Bis" muss ≥ 1 sein.';
+  if (to <= from)               return '"Bis" muss größer als "Von" sein.';
+  if (isNaN(step) || step < 1)  return '"Schritt" muss ≥ 1 sein.';
+
+  // Duplicate: same lat/lon (rounded to 3 dec) AND same model
+  const dupLat = lat.toFixed(3);
+  const dupLon = parseFloat(fLon.value).toFixed(3);
+  const dup = currentLocs.find(loc => {
+    const existingModel = Object.keys(loc.models || {})[0];
+    return (
+      parseFloat(loc.lat).toFixed(3) === dupLat &&
+      parseFloat(loc.lon).toFixed(3) === dupLon &&
+      existingModel === model
+    );
+  });
+  if (dup) return `Duplikat: "${escHtml(dup.alias)}" hat bereits die gleichen Koordinaten mit Modell ${model}.`;
+
+  return null; // valid
+}
+
+// ---- Save new location ----
+async function handleSaveLoc() {
+  formError.innerHTML = '';
+  const errMsg = validateForm();
+  if (errMsg) { formError.innerHTML = makeBanner('error', errMsg); return; }
+
+  const alias = fAlias.value.trim();
+  const model = fModel.value;
+  const lat   = parseFloat(parseFloat(fLat.value).toFixed(3));
+  const lon   = parseFloat(parseFloat(fLon.value).toFixed(3));
+  const from  = parseInt(fFrom.value, 10);
+  const to    = parseInt(fTo.value, 10);
+  const step  = parseInt(fStep.value, 10);
+
+  const newEntry = {
+    alias,
+    lat,
+    lon,
+    enabled: false,
+    models: {
+      [model]: { step: `${from}:${to}:${step}` }
+    }
+  };
+
+  btnSaveLoc.disabled = true;
+  btnSaveLoc.textContent = 'Speichern…';
+
+  try {
+    const updated = [...currentLocs, newEntry];
+    const ok = await saveLocations(updated, `admin: add ${alias} (${model})`);
+    if (ok) {
+      currentLocs = updated;
+      renderLocations(currentLocs);
+      closeAddPanel();
+      clearGlobalBanner();
+      showGlobalBanner('success', `"${escHtml(alias)}" wurde hinzugefügt (deaktiviert). Zum Aktivieren den Toggle verwenden.`);
+    }
+  } catch (err) {
+    formError.innerHTML = makeBanner('error', err.message);
+  } finally {
+    btnSaveLoc.disabled = false;
+    btnSaveLoc.textContent = 'Ort speichern';
+  }
+}
+
+// =====================================================================
+// Banner / error helpers
+// =====================================================================
+function makeBanner(type, msg) {
+  return `<div class="banner ${type}">
+    <span>${escHtml(msg)}</span>
+    <button class="close-btn" aria-label="Schließen" onclick="this.closest('.banner').remove()">&#x2715;</button>
+  </div>`;
+}
+function showGlobalBanner(type, msg) {
+  globalBanner.innerHTML = makeBanner(type, msg);
+  if (type === 'success') setTimeout(() => { globalBanner.innerHTML = ''; }, 5000);
+}
+function clearGlobalBanner() { globalBanner.innerHTML = ''; }
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// =====================================================================
+// Load flow
+// =====================================================================
+function setLoadingState(loading) {
+  btnReload.disabled = loading;
+  if (loading) {
+    locationsList.innerHTML = `<div class="loading-row"><span class="spinner"></span><span>Lade locations.json von GitHub…</span></div>`;
+    locationsCount.textContent = '';
+  }
+}
+
+async function loadAndRender() {
+  setLoadingState(true);
+  clearGlobalBanner();
+  try {
+    const locs = await loadLocations();
+    if (locs !== null) { currentLocs = locs; renderLocations(currentLocs); }
+  } catch (err) {
+    locationsList.innerHTML = '';
+    showGlobalBanner('error', err.message);
+  } finally {
+    setLoadingState(false);
+  }
+}
+
+// =====================================================================
+// Event listeners
+// =====================================================================
+btnSaveToken.addEventListener('click', async () => {
+  const val = tokenInput.value.trim();
+  if (!val) { tokenError.innerHTML = makeBanner('error', 'Bitte Token eingeben.'); return; }
+  setToken(val);
+  tokenError.innerHTML = '';
+  showLocationsScreen();
+  await loadAndRender();
+});
+tokenInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnSaveToken.click(); });
+
+btnLogout.addEventListener('click', () => { clearToken(); currentSha = null; currentLocs = []; showTokenScreen(); });
+btnReload.addEventListener('click', loadAndRender);
+
+btnAdd.addEventListener('click', openAddPanel);
+btnCancel.addEventListener('click', closeAddPanel);
+btnSaveLoc.addEventListener('click', handleSaveLoc);
+
+// Model dropdown → set defaults & recheck area
+fModel.addEventListener('change', () => {
+  const d = MODEL_DEFAULTS[fModel.value];
+  if (d) { fFrom.value = d.from; fTo.value = d.to; fStep.value = d.step; }
+  checkArea();
+});
+
+// Coord inputs → update marker & area check
+function onCoordInput() {
+  const lat = parseFloat(fLat.value);
+  const lon = parseFloat(fLon.value);
+  if (!isNaN(lat) && !isNaN(lon) && map) {
+    placeMarker(lat, lon);
+    map.setView([lat, lon], map.getZoom());
+  }
+  checkArea();
+}
+fLat.addEventListener('input', onCoordInput);
+fLon.addEventListener('input', onCoordInput);
+
+// =====================================================================
+// Init
+// =====================================================================
+if (getToken()) { showLocationsScreen(); loadAndRender(); }
+else            { showTokenScreen(); }
 </script>
 </body>
 </html>
