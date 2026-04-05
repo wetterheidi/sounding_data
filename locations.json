@@ -14,7 +14,7 @@
     "alias": "Muckberg",
     "lat": 48.71,
     "lon": 8.784,
-    "enabled": true,
+    "enabled": false,
     "models": {
       "icon-d2": {
         "step": "0:24:1"
