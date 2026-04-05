@@ -1,0 +1,52 @@
+[
+  {
+    "alias": "Startplatz",
+    "lat": 47.981,
+    "lon": 11.235,
+    "models": {
+      "icon-d2": { "step": "0:24:1" }
+    }
+  },
+  {
+    "alias": "Muckberg",
+    "lat": 48.710,
+    "lon": 8.784,
+    "models": {
+      "icon-d2": { "step": "0:24:1" }
+    }
+  },
+  {
+    "alias": "Parow",
+    "lat": 54.362,
+    "lon": 13.087,
+    "models": {
+      "icon-d2": { "step": "0:24:1" }
+    }
+  },
+  {
+    "alias": "Stiwoll",
+    "lat": 47.105,
+    "lon": 15.215,
+    "models": {
+      "icon-d2": { "step": "0:24:1" }
+    }
+  },
+  {
+    "alias": "AlJafr",
+    "lat": 30.344,
+    "lon": 36.148,
+    "enabled": false,
+    "models": {
+      "icon-eu": { "step": "0:48:6" }
+    }
+  },
+  {
+    "alias": "Eloy",
+    "lat": 32.749,
+    "lon": -111.573,
+    "enabled": false,
+    "models": {
+      "icon": { "step": "0:24:6" }
+    }
+  }
+]

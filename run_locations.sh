@@ -1,52 +1,70 @@
 #!/bin/bash
-mkdir -p ./data
+# run_locations.sh – parallelisierter Sounding-Fetcher
+# Verwendung: bash run_locations.sh [modell-filter]
+#   modell-filter: icon-d2 | icon-eu | icon | (leer = alle)
 
-# Optionaler Modell-Filter: icon-d2, icon-eu, icon (leer = alle)
+set -euo pipefail
+
 MODEL_FILTER="${1:-}"
+JOBS=4          # max. gleichzeitige fetch_sounding.py-Prozesse
+OUTDIR="./data"
+LOCATIONS="./locations.json"
 
-# Hilfsfunktion: gibt 0 (ausführen) zurück, wenn Modell zum Filter passt
-run_model() {
-  [[ -z "$MODEL_FILTER" || "$MODEL_FILTER" == "$1" ]]
-}
+mkdir -p "$OUTDIR"
 
-# --- Intelligentes Aufräumen von Dateien, die älter als 3 Tage sind ---
-python3 -c '
+# ---------------------------------------------------------------------------
+# Aufräumen: JSON-Dateien älter als 3 Tage löschen
+# ---------------------------------------------------------------------------
+python3 - <<'EOF'
 import os, datetime, glob, re
 limit = datetime.datetime.utcnow() - datetime.timedelta(days=3)
 for f in glob.glob("./data/*.json"):
-    match = re.search(r"_(\d{8})_", f)
-    if match:
-        file_date = datetime.datetime.strptime(match.group(1), "%Y%m%d")
-        if file_date < limit:
-            os.remove(f)
-            print(f"🧹 Alte Datei gelöscht: {f}")
-'
+    m = re.search(r"_(\d{8})_", f)
+    if m and datetime.datetime.strptime(m.group(1), "%Y%m%d") < limit:
+        os.remove(f)
+        print(f"  cleanup: {f}")
+EOF
+
 # ---------------------------------------------------------------------------
+# Alle aktiven Orte + Modelle aus locations.json einlesen und in eine
+# flache Aufgabenliste umwandeln: "alias lat lon model step"
+# ---------------------------------------------------------------------------
+TASKS=$(python3 - <<EOF
+import json, sys
 
-# === ICON-D2 (3-stündlich) ===
-if run_model "icon-d2"; then
-  # Ort: Startplatz
-  python3 fetch_sounding.py --lat 47.981 --lon 11.235 --model icon-d2 --step 0:24:1 --outdir ./data --alias Startplatz
+with open("$LOCATIONS") as fh:
+    locs = json.load(fh)
 
-  # Ort: Muckberg
-  python3 fetch_sounding.py --lat 48.710 --lon 8.784 --model icon-d2 --step 0:24:1 --outdir ./data --alias Muckberg
+filter_model = "$MODEL_FILTER"
 
-  # Ort: Parow
-  python3 fetch_sounding.py --lat 54.362 --lon 13.087 --model icon-d2 --step 0:24:1 --outdir ./data --alias Parow
+for loc in locs:
+    if not loc.get("enabled", True):
+        continue
+    for model, cfg in loc.get("models", {}).items():
+        if filter_model and filter_model != model:
+            continue
+        print(loc["alias"], loc["lat"], loc["lon"], model, cfg["step"])
+EOF
+)
 
-  # Ort: Stiwoll 47.10537586454951, 15.214935030670695
-  python3 fetch_sounding.py --lat 47.105 --lon 15.215 --model icon-d2 --step 0:24:1 --outdir ./data --alias Stiwoll
+if [[ -z "$TASKS" ]]; then
+    echo "Keine passenden Orte für Filter '${MODEL_FILTER:-alle}' gefunden."
+    exit 0
 fi
-# === ICON-EU (3-stündlich) ===
-if run_model "icon-eu"; then
-  # Ort: AlJafr 30.344, 36.148
-  python3 fetch_sounding.py --lat 30.344 --lon 36.148 --model icon-eu --step 0:48:6 --outdir ./data --alias AlJafr
-fi
-# === ICON Global (6-stündlich) ===
-if run_model "icon"; then
-  # Ort: Eloy 32.749, -111.573
-  python3 fetch_sounding.py --lat 32.749 --lon -111.573 --model icon --step 0:24:6 --outdir ./data --alias Eloy
 
-  # Ort: Karibik (CAPE Test)
-  python3 fetch_sounding.py --lat 18.036 --lon -72.150 --model icon --step 0:6:6 --outdir ./data
-fi
+# ---------------------------------------------------------------------------
+# Aufgaben parallel ausführen (max. $JOBS gleichzeitig via xargs)
+# ---------------------------------------------------------------------------
+echo "$TASKS" | xargs -P "$JOBS" -L 1 bash -c '
+    ALIAS=$1; LAT=$2; LON=$3; MODEL=$4; STEP=$5
+    echo "  → $MODEL $ALIAS ($LAT, $LON) step=$STEP"
+    python3 fetch_sounding.py \
+        --lat "$LAT" --lon "$LON" \
+        --model "$MODEL" --step "$STEP" \
+        --outdir "'"$OUTDIR"'" \
+        --alias "$ALIAS" \
+    && echo "  ✓ $MODEL $ALIAS fertig" \
+    || echo "  ✗ $MODEL $ALIAS FEHLGESCHLAGEN" >&2
+' _
+
+echo "Alle Orte abgearbeitet."

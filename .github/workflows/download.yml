@@ -32,14 +32,29 @@ jobs:
         with:
           python-version: '3.11'
 
+      # Cache für apt-Pakete (eccodes) – spart ~45 s pro Lauf
+      - name: apt-Cache laden
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-eccodes-${{ runner.os }}-v1
+
       - name: System-Abhängigkeiten (eccodes) installieren
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libeccodes0 libeccodes-dev
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libeccodes0 libeccodes-dev
+
+      # Cache für pip – spart ~15 s pro Lauf
+      - name: pip-Cache laden
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
 
       - name: Python-Pakete installieren
-        run: |
-          pip install requests numpy eccodes
+        run: pip install --quiet requests numpy eccodes
 
       - name: Modell-Filter bestimmen
         id: model
@@ -48,22 +63,24 @@ jobs:
             echo "filter=${{ github.event.inputs.model }}" >> $GITHUB_OUTPUT
           else
             case "${{ github.event.schedule }}" in
-              "30 2,5,8,11,14,17,20,23 * * *") echo "filter=icon-d2"  >> $GITHUB_OUTPUT ;;
-              "45 0,3,6,9,12,15,18,21 * * *") echo "filter=icon-eu"  >> $GITHUB_OUTPUT ;;
-              "00 4,10,16,22 * * *")            echo "filter=icon"     >> $GITHUB_OUTPUT ;;
-              *)                                echo "filter="          >> $GITHUB_OUTPUT ;;
+              "30 2,5,8,11,14,17,20,23 * * *") echo "filter=icon-d2" >> $GITHUB_OUTPUT ;;
+              "45 0,3,6,9,12,15,18,21 * * *")  echo "filter=icon-eu" >> $GITHUB_OUTPUT ;;
+              "00 4,10,16,22 * * *")            echo "filter=icon"    >> $GITHUB_OUTPUT ;;
+              *)                                echo "filter="         >> $GITHUB_OUTPUT ;;
             esac
           fi
 
       - name: Sounding-Skript für alle Orte ausführen
-        run: |
-          bash run_locations.sh "${{ steps.model.outputs.filter }}"
+        run: bash run_locations.sh "${{ steps.model.outputs.filter }}"
 
       - name: Neue JSON-Dateien ins Repository pushen
         run: |
-          git config --global user.name "GitHub Action Bot"
+          git config --global user.name  "GitHub Action Bot"
           git config --global user.email "action@github.com"
-          git add -A ./data/
-          git commit -m "Automatisches Wetter-Update und Cleanup" || echo "Keine Änderungen"
+          # Erst pullen, dann committen – verhindert Push-Konflikte
           git pull --rebase origin main
+          git add -A ./data/
+          # Frühzeitig beenden wenn nichts geändert wurde
+          git diff --cached --quiet && { echo "Keine Änderungen."; exit 0; }
+          git commit -m "Wetter-Update: ${{ steps.model.outputs.filter || 'alle' }} $(date -u +%Y%m%dT%H%MZ)"
           git push
