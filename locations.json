@@ -39,7 +39,7 @@
     "alias": "AlJafr",
     "lat": 30.344,
     "lon": 36.148,
-    "enabled": false,
+    "enabled": true,
     "models": {
       "icon-eu": { "step": "0:6:6" }
     }
