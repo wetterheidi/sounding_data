@@ -77,8 +77,8 @@ jobs:
         run: |
           git config --global user.name  "GitHub Action Bot"
           git config --global user.email "action@github.com"
-          # Erst pullen – Index ist noch sauber, rebase funktioniert
-          git pull --rebase origin main
+          # Erst pullen – --autostash sichert Arbeitsverzeichnis vor rebase und stellt es danach wieder her
+          git pull --rebase --autostash origin main
           # Dann stagen
           git add -A ./data/
           # Frühzeitig beenden wenn nichts geändert wurde
