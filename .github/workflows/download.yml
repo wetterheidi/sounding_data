@@ -73,13 +73,26 @@ jobs:
       - name: Sounding-Skript für alle Orte ausführen
         run: bash run_locations.sh "${{ steps.model.outputs.filter }}"
 
+      - name: Index-Datei generieren
+        run: |
+          # Alle sounding_*.json Dateien in data/ auflisten und als JSON-Array speichern
+          python3 - <<'EOF'
+          import json, os, pathlib
+          files = sorted(
+            f.name for f in pathlib.Path('data').iterdir()
+            if f.name.startswith('sounding_') and f.name.endswith('.json')
+          )
+          pathlib.Path('data/index.json').write_text(json.dumps(files, indent=2) + '\n')
+          print(f"index.json: {len(files)} Dateien eingetragen")
+          EOF
+
       - name: Neue JSON-Dateien ins Repository pushen
         run: |
           git config --global user.name  "GitHub Action Bot"
           git config --global user.email "action@github.com"
           # Erst pullen – --autostash sichert Arbeitsverzeichnis vor rebase und stellt es danach wieder her
           git pull --rebase --autostash origin main
-          # Dann stagen
+          # Dann stagen (Sounding-Dateien + Index)
           git add -A ./data/
           # Frühzeitig beenden wenn nichts geändert wurde
           git diff --cached --quiet && { echo "Keine Änderungen."; exit 0; }

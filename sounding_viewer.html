@@ -3885,37 +3885,36 @@
     // GitHub Cloud Download
     // =========================================================================
     async function fetchFromCloud() {
-      const repo = 'wetterheidi/sounding_data';
-      const path = 'data'; // Der Ordner, den unsere GitHub-Action befüllt
-      const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
+      const rawBase = 'https://raw.githubusercontent.com/wetterheidi/sounding_data/main';
+      const indexUrl = `${rawBase}/data/index.json`;
 
       const emptyStateText = document.querySelector('#empty-state p');
       const originalText = emptyStateText.innerHTML;
 
       try {
-        // Lade-Hinweis anzeigen
         emptyStateText.innerHTML = 'Suche aktuelle Daten in der Cloud...<br><span style="color:var(--accent)">Bitte warten</span>';
 
-        // 1. Inhaltsverzeichnis des Ordners bei GitHub abfragen
-        const response = await fetch(apiUrl);
-        if (!response.ok) throw new Error('Ordner nicht gefunden oder noch leer.');
+        // 1. Index laden – eine einzige Anfrage, kein Rate Limit
+        const idxResponse = await fetch(indexUrl);
+        if (!idxResponse.ok) throw new Error('Index nicht gefunden – bitte warte bis die nächste GitHub Action läuft.');
 
-        const files = await response.json();
+        const fileNames = await idxResponse.json();
+        if (!Array.isArray(fileNames) || fileNames.length === 0)
+          throw new Error('Keine Sounding-Dateien im Index gefunden.');
 
-        // Nur .json Dateien herausfiltern
-        const jsonFiles = files.filter(f => f.name.endsWith('.json'));
-        if (jsonFiles.length === 0) throw new Error('Keine JSON-Dateien im Cloud-Ordner gefunden.');
+        emptyStateText.innerHTML = `Lade ${fileNames.length} Profile herunter...<br><span style="color:var(--accent)">Bitte warten</span>`;
 
-        emptyStateText.innerHTML = `Lade ${jsonFiles.length} Profile herunter...<br><span style="color:var(--accent)">Bitte warten</span>`;
-
-        // 2. Alle JSON-Dateien parallel über ihre "download_url" herunterladen
-        const fetchPromises = jsonFiles.map(file =>
-          fetch(file.download_url).then(res => res.json())
+        // 2. Alle Dateien parallel über raw.githubusercontent.com laden – kein Rate Limit
+        const fetchPromises = fileNames.map(name =>
+          fetch(`${rawBase}/data/${name}`).then(res => {
+            if (!res.ok) throw new Error(`Datei nicht gefunden: ${name}`);
+            return res.json();
+          })
         );
 
         const allData = await Promise.all(fetchPromises);
 
-        // 3. Wie beim Drag & Drop: Verschachtelungen auflösen und in den Viewer laden
+        // 3. Verschachtelungen auflösen und in den Viewer laden
         const flatData = allData.flatMap(r => Array.isArray(r) ? r : [r]);
         loadSoundings(flatData);
 
