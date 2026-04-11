@@ -47,18 +47,20 @@ MODEL_CFG = {
         "ps_param":    "ps",
         "var_case":    "lower",      # Dateinamen: kleingeschrieben (t, ps)
         "sl_level":    "2d",         # Single-Level-Dateien haben Extra-Feld "2d"
+        "lag_h":       2,            # DWD stellt Daten ~2h nach Laufstart bereit
     },
     "icon-eu": {
         "url_base":    "https://opendata.dwd.de/weather/nwp/icon-eu/grib",
         "scope":       "europe",
         "gridtype":    "regular-lat-lon",
         "n_levels":    74,
-        "runs":        ["00", "06", "12", "18"],
+        "runs":        ["00", "03", "06", "09", "12", "15", "18", "21"],
         "max_step":    120,
         "params":      ["t", "qv", "u", "v", "p"],
         "ps_param":    "ps",
         "var_case":    "upper",      # Dateinamen: großgeschrieben (T, PS)
         "sl_level":    None,
+        "lag_h":       2,            # DWD stellt Daten ~2h nach Laufstart bereit
     },
     "icon": {
         "url_base":    "https://opendata.dwd.de/weather/nwp/icon/grib",
@@ -71,6 +73,7 @@ MODEL_CFG = {
         "ps_param":    "ps",
         "var_case":    "upper",      # Dateinamen: großgeschrieben (T, PS)
         "sl_level":    None,
+        "lag_h":       4,            # DWD stellt Daten ~4h nach Laufstart bereit
     }
 }
 
@@ -378,30 +381,27 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
     log.info(f"  ✓  +{step:03d}h  ({len(levels)} Level)")
     return sounding
 
-def latest_run(model: str, lag_h: int = 3) -> tuple[datetime, str]:
+def latest_run(model: str, lag_h: int | None = None) -> tuple[datetime, str]:
     cfg = MODEL_CFG[model]
+    # Modellspezifischen Lag aus der Konfiguration verwenden, falls kein Override übergeben
+    effective_lag = lag_h if lag_h is not None else cfg["lag_h"]
     now = datetime.now(timezone.utc)
-    
+
     # 1. Sammle alle potenziellen Läufe von heute und gestern
     candidates = []
     for r in cfg["runs"]:
-        # Lauf von heute
         dt_today = now.replace(hour=int(r), minute=0, second=0, microsecond=0)
         candidates.append((dt_today, r))
-        
-        # Lauf von gestern
-        dt_yesterday = dt_today - timedelta(days=1)
-        candidates.append((dt_yesterday, r))
-    
-    # 2. Chronologisch absteigend sortieren (neuester zuerst!)
+        candidates.append((dt_today - timedelta(days=1), r))
+
+    # 2. Chronologisch absteigend sortieren (neuester zuerst)
     candidates.sort(key=lambda x: x[0], reverse=True)
-    
-    # 3. Den neuesten Lauf finden, der das Delay (lag_h) erfüllt
+
+    # 3. Den neuesten Lauf finden, der das modellspezifische Delay erfüllt
     for dt, r in candidates:
-        if (now - dt).total_seconds() / 3600 >= lag_h:
+        if (now - dt).total_seconds() / 3600 >= effective_lag:
             return dt.replace(tzinfo=None), r
-            
-    # Fallback (sollte bei 3h Lag nie erreicht werden, außer die Systemuhr spinnt)
+
     fallback_dt, fallback_r = candidates[-1]
     return fallback_dt.replace(tzinfo=None), fallback_r
     
