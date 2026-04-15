@@ -67,8 +67,8 @@
   },
   {
     "alias": "Bobby",
-    "lat": 48.401,
-    "lon": 11.159,
+    "lat": 47.839,
+    "lon": 10.866,
     "enabled": false,
     "models": {
       "icon-d2": {
