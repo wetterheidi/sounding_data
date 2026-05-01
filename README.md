@@ -117,6 +117,17 @@ Wenn `admin_api.py` geändert wurde:
 systemctl restart tlogp-api.service
 ```
 
+### nginx-Konfiguration aktualisieren
+
+**Wichtig:** Die Datei im Repo enthält nur Port 80. Certbot ergänzt beim ersten Einrichten den SSL-Block direkt in der Server-Datei. Deshalb nach jedem `cp` der Konfiguration certbot erneut aufrufen, damit SSL wiederhergestellt wird:
+
+```bash
+cp /apps/TLogPViewer/sounding_data/deploy/nginx-tlogpviewer.conf \
+   /etc/nginx/sites-available/tlogpviewer.wetterheidi.de
+certbot --nginx -d tlogpviewer.wetterheidi.de
+nginx -t && systemctl reload nginx
+```
+
 ### Logs ansehen
 ```bash
 # Download-Logs
