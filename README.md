@@ -1,127 +1,221 @@
 # TlogP Sounding Viewer & DWD Data Fetcher
 
-Dieses Projekt besteht aus zwei Hauptkomponenten, um meteorologische Vertikalprofile (Temps) zu laden und interaktiv zu analysieren:
-1. **Data Fetcher (`fetch_sounding.py`)**: Ein Python-Skript, das hochauflösende Modelldaten (GRIB2) vom Deutschen Wetterdienst (DWD) herunterlädt und als leicht lesbares JSON speichert.
-2. **HTML-Viewer (`sounding_viewer.html`)**: Ein Frontend, das diese JSON-Dateien interaktiv als Skew-T Log-P Diagramm direkt im Webbrowser darstellt.
+Dieses Projekt stellt meteorologische Vertikalprofile (Temps) aus DWD-Modelldaten bereit und visualisiert sie interaktiv als Skew-T Log-P Diagramm.
+
+**Live:** https://tlogpviewer.wetterheidi.de/
+**Admin:** https://tlogpviewer.wetterheidi.de/admin.html *(Passwortgeschützt)*
 
 ---
 
-## 1. Lokaler / Manueller Daten-Download (Kommandozeile)
+## Architektur-Überblick
 
-Wenn du Spezial-Analysen (z. B. historische Daten, bestimmte Unwetterlagen oder exotische Koordinaten) erstellen möchtest, kannst du das Skript jederzeit lokal auf deinem Rechner ausführen.
-
-### Voraussetzungen
-* Python 3.11 oder neuer
-* Die C-Bibliothek `eccodes` (unter Linux via `sudo apt-get install libeccodes0`, unter macOS via `brew install eccodes`).
-* Python-Pakete: `pip install numpy requests eccodes`
-* Python-Umgebung: `python3 -m venv ~/sounding-env`
-                   `source ~/sounding-env/bin/activate`
-
-### Nutzung
-Das Python-Skript wird über das Terminal aufgerufen. Es benötigt zwingend Koordinaten und erlaubt weitreichende Anpassungen:
-
-```bash
-# Basis-Befehl (lädt ICON-EU für den aktuellen Lauf, nur Schritt 0):
-python3 fetch_sounding.py --lat 48.35 --lon 11.79
-
-# Profi-Befehl (bestimmtes Modell, Zeitreihe und Ausgabeordner):
-python3 fetch_sounding.py --lat 48.35 --lon 11.79 --model icon-d2 --step 0:48:1 --outdir ./data
+```
+DWD OpenData-Server
+        │
+        ▼
+Hetzner Server (wetterheidi-server)
+  /apps/TLogPViewer/
+  ├── sounding_data/     ← Git-Repo (nur Code, keine Daten)
+  │   ├── fetch_sounding.py
+  │   ├── run_locations.sh
+  │   ├── locations.json
+  │   ├── admin_api.py
+  │   ├── sounding_viewer.html
+  │   └── admin.html
+  ├── data/              ← Generierte JSON-Dateien (von nginx ausgeliefert)
+  ├── venv/              ← Python-Umgebung
+  └── backups/           ← Automatische Backups von locations.json
+        │
+        ▼
+nginx → https://tlogpviewer.wetterheidi.de/
 ```
 
-**Wichtige Parameter:**
-* `--lat` / `--lon`: Breitengrad / Längengrad (Dezimalgrad).
-* `--model`: `icon-d2`, `icon-eu` oder `icon` (Standard: `icon-eu`).
-* `--step`: Vorhersagestunden. Erlaubt sind Einzelwerte (`0`), Listen (`0,12,24`) oder Bereiche (`0:48:1` = von 0 bis 48 in 1er-Schritten).
-* `--date` / `--run`: Für historische Läufe (z. B. `--date 20240515 --run 12`).
+**Datenpfad:**
+- Zwei `systemd`-Timer starten `run_locations.sh` pünktlich zur DWD-Verfügbarkeit
+- Das Skript lädt GRIB2-Dateien vom DWD, konvertiert sie in JSON und schreibt sie nach `/apps/TLogPViewer/data/`
+- nginx liefert die JSON-Dateien direkt aus – kein GitHub im Datenpfad
+
+**GitHub** wird nur noch für Code-Versionierung genutzt. Keine Wetterdaten im Repo.
 
 ---
 
-## 2. Automatischer Cloud-Download (GitHub Actions)
+## Orte verwalten (Admin-Oberfläche)
 
-Das System ist so konfiguriert, dass es täglich automatisch vordefinierte Orte berechnet und als JSON im Ordner `/data/` dieses GitHub-Repositories speichert. 
+Öffne https://tlogpviewer.wetterheidi.de/admin.html im Browser.
+- Browser fragt nach Benutzername und Passwort (nginx Basic Auth)
+- Orte hinzufügen, bearbeiten, aktivieren/deaktivieren per UI
+- Änderungen werden sofort in `/apps/TLogPViewer/sounding_data/locations.json` gespeichert
+- Beim nächsten Timer-Lauf werden die neuen Orte automatisch heruntergeladen
 
-### Orte hinzufügen oder ändern
-Wenn du neue Stationen (Flugplätze, Städte) für den täglichen Abruf hinzufügen möchtest, musst du **nur eine Datei bearbeiten**:
-👉 **Datei:** `run_locations.sh`
-
-1. Öffne die Datei in GitHub und bearbeite sie.
-2. Füge eine neue Zeile für deinen gewünschten Ort hinzu:
-   `python3 fetch_sounding.py --lat 53.55 --lon 9.99 --model icon-eu --step 0:48:3 --outdir ./data`
-3. Speichere die Datei ("Commit changes"). Beim nächsten planmäßigen Lauf wird dieser Ort automatisch mitberechnet.
-
-### Download-Zeiten (Cronjob) anpassen
-Wenn du anpassen möchtest, *wann* der Server losläuft (z. B. um ICON-D2 statt ICON-EU abzugreifen), musst du den Workflow bearbeiten:
-👉 **Datei:** `.github/workflows/download.yml`
-
-Ändere die `cron`-Zeile unter `schedule:` entsprechend der UTC-Zeiten. 
-*Beispiel für ICON-EU (Verfügbar ca. 3h nach Modellstart):* `cron: '15 3,9,15,21 * * *'`
-*(Hinweis: Du kannst den Workflow unter dem Reiter "Actions" in GitHub jederzeit auch manuell über den Button "Run workflow" starten).*
+Die Konfiguration pro Ort (`locations.json`):
+```json
+{
+  "alias": "Startplatz",
+  "lat": 47.981,
+  "lon": 11.235,
+  "enabled": true,
+  "models": {
+    "icon-d2": { "step": "0:24:1" }
+  }
+}
+```
 
 ---
 
-## 3. Bedienung des TlogP-Viewers
+## Download-Zeiten (systemd-Timer)
 
-Der Viewer ist eine reine HTML/JS-Datei (`sounding_viewer.html`) und benötigt keinen Webserver. Er kann einfach im Browser per Doppelklick geöffnet werden.
+Die Timer liegen auf dem Server unter `/etc/systemd/system/`.
+
+| Timer | Modelle | Auslösung (UTC) | Grund |
+|---|---|---|---|
+| `tlogp-d2eu.timer` | ICON-D2 + ICON-EU | 02:15, 05:15, 08:15, 11:15, 14:15, 17:15, 20:15, 23:15 | DWD-Verfügbarkeit ~2h nach Laufstart |
+| `tlogp-icon.timer` | ICON global | 04:15, 10:15, 16:15, 22:15 | DWD-Verfügbarkeit ~4h nach Laufstart |
+
+Timer-Status prüfen:
+```bash
+systemctl list-timers tlogp*
+```
+
+Download manuell anstoßen (z.B. nach Server-Neustart):
+```bash
+systemctl start tlogp-d2eu.service
+journalctl -u tlogp-d2eu.service -f
+```
+
+---
+
+## Server-Wartung
+
+### Code-Update einspielen
+Nach einem `git push` vom Mac:
+```bash
+git -C /apps/TLogPViewer/sounding_data pull
+```
+Für Änderungen an `run_locations.sh`, `fetch_sounding.py` oder `locations.json` ist kein Service-Neustart nötig – sie werden beim nächsten Timer-Lauf automatisch verwendet.
+
+Wenn `admin_api.py` geändert wurde:
+```bash
+systemctl restart tlogp-api.service
+```
+
+### Logs ansehen
+```bash
+# Download-Logs
+journalctl -u tlogp-d2eu.service -n 100
+journalctl -u tlogp-icon.service -n 100
+
+# Admin-API
+journalctl -u tlogp-api.service -f
+
+# nginx
+tail -f /var/log/nginx/error.log
+```
+
+### Datendateien
+```bash
+ls /apps/TLogPViewer/data/          # aktuelle JSON-Dateien
+cat /apps/TLogPViewer/data/index.json  # Index der verfügbaren Dateien
+```
+
+Dateien älter als 3 Tage werden automatisch von `run_locations.sh` gelöscht.
+
+---
+
+## Fallback auf GitHub Actions
+
+Falls der Server ausfällt oder Probleme auftreten:
+
+**1. Viewer auf GitHub-Daten umstellen** – in `sounding_viewer.html` die zwei Zeilen tauschen:
+```js
+// Aktiv (Server):
+const DATA_BASE = '/data';
+
+// Auf GitHub umschalten:
+// const DATA_BASE = '/data';
+const DATA_BASE = 'https://raw.githubusercontent.com/wetterheidi/sounding_data/main/data';
+```
+
+**2. GitHub Actions reaktivieren** – unter https://github.com/wetterheidi/sounding_data/actions
+den Workflow `TlogP Data Fetcher` über den Button "Enable workflow" reaktivieren.
+
+---
+
+## Lokaler / Manueller Daten-Download
+
+Für Spezial-Analysen (historische Daten, bestimmte Lagen, exotische Koordinaten) kann `fetch_sounding.py` lokal auf dem Mac ausgeführt werden.
+
+### Voraussetzungen
+```bash
+brew install eccodes
+python3 -m venv ~/sounding-env
+source ~/sounding-env/bin/activate
+pip install numpy requests eccodes
+```
+
+### Nutzung
+```bash
+# Aktueller Lauf, ICON-EU, nur Schritt 0:
+python3 fetch_sounding.py --lat 48.35 --lon 11.79
+
+# ICON-D2, Zeitreihe 0–24h, stündlich, in ./data/ speichern:
+python3 fetch_sounding.py --lat 48.35 --lon 11.79 --model icon-d2 --step 0:24:1 --outdir ./data
+
+# Historischer Lauf (z.B. 12Z vom 15. Mai 2024):
+python3 fetch_sounding.py --lat 48.35 --lon 11.79 --model icon-eu --date 20240515 --run 12 --step 0:48:3
+```
+
+**Parameter:**
+| Parameter | Beschreibung |
+|---|---|
+| `--lat` / `--lon` | Koordinaten in Dezimalgrad |
+| `--model` | `icon-d2`, `icon-eu` oder `icon` |
+| `--step` | Vorhersagestunden: Einzelwert `0`, Liste `0,12,24` oder Bereich `0:48:1` |
+| `--date` / `--run` | Für historische Läufe, z.B. `--date 20240515 --run 12` |
+| `--alias` | Kurzname für die Ausgabedatei |
+| `--outdir` | Ausgabeverzeichnis (Standard: `.`) |
+
+---
+
+## Bedienung des TlogP-Viewers
+
+Der Viewer unter https://tlogpviewer.wetterheidi.de/ benötigt keinen lokalen Webserver.
+Die HTML-Datei kann auch per Doppelklick lokal geöffnet werden (dann "Lokal laden" verwenden).
 
 ### Daten laden
-* **Cloud:** Klicke im Menü auf **"☁️ Aktuelle Daten laden"**, um die neuesten JSON-Dateien automatisch aus diesem GitHub-Repository zu ziehen.
-* **Lokal:** Klicke auf **"Lokal laden ↑"** oder ziehe eine fertige JSON-Datei per Drag & Drop in das Fenster.
+- **Cloud:** Button "☁️ Aktuelle Daten laden" – lädt alle JSON-Dateien vom Server
+- **Lokal:** Button "Lokal laden ↑" oder Drag & Drop einer JSON-Datei ins Fenster
 
-### Interaktive Features
-* **Navigation:** Wähle den gewünschten Ort im Dropdown-Menü oben links. Nutze den Schieberegler unten oder die Pfeiltasten (Links/Rechts), um durch die Zeit zu scrollen. Die Leertaste startet eine Animation der Zeitleiste.
-* **Maus-Analyse:** Fahre mit der Maus über das Diagramm. Oben rechts in der Seitenleiste werden die exakten Werte des naheliegendsten Modell-Levels angezeigt. Ausgehend von der Mausposition berechnet das Tool dynamisch die Trockenadiabate, Feuchtadiabate und die Sättigungsmischungsverhältnislinie.
-* **Zoom & Pan:** * **Mausrad:** In das Diagramm hinein- oder herauszoomen.
-  * **Klicken & Ziehen:** Das herangezoomte Diagramm stufenlos verschieben.
-  * **Doppelklick:** Ansicht wieder auf 100 % zurücksetzen.
+### Navigation
+- **Ort:** Dropdown oben links
+- **Zeit:** Schieberegler unten oder Pfeiltasten Links/Rechts
+- **Animation:** Leertaste startet/stoppt die Zeitleiste
+
+### Diagramm
+- **Maus:** Zeigt exakte Werte des nächsten Modell-Levels; berechnet dynamisch Trockenadiabate, Feuchtadiabate und Sättigungsmischungsverhältnislinie
+- **Mausrad:** Zoom
+- **Klicken & Ziehen:** Verschieben im Zoom
+- **Doppelklick:** Zoom zurücksetzen
 
 ---
 
-## 4. Referenz: DWD ICON Modelle
+## Referenz: DWD ICON Modelle
 
-Alle Zeiten sind in UTC (so wie es auch GitHub Actions erwartet).
+Alle Zeiten in UTC.
 
-### 1. ICON-D2 (Lokalmodell Deutschland/Alpen)
-Das hochauflösende Modell für Konvektion und lokale Effekte.
+### ICON-D2 (Lokalmodell Deutschland/Alpen)
+- Läufe: alle 3h (00, 03, 06, 09, 12, 15, 18, 21Z)
+- Verfügbarkeit: ~1,5–2h nach Laufstart
+- Vorhersagezeitraum: bis +48h, stündliche Auflösung
+- Vertikale Level: 65
 
-* Modell-Läufe (UTC): Alle 3 Stunden (00, 03, 06, 09, 12, 15, 18, 21Z).
-* Reale Verfügbarkeit: ca. 1,5 bis 2 Stunden nach dem Lauf. (Der 00Z-Lauf ist gegen 01:45 UTC komplett online).
-* Maximale Vorhersagezeit: +48 Stunden.
-* Zeitliche Auflösung: Durchgehend 1-stündig.
-* Idealer GitHub Cronjob: 45 1,4,7,10,13,16,19,22 * * *
+### ICON-EU (Europa)
+- Läufe: alle 3h (00, 03, 06, 09, 12, 15, 18, 21Z)
+- Verfügbarkeit: ~2h nach Laufstart
+- Vorhersagezeitraum: bis +120h (bis +78h stündlich, danach 3-stündlich)
+- Vertikale Level: 74
 
-### 2. ICON-EU (Europa)
-Der absolute Allrounder für die meisten Temp-Analysen.
-
-* Modell-Läufe (UTC): Alle 6 Stunden (00, 06, 12, 18Z).
-* Reale Verfügbarkeit: ca. 2,5 bis 3 Stunden nach dem Lauf. (Der 00Z-Lauf ist gegen 03:00 UTC komplett online).
-* Maximale Vorhersagezeit: +120 Stunden.
-* Zeitliche Auflösung: 1-stündig (bis +78h), danach 3-stündig (bis +120h).
-* Idealer GitHub Cronjob: 15 3,9,15,21 * * *
-
-### 3. ICON (Global)
-Für weltweite Analysen (z.B. USA, Tropen).
-
-* Modell-Läufe (UTC): Alle 6 Stunden (00, 06, 12, 18Z).
-* Reale Verfügbarkeit: ca. 3,5 bis 4 Stunden nach dem Lauf. (Der 00Z-Lauf ist gegen 04:00 UTC komplett online).
-* Maximale Vorhersagezeit: Standardmäßig +180 Stunden (Die 00Z und 12Z Läufe rechnen sogar bis +384 Stunden, für Vertikalprofile reicht aber meist weniger).
-* Zeitliche Auflösung: 1-stündig (bis +78h), danach 3-stündig.
-* Idealer GitHub Cronjob: 30 4,10,16,22 * * *
-
-### Mein Tipp für das Setup (run_locations.sh)
-Da du im Skript über --step exakt definieren kannst, welche Schritte geladen werden, empfehle ich dir für ICON-EU folgendes kompaktes Setup:
-
-Wenn du z.B. für die nächsten 2 Tage (48 Stunden) eine feine 1-stündige Auflösung und danach für den Trend eine gröbere Auflösung haben willst, kannst du die --step Argumente einfach mischen!
-
-Beispiel für deine run_locations.sh:
-python3 fetch_sounding.py --lat 48.35 --lon 11.79 --model icon-eu --step 0:48:1,51:120:3 --outdir ./data
-
-Das lädt:
-
-Die ersten 48 Stunden in feinen 1-Stunden-Schritten.
-
-Die Stunden 51 bis 120 in gröberen 3-Stunden-Schritten.
-
-Damit hast du die perfekte Balance aus hoher Genauigkeit für die nächsten Tage, einem tollen Langzeittrend, und das Ganze läuft in den GitHub Actions extrem ressourcenschonend und schnell durch!
-
-*(Hinweis: Die Modelle unterscheiden sich in ihrer vertikalen Auflösung. ICON-D2 liefert 65 Level, ICON-EU liefert 74 Level und das globale ICON 120 Level. Der Viewer passt seine thermodynamischen Berechnungen automatisch an das jeweilige Gitter an).*
-
+### ICON Global
+- Läufe: alle 6h (00, 06, 12, 18Z)
+- Verfügbarkeit: ~4h nach Laufstart
+- Vorhersagezeitraum: bis +180h (00Z/12Z bis +384h)
+- Vertikale Level: 120
