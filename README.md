@@ -2,7 +2,7 @@
 
 Dieses Projekt stellt meteorologische Vertikalprofile (Temps) aus DWD-Modelldaten bereit und visualisiert sie interaktiv als Skew-T Log-P Diagramm.
 
-**Live:** https://tlogpviewer.wetterheidi.de/
+**Live:** https://tlogpviewer.wetterheidi.de/ *(Passwortgeschützt)*
 **Admin:** https://tlogpviewer.wetterheidi.de/admin.html *(Passwortgeschützt)*
 
 ---
@@ -85,6 +85,25 @@ journalctl -u tlogp-d2eu.service -f
 ---
 
 ## Server-Wartung
+
+### nginx-Auth einrichten (einmalig, falls `.htpasswd-wetterheidi` noch nicht existiert)
+
+Viewer und Admin nutzen die gemeinsame Passwort-Datei `/etc/nginx/.htpasswd-wetterheidi`
+(dieselbe wie WindScope und MeteoMap):
+
+```bash
+# Datei erstellen bzw. Benutzer hinzufügen:
+htpasswd -c /etc/nginx/.htpasswd-wetterheidi heidi
+# Danach nginx neu laden:
+nginx -t && systemctl reload nginx
+```
+
+Falls die Datei bereits durch WindScope/MeteoMap existiert, reicht:
+```bash
+nginx -t && systemctl reload nginx
+```
+
+---
 
 ### Code-Update einspielen
 Nach einem `git push` vom Mac:
