@@ -86,20 +86,25 @@ journalctl -u tlogp-d2eu.service -f
 
 ## Server-Wartung
 
-### nginx-Auth einrichten (einmalig, falls `.htpasswd-wetterheidi` noch nicht existiert)
+### nginx-Auth einrichten (einmalig)
 
-Viewer und Admin nutzen die gemeinsame Passwort-Datei `/etc/nginx/.htpasswd-wetterheidi`
-(dieselbe wie WindScope und MeteoMap):
+Es gibt zwei getrennte Passwort-Dateien:
+
+| Datei | Zugriffsbereich | Benutzer |
+|---|---|---|
+| `/etc/nginx/.htpasswd-tlogp` | Admin-UI + API | `admin` |
+| `/etc/nginx/.htpasswd-wetterheidi` | Viewer (öffentliche Nutzer) | `wetterheidi`, weitere |
 
 ```bash
-# Datei erstellen bzw. Benutzer hinzufügen:
-htpasswd -c /etc/nginx/.htpasswd-wetterheidi heidi
-# Danach nginx neu laden:
-nginx -t && systemctl reload nginx
-```
+# Admin-Passwort setzen (Benutzer: admin):
+htpasswd -c /etc/nginx/.htpasswd-tlogp admin
 
-Falls die Datei bereits durch WindScope/MeteoMap existiert, reicht:
-```bash
+# Viewer-Nutzer anlegen (erster Nutzer, -c erstellt die Datei):
+htpasswd -c /etc/nginx/.htpasswd-wetterheidi wetterheidi
+
+# Weitere Viewer-Nutzer hinzufügen (ohne -c, sonst wird die Datei überschrieben!):
+htpasswd /etc/nginx/.htpasswd-wetterheidi weiterernutzer
+
 nginx -t && systemctl reload nginx
 ```
 
