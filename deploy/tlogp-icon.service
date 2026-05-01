@@ -1,0 +1,16 @@
+# systemd-Service für ICON global Downloads
+# Wird durch tlogp-icon.timer gestartet
+
+[Unit]
+Description=TLogP Download – ICON global
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=www-data
+WorkingDirectory=/apps/TLogPViewer/sounding_data
+ExecStart=/bin/bash run_locations.sh icon
+Environment=OUTDIR=/apps/TLogPViewer/data
+StandardOutput=journal
+StandardError=journal

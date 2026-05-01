@@ -1,0 +1,20 @@
+# systemd-Service für die TLogP Admin-API
+# Einzuspielen nach: /etc/systemd/system/tlogp-api.service
+# Aktivieren mit:
+#   systemctl daemon-reload
+#   systemctl enable --now tlogp-api.service
+
+[Unit]
+Description=TLogP Admin API
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/apps/TLogPViewer/sounding_data
+ExecStart=/apps/TLogPViewer/venv/bin/python3 admin_api.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

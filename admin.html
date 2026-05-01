@@ -93,24 +93,7 @@
     }
     .security-notice .icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
 
-    /* ---- Token screen ---- */
-    #token-screen { display: flex; flex-direction: column; gap: 16px; }
-    #token-screen h2 { font-size: 16px; font-weight: 600; }
-    #token-screen p { font-size: 13px; color: var(--text-dim); }
     .input-row { display: flex; gap: 10px; flex-wrap: wrap; }
-    .input-row input {
-      flex: 1; min-width: 200px;
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      color: var(--text);
-      font-family: var(--mono);
-      font-size: 13px;
-      padding: 10px 14px;
-      outline: none;
-      transition: border-color .15s;
-    }
-    .input-row input:focus { border-color: var(--accent); }
 
     /* ---- Buttons ---- */
     .btn-primary {
@@ -379,27 +362,12 @@
     <div>
       <strong>Hinweis:</strong> Diese Seite ist ausschlie&szlig;lich f&uuml;r den pers&ouml;nlichen
       Gebrauch bestimmt. Bitte nicht verlinken, nicht teilen, nicht &ouml;ffentlich zug&auml;nglich
-      machen. Der GitHub-Token wird ausschlie&szlig;lich lokal in deinem Browser (localStorage)
-      gespeichert und nie an Dritte &uuml;bertragen.
+      machen. Zugang wird &uuml;ber Server-seitige Authentifizierung gesch&uuml;tzt.
     </div>
-  </div>
-
-  <!-- Token screen -->
-  <div id="token-screen">
-    <h2>GitHub Token erforderlich</h2>
-    <p>
-      Gib deinen GitHub Personal Access Token ein (ben&ouml;tigt <code>repo</code>-Scope
-      oder feingranularen &bdquo;Contents: Read &amp; Write&ldquo;-Zugriff auf dieses Repository).
-    </p>
-    <div class="input-row">
-      <input type="password" id="token-input" placeholder="github_pat_..." autocomplete="off" spellcheck="false">
-      <button class="btn-primary" id="btn-save-token">Speichern &amp; Laden</button>
-    </div>
-    <div id="token-error"></div>
   </div>
 
   <!-- Locations screen -->
-  <div id="locations-screen" class="hidden">
+  <div id="locations-screen">
     <div id="global-banner"></div>
 
     <div class="section-header">
@@ -494,13 +462,8 @@
 // =====================================================================
 // CONFIG
 // =====================================================================
-const REPO_OWNER = 'wetterheidi';
-const REPO_NAME  = 'sounding_data';
-const FILE_PATH  = 'locations.json';
+const API_BASE = '/api/locations';
 // =====================================================================
-
-const API_BASE = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`;
-const TOKEN_KEY = 'gh_admin_token';
 
 // ICON model bounding boxes [minLat, maxLat, minLon, maxLon]
 const MODEL_BOUNDS = {
@@ -517,16 +480,12 @@ const MODEL_DEFAULTS = {
 };
 
 // ---- DOM refs ----
-const tokenScreen     = document.getElementById('token-screen');
 const locationsScreen = document.getElementById('locations-screen');
-const tokenInput      = document.getElementById('token-input');
-const btnSaveToken    = document.getElementById('btn-save-token');
 const btnLogout       = document.getElementById('btn-logout');
 const btnReload       = document.getElementById('btn-reload');
 const btnAdd          = document.getElementById('btn-add');
 const btnCancel       = document.getElementById('btn-cancel');
 const btnSaveLoc      = document.getElementById('btn-save-loc');
-const tokenError      = document.getElementById('token-error');
 const locationsList   = document.getElementById('locations-list');
 const locationsCount  = document.getElementById('locations-count');
 const globalBanner    = document.getElementById('global-banner');
@@ -546,7 +505,6 @@ const fTo    = document.getElementById('f-to');
 const fStep  = document.getElementById('f-step');
 
 // ---- State ----
-let currentSha    = null;
 let currentLocs   = [];
 let map           = null;
 let marker        = null;
@@ -555,72 +513,26 @@ let overlayEU     = null;
 let editIdx       = -1;   // -1 = new entry, ≥0 = edit existing
 
 // =====================================================================
-// Token management
+// Server-API helpers (ersetzt GitHub API)
 // =====================================================================
-function getToken()    { return localStorage.getItem(TOKEN_KEY); }
-function setToken(t)   { localStorage.setItem(TOKEN_KEY, t); }
-function clearToken()  { localStorage.removeItem(TOKEN_KEY); }
-
-function showTokenScreen(errorMsg) {
-  tokenScreen.classList.remove('hidden');
-  locationsScreen.classList.add('hidden');
-  btnLogout.classList.add('hidden');
-  tokenInput.value = '';
-  tokenError.innerHTML = errorMsg ? makeBanner('error', errorMsg) : '';
-}
-
-function showLocationsScreen() {
-  tokenScreen.classList.add('hidden');
-  locationsScreen.classList.remove('hidden');
-  btnLogout.classList.remove('hidden');
-}
-
-// =====================================================================
-// GitHub API helpers
-// =====================================================================
-async function apiFetch(method, body) {
-  const opts = {
-    method,
-    headers: {
-      'Authorization': `Bearer ${getToken()}`,
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-  };
-  if (body !== undefined) {
-    opts.headers['Content-Type'] = 'application/json';
-    opts.body = JSON.stringify(body);
-  }
-  return fetch(API_BASE, opts);
-}
-
 async function loadLocations() {
-  const res = await apiFetch('GET');
-  if (res.status === 401) { clearToken(); showTokenScreen('Token ungültig oder abgelaufen. Bitte neu eingeben.'); return null; }
-  if (!res.ok) throw new Error(`GitHub API Fehler: ${res.status} ${res.statusText}`);
-  const data = await res.json();
-  currentSha = data.sha;
-  return JSON.parse(atob(data.content.replace(/\n/g, '')));
+  const res = await fetch(API_BASE);
+  if (res.status === 401) throw new Error('Nicht autorisiert — bitte Seite neu laden und anmelden.');
+  if (!res.ok) throw new Error(`API-Fehler: ${res.status} ${res.statusText}`);
+  return res.json();
 }
 
-async function saveLocations(locations, commitMsg) {
-  if (!currentSha) throw new Error('SHA fehlt — bitte zuerst neu laden.');
-  const content = btoa(unescape(encodeURIComponent(
-    JSON.stringify(locations, null, 2) + '\n'
-  )));
-  const res = await apiFetch('PUT', {
-    message: commitMsg || 'admin: update locations.json via admin.html',
-    content,
-    sha: currentSha,
+async function saveLocations(locations) {
+  const res = await fetch(API_BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(locations),
   });
-  if (res.status === 401) { clearToken(); showTokenScreen('Token ungültig oder abgelaufen. Bitte neu eingeben.'); return false; }
-  if (res.status === 409) throw new Error('Konflikt (HTTP 409): Die Datei wurde zwischenzeitlich geändert. Bitte neu laden und die Änderung wiederholen.');
+  if (res.status === 401) throw new Error('Nicht autorisiert — bitte Seite neu laden und anmelden.');
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(`Speichern fehlgeschlagen: ${res.status} — ${body.message || res.statusText}`);
+    throw new Error(`Speichern fehlgeschlagen: ${res.status} — ${body.error || res.statusText}`);
   }
-  const updated = await res.json();
-  currentSha = updated.content.sha;
   return true;
 }
 
@@ -675,7 +587,7 @@ async function handleToggle(idx, card) {
 
   clearGlobalBanner();
   try {
-    const ok = await saveLocations(currentLocs, `admin: toggle ${currentLocs[idx].alias} ${newEnabled ? 'on' : 'off'}`);
+    const ok = await saveLocations(currentLocs);
     if (ok) showGlobalBanner('success', `"${escHtml(currentLocs[idx].alias)}" wurde ${newEnabled ? 'aktiviert' : 'deaktiviert'}.`);
   } catch (err) {
     currentLocs[idx].enabled = !newEnabled;
@@ -906,23 +818,20 @@ async function handleSaveLoc() {
 
   try {
     let updated;
-    let commitMsg;
     let successMsg;
 
     if (editIdx === -1) {
       // --- Add new ---
       updated    = [...currentLocs, newEntry];
-      commitMsg  = `admin: add ${alias} (${model})`;
       successMsg = `"${escHtml(alias)}" wurde hinzugefügt (deaktiviert). Zum Aktivieren den Toggle verwenden.`;
     } else {
       // --- Edit existing — preserve enabled state ---
       newEntry.enabled = currentLocs[editIdx].enabled;
       updated = currentLocs.map((loc, i) => i === editIdx ? newEntry : loc);
-      commitMsg  = `admin: edit ${alias} (${model})`;
       successMsg = `"${escHtml(alias)}" wurde aktualisiert.`;
     }
 
-    const ok = await saveLocations(updated, commitMsg);
+    const ok = await saveLocations(updated);
     if (ok) {
       currentLocs = updated;
       renderLocations(currentLocs);
@@ -964,7 +873,7 @@ function escHtml(str) {
 function setLoadingState(loading) {
   btnReload.disabled = loading;
   if (loading) {
-    locationsList.innerHTML = `<div class="loading-row"><span class="spinner"></span><span>Lade locations.json von GitHub…</span></div>`;
+    locationsList.innerHTML = `<div class="loading-row"><span class="spinner"></span><span>Lade locations.json…</span></div>`;
     locationsCount.textContent = '';
   }
 }
@@ -986,17 +895,7 @@ async function loadAndRender() {
 // =====================================================================
 // Event listeners
 // =====================================================================
-btnSaveToken.addEventListener('click', async () => {
-  const val = tokenInput.value.trim();
-  if (!val) { tokenError.innerHTML = makeBanner('error', 'Bitte Token eingeben.'); return; }
-  setToken(val);
-  tokenError.innerHTML = '';
-  showLocationsScreen();
-  await loadAndRender();
-});
-tokenInput.addEventListener('keydown', e => { if (e.key === 'Enter') btnSaveToken.click(); });
-
-btnLogout.addEventListener('click', () => { clearToken(); currentSha = null; currentLocs = []; showTokenScreen(); });
+btnLogout.addEventListener('click', () => { currentLocs = []; window.location.reload(); });
 btnReload.addEventListener('click', loadAndRender);
 
 btnAdd.addEventListener('click', openAddPanel);
@@ -1027,8 +926,7 @@ fLon.addEventListener('input', onCoordInput);
 // =====================================================================
 // Init
 // =====================================================================
-if (getToken()) { showLocationsScreen(); loadAndRender(); }
-else            { showTokenScreen(); }
+loadAndRender();
 </script>
 </body>
 </html>

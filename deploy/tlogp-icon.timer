@@ -1,0 +1,17 @@
+# systemd-Timer für ICON global
+# Läufe: 00,06,12,18 UTC → DWD-Verfügbarkeit ~4h → Trigger 4h15m danach
+# Einzuspielen nach: /etc/systemd/system/tlogp-icon.timer
+# Aktivieren mit:
+#   systemctl daemon-reload
+#   systemctl enable --now tlogp-icon.timer
+
+[Unit]
+Description=TLogP Download Timer – ICON global (alle 6h)
+
+[Timer]
+OnCalendar=*-*-* 04,10,16,22:15:00
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

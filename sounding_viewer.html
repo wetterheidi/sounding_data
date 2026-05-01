@@ -3882,21 +3882,25 @@
     });
 
     // =========================================================================
-    // GitHub Cloud Download
+    // Cloud Download
+    // DATA_BASE: Hetzner-Server (primär) oder GitHub raw (Fallback).
+    // Zum Zurückfallen auf GitHub: DATA_BASE auf den auskommentierten Wert setzen.
     // =========================================================================
+    const DATA_BASE = '/data';
+    // const DATA_BASE = 'https://raw.githubusercontent.com/wetterheidi/sounding_data/main/data';
+
     async function fetchFromCloud() {
-      const rawBase = 'https://raw.githubusercontent.com/wetterheidi/sounding_data/main';
-      const indexUrl = `${rawBase}/data/index.json`;
+      const indexUrl = `${DATA_BASE}/index.json`;
 
       const emptyStateText = document.querySelector('#empty-state p');
       const originalText = emptyStateText.innerHTML;
 
       try {
-        emptyStateText.innerHTML = 'Suche aktuelle Daten in der Cloud...<br><span style="color:var(--accent)">Bitte warten</span>';
+        emptyStateText.innerHTML = 'Suche aktuelle Daten...<br><span style="color:var(--accent)">Bitte warten</span>';
 
-        // 1. Index laden – eine einzige Anfrage, kein Rate Limit
+        // 1. Index laden
         const idxResponse = await fetch(indexUrl);
-        if (!idxResponse.ok) throw new Error('Index nicht gefunden – bitte warte bis die nächste GitHub Action läuft.');
+        if (!idxResponse.ok) throw new Error('Index nicht gefunden – bitte warte bis der nächste Download-Lauf abgeschlossen ist.');
 
         const fileNames = await idxResponse.json();
         if (!Array.isArray(fileNames) || fileNames.length === 0)
@@ -3904,9 +3908,9 @@
 
         emptyStateText.innerHTML = `Lade ${fileNames.length} Profile herunter...<br><span style="color:var(--accent)">Bitte warten</span>`;
 
-        // 2. Alle Dateien parallel über raw.githubusercontent.com laden – kein Rate Limit
+        // 2. Alle Dateien parallel laden
         const fetchPromises = fileNames.map(name =>
-          fetch(`${rawBase}/data/${name}`).then(res => {
+          fetch(`${DATA_BASE}/${name}`).then(res => {
             if (!res.ok) throw new Error(`Datei nicht gefunden: ${name}`);
             return res.json();
           })
@@ -3920,7 +3924,7 @@
 
       } catch (error) {
         console.error('Cloud-Download Fehler:', error);
-        emptyStateText.innerHTML = `Cloud-Download fehlgeschlagen:<br><i>${error.message}</i><br><br>Lokale Datei laden.`;
+        emptyStateText.innerHTML = `Download fehlgeschlagen:<br><i>${error.message}</i><br><br>Lokale Datei laden.`;
         setTimeout(() => {
           if (STATE.soundings.length === 0) emptyStateText.innerHTML = originalText;
         }, 5000);

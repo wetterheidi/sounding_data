@@ -1,0 +1,17 @@
+# systemd-Service für ICON-D2 + ICON-EU Downloads
+# Wird durch tlogp-d2eu.timer gestartet
+
+[Unit]
+Description=TLogP Download – ICON-D2 + ICON-EU
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=www-data
+WorkingDirectory=/apps/TLogPViewer/sounding_data
+ExecStart=/bin/bash run_locations.sh
+# Ausgabe-Verzeichnis überschreiben: Daten nach /apps/TLogPViewer/data/ schreiben
+Environment=OUTDIR=/apps/TLogPViewer/data
+StandardOutput=journal
+StandardError=journal

@@ -7,7 +7,7 @@ set -euo pipefail
 
 MODEL_FILTER="${1:-}"
 JOBS=4          # max. gleichzeitige fetch_sounding.py-Prozesse
-OUTDIR="./data"
+OUTDIR="${OUTDIR:-./data}"   # überschreibbar per Umgebungsvariable (systemd: Environment=OUTDIR=...)
 LOCATIONS="./locations.json"
 
 mkdir -p "$OUTDIR"
