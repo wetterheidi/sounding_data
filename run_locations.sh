@@ -15,10 +15,11 @@ mkdir -p "$OUTDIR"
 # ---------------------------------------------------------------------------
 # Aufräumen: JSON-Dateien älter als 3 Tage löschen
 # ---------------------------------------------------------------------------
-python3 - <<'EOF'
+python3 - <<EOF
 import os, datetime, glob, re
+data_dir = "${OUTDIR}"
 limit = datetime.datetime.utcnow() - datetime.timedelta(days=3)
-for f in glob.glob("./data/*.json"):
+for f in glob.glob(os.path.join(data_dir, "*.json")):
     m = re.search(r"_(\d{8})_", f)
     if m and datetime.datetime.strptime(m.group(1), "%Y%m%d") < limit:
         os.remove(f)
