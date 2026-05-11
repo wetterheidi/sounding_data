@@ -1,95 +1,76 @@
-# Push-Anleitung: Lokale Code-Änderungen auf den Server deployen
+# Deploy-Anleitung: Lokale Code-Änderungen auf den Server bringen
 
-## Warum es ohne Vorbereitung nicht klappt
+## Architektur (Stand Mai 2026)
 
-Der Server committet automatisch alle ~3 Stunden neue Wetterdaten ins Repo
-und pusht sie nach GitHub. Wenn du danach lokal eine Code-Änderung machst,
-hat dein lokaler Branch andere Commits als `origin/main` → Git verweigert
-den Push.
+| Was | Wo |
+|-----|----|
+| Code-Repo | GitHub: `wetterheidi/sounding_data` |
+| Server-Verzeichnis | `/apps/TLogPViewer/sounding_data/` |
+| Datendateien | `/apps/TLogPViewer/data/` (von git ignoriert) |
+| Daten-Fetching | systemd-Timer auf dem Server (`tlogp-d2eu.timer`, `tlogp-icon.timer`) |
+
+`data/*.json` steht in `.gitignore` — Wetterdaten werden nie mehr committed.
+Es gibt keine GitHub Action mehr. Push-Konflikte durch "Wetter-Update"-Commits
+sind dauerhaft Geschichte.
 
 ---
 
-## Schritt-für-Schritt: Code-Änderung deployen
+## Normaler Workflow: Code-Änderung deployen
 
-### 1. Lokale Änderungen fertigstellen und committen
+### 1. Lokal committen und pushen
 
 ```bash
 git add <geänderte Datei(en)>
-git commit -m "Kurzbeschreibung der Änderung"
-```
-
-### 2. Server-Commits holen und darunter rebasen
-
-```bash
-git pull --rebase origin main
-```
-
-> Das legt deinen lokalen Commit *auf* die neuesten Server-Commits.
-> Keine Merge-Commits, saubere History.
-
-### 3. Pushen
-
-```bash
+git commit -m "Kurzbeschreibung"
 git push origin main
 ```
 
-### 4. Auf dem Server deployen
+Kein Rebase, kein Workaround — direkter Push funktioniert jederzeit.
+
+### 2. Auf dem Server deployen
 
 ```bash
-ssh <user>@<server-ip>
+ssh root@<server-ip>
 cd /apps/TLogPViewer/sounding_data
 git pull --ff-only
 ```
 
-`--ff-only` stellt sicher, dass nur Fast-Forward-Pulls erlaubt sind —
-als Sicherheitsnetz, falls etwas nicht sauber rebased wurde.
+Fertig.
 
 ---
 
-## Kurzform (alles in einem)
+## Sonderfall: locations.json
 
-```bash
-git add <datei> && git commit -m "..." && git pull --rebase origin main && git push origin main
-```
+`locations.json` ist weiterhin in Git — Änderungen über die Admin-Oberfläche
+landen aber nur auf dem Server (nicht lokal). Wenn du `locations.json` lokal
+bearbeitest UND der Server sie zwischenzeitlich per Admin-UI geändert hat,
+gibt es beim `git pull` einen Konflikt.
 
-Danach auf dem Server:
+**Empfehlung:** `locations.json` immer über die Admin-Oberfläche bearbeiten
+(`https://tlogpviewer.wetterheidi.de/admin.html`), nicht lokal.
+
+Falls doch ein Konflikt entsteht:
 ```bash
-cd /apps/TLogPViewer/sounding_data && git pull --ff-only
+# Auf dem Server: Server-Version sichern, dann Pull, dann wiederherstellen
+cp locations.json /tmp/locations_save.json
+git restore locations.json
+git pull --ff-only
+cp /tmp/locations_save.json locations.json
 ```
 
 ---
 
-## Dauerhafte Lösung: Datendateien aus Git herausnehmen (empfohlen)
-
-Das eigentliche Problem ist, dass `data/*.json` überhaupt in Git liegt.
-Wetterdaten gehören nicht ins Code-Repo — sie sind temporär, groß und
-erzeugen ständig Divergenz-Konflikte.
-
-### Einmalig: .gitignore anlegen und Dateien aus Tracking entfernen
+## Server-Befehle auf einen Blick
 
 ```bash
-# 1. .gitignore anlegen
-echo "data/*.json" >> .gitignore
-echo "data/index.json" >> .gitignore
+# systemd-Timer-Status prüfen
+systemctl list-timers tlogp*
 
-# 2. Alle data/-Dateien aus dem Git-Index entfernen (Dateien bleiben erhalten)
-git rm --cached data/*.json data/index.json 2>/dev/null || true
+# Logs des letzten Download-Laufs anzeigen
+journalctl -u tlogp-d2eu.service -n 50
+journalctl -u tlogp-icon.service -n 50
 
-# 3. Committen
-git add .gitignore
-git commit -m "git: data-Verzeichnis aus Tracking entfernen"
-git push origin main
+# Download manuell auslösen (ohne auf den Timer zu warten)
+systemctl start tlogp-d2eu.service
+systemctl start tlogp-icon.service
 ```
-
-### Auf dem Server: Auto-Commit abschalten
-
-Den Teil im Server-Skript entfernen, der `git add data/` + `git commit` + `git push` macht.
-Nach dem Pull läuft der Server weiter — er schreibt Daten lokal, commitet sie aber
-nicht mehr ins Repo.
-
-### Ergebnis
-
-- Kein Divergenz-Problem mehr
-- Code-Änderungen können jederzeit gepusht werden
-- `git log` zeigt nur noch sinnvolle Code-Commits
-- Daten liegen nur lokal auf dem Server (wo sie hingehören)
