@@ -10,7 +10,7 @@ Wants=network-online.target
 Type=oneshot
 User=www-data
 WorkingDirectory=/apps/TLogPViewer/sounding_data
-ExecStart=/bin/bash run_locations.sh
+ExecStart=/bin/bash -c 'source /apps/TLogPViewer/venv/bin/activate && bash run_locations.sh'
 # Ausgabe-Verzeichnis überschreiben: Daten nach /apps/TLogPViewer/data/ schreiben
 Environment=OUTDIR=/apps/TLogPViewer/data
 StandardOutput=journal
