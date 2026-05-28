@@ -6,6 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TlogP Sounding Viewer</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <script>
+    // Theme sofort setzen, bevor CSS greift → kein Aufflackern
+    const _t = localStorage.getItem('tlogp-theme');
+    if (_t) document.documentElement.dataset.theme = _t;
+  </script>
   <style>
     /* ------------------------------------------------------------------ */
     /* Typographie & Reset                                                  */
@@ -21,34 +26,47 @@
     }
 
     :root {
-      /* Dunklere, reinere Hintergründe für maximalen Kontrast */
+      /* Dunkelmodus (Standard) */
       --bg: #030406;
       --bg2: #0b0d12;
       --bg3: #161a24;
       --border: #2a3040;
       --border2: #3d455c;
 
-      /* Hellere Schriften */
       --text: #ffffff;
-      /* Reines Weiß für Messwerte */
-      --text2: #a1a9bd;
-      /* Helles Grau-Blau für Labels */
-      --text3: #6c758f;
-      /* Mittleres Grau für Einheiten/Sekundäres */
+      --text2: #b4bfd4;
+      --text3: #828fa8;
 
-      /* Leuchtende Akzentfarben */
       --accent: #5ba4fc;
       --accent2: #3b82f6;
       --temp: #ff5252;
-      /* Leuchtendes Rot */
       --dew: #4ade80;
-      /* Leuchtendes Neongrün */
-      --wind-bb: #ffffff;
-      /* Reinweiße Windbarbs */
+      --wind-bb: #d0d8ec;
 
       --mono: 'IBM Plex Mono', monospace;
       --sans: 'IBM Plex Sans', sans-serif;
       --radius: 6px;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Tagmodus                                                             */
+    /* ------------------------------------------------------------------ */
+    [data-theme="light"] {
+      --bg: #f4f7fb;
+      --bg2: #edf1f7;
+      --bg3: #e2e8f0;
+      --border: #bdc8d8;
+      --border2: #a0afbf;
+
+      --text: #1a202e;
+      --text2: #4a5570;
+      --text3: #7888a0;
+
+      --accent: #1a62d8;
+      --accent2: #1a58c4;
+      --temp: #c82020;
+      --dew: #1a8840;
+      --wind-bb: #2a3255;
     }
 
     body {
@@ -470,6 +488,9 @@
       <span class="chip accent" id="chip-time">Keine Daten</span>
     </div>
     <div class="file-drop">
+      <button class="btn" id="btn-theme" title="Tag-/Nachtmodus wechseln"
+        style="font-size:15px;padding:4px 9px;min-width:34px;">☀</button>
+
       <button class="btn" id="btn-cloud" style="color: var(--accent); border-color: var(--accent);">
         ☁️ Aktuelle Daten laden
       </button>
@@ -691,6 +712,40 @@
     };
 
     // =========================================================================
+    // Farbpalette (Dunkel- und Tagmodus)
+    // =========================================================================
+    const PALETTE = {
+      get isDark()        { return document.documentElement.dataset.theme !== 'light'; },
+      // Diagrammhintergrund (Plotfläche)
+      get plotBg()        { return this.isDark ? '#030406'              : '#f8fafc'; },
+      // Gitterlinien
+      get isobar()        { return this.isDark ? '#485e78'              : '#b8c8d8'; },
+      get isotherm()      { return this.isDark ? '#3d4f68'              : '#ccd4e0'; },
+      get isotherm0()     { return this.isDark ? '#5ba4fc'              : '#1a60cc'; },
+      get dryAdiabat()    { return this.isDark ? '#9a7040'              : '#bf8820'; },
+      get moistAdiabat()  { return this.isDark ? '#369660'              : '#289060'; },
+      get isohume()       { return this.isDark ? '#46a878'              : '#288860'; },
+      // Datenkurven
+      get temp()          { return this.isDark ? '#e05c3a'              : '#cc2020'; },
+      get dew()           { return this.isDark ? '#4ab56e'              : '#1a8840'; },
+      get dewArea()       { return this.isDark ? 'rgba(74,181,110,0.13)': 'rgba(26,140,64,0.10)'; },
+      // Achsen & Beschriftungen
+      get axisLabel()     { return this.isDark ? '#8898b8'              : '#5a6e88'; },
+      get titleText()     { return this.isDark ? '#606882'              : '#8898ae'; },
+      get plotBorder()    { return this.isDark ? '#4a5a72'              : '#b0bece'; },
+      // Interaktiv
+      get crosshair()     { return this.isDark ? '#ffffff'              : '#1a202e'; },
+      // Hodograph
+      get hodoBg()        { return this.isDark ? 'rgba(20,24,40,0.82)' : 'rgba(232,237,246,0.92)'; },
+      get hodoBorder()    { return this.isDark ? '#3d455c'              : '#b8c8d8'; },
+      get hodoGrid()      { return this.isDark ? '#3a4060'              : '#c0cad8'; },
+      get hodoLabel()     { return this.isDark ? '#4a5580'              : '#8090a8'; },
+      get hodoText()      { return this.isDark ? '#e0e4f0'              : '#2a3255'; },
+      get hodoLegend()    { return this.isDark ? '#8890a8'              : '#7080a0'; },
+      get stormMover()    { return this.isDark ? '#ffffff'              : '#1a202e'; },
+    };
+
+    // =========================================================================
     // Hilfsfunktionen Meteorologie
     // =========================================================================
     const MET = {
@@ -869,9 +924,15 @@
     function getCloudColor(T_C, Td_C) {
       const oktas = cloudOktas(T_C, Td_C);
       if (oktas === 0) return null;
-      if (oktas === 1) return 'rgba(210,220,230,0.60)'; // SCT – Hellgrau
-      if (oktas === 2) return 'rgba(120,138,155,0.85)'; // BKN – Mittelgrau
-      return 'rgba(55,70,85,1.00)';                     // OVC – Dunkelgrau
+      if (PALETTE.isDark) {
+        if (oktas === 1) return 'rgba(210,220,230,0.60)'; // SCT
+        if (oktas === 2) return 'rgba(120,138,155,0.85)'; // BKN
+        return 'rgba(55,70,85,1.00)';                     // OVC
+      } else {
+        if (oktas === 1) return 'rgba(140,160,180,0.45)'; // SCT
+        if (oktas === 2) return 'rgba(90,115,135,0.70)';  // BKN
+        return 'rgba(50,75,95,0.88)';                     // OVC
+      }
     }
 
     // =========================================================================
@@ -1028,7 +1089,7 @@
       const center = proj.toCanvas(T_m, p_m);
       ctx.beginPath();
       ctx.arc(center.x, center.y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = PALETTE.crosshair;
       ctx.fill();
 
       // --- NEU: Clipping und Zeichen-Status wieder zurücksetzen ---
@@ -1131,13 +1192,13 @@
       const m = proj.margin;
       const W = proj.W, H = proj.H;
 
-      // Plotfläche (Tiefschwarz für besten Kontrast)
-      ctx.fillStyle = '#030406';
+      // Plotfläche
+      ctx.fillStyle = PALETTE.plotBg;
       ctx.fillRect(m.left, m.top, W, H);
 
       // --- Isobaren (Luftdruck-Linien) ---
       const isobars = [1050, 1000, 950, 925, 900, 850, 800, 750, 700, 650, 600, 550, 500, 450, 400, 350, 300, 250, 200, 150, 100];
-      ctx.strokeStyle = '#38485c';
+      ctx.strokeStyle = PALETTE.isobar;
       ctx.lineWidth = 1.0;
       isobars.forEach(p => {
         const y = proj.toCanvasY(p);
@@ -1148,7 +1209,7 @@
         ctx.lineTo(m.left + W, y);
         ctx.stroke();
 
-        ctx.fillStyle = '#6c758f'; // Hellere Achsenbeschriftung
+        ctx.fillStyle = PALETTE.axisLabel;
         ctx.font = '10px IBM Plex Mono, monospace';
         ctx.textAlign = 'right';
         ctx.fillText(p, m.left + 5, y + 3);
@@ -1163,10 +1224,10 @@
       // --- Isotherme (schräg, alle 10°C) ---
       for (let T = -150; T <= 150; T += 10) {
         if (T === 0) {
-          ctx.strokeStyle = '#5ba4fc'; // 0-Grad-Grenze in leuchtendem Cyan!
+          ctx.strokeStyle = PALETTE.isotherm0;
           ctx.lineWidth = 1.0;
         } else {
-          ctx.strokeStyle = '#323d54';
+          ctx.strokeStyle = PALETTE.isotherm;
           ctx.lineWidth = 0.8;
         }
         const p1 = proj.p_bot, p2 = proj.p_top;
@@ -1179,7 +1240,7 @@
       }
 
       // --- Trockenadiabaten (alle 10K) ---
-      ctx.strokeStyle = '#7a5832';
+      ctx.strokeStyle = PALETTE.dryAdiabat;
       ctx.lineWidth = 0.8;
       for (let Th = -40; Th <= 120; Th += 10) {
         const T0_K = (Th + 273.15);
@@ -1195,7 +1256,7 @@
       }
 
       // --- Feuchtadiabaten (alle 4K) ---
-      ctx.strokeStyle = '#2a7a52';
+      ctx.strokeStyle = PALETTE.moistAdiabat;
       ctx.lineWidth = 0.8;
       for (let Tw = -20; Tw <= 36; Tw += 4) {
         const T0_K = Tw + 273.15;
@@ -1214,7 +1275,7 @@
       // --- Isohumen (gestrichelt, g/kg) ---
       // Mischungsverhältnis w = const → T(p) = MET.T_from_mixing_ratio(w, p)
       // Konvention: es_water (konsistent mit Taupunkt-Definition)
-      ctx.strokeStyle = '#3a8860';
+      ctx.strokeStyle = PALETTE.isohume;
       ctx.lineWidth = 0.7;
       ctx.setLineDash([3, 4]);
       for (const w_gkg of [0.5, 1, 2, 4, 7, 10, 16, 24]) {
@@ -1233,7 +1294,7 @@
         const cp_bot = proj.toCanvas(T_bot, proj.p_bot);
         if (cp_bot.x >= m.left && cp_bot.x <= m.left + proj.W) {
           ctx.save();
-          ctx.fillStyle = '#3a8860';
+          ctx.fillStyle = PALETTE.isohume;
           ctx.font = '8px IBM Plex Mono, monospace';
           ctx.textAlign = 'center';
           ctx.fillText(w_gkg, cp_bot.x, m.top + proj.H - 4);
@@ -1250,7 +1311,7 @@
       for (let T = -150; T <= 150; T += 10) {
         const c_bottom = proj.toCanvas(T, current_p_bottom);
         if (c_bottom.x >= m.left && c_bottom.x <= m.left + W) {
-          ctx.fillStyle = T === 0 ? '#5ba4fc' : '#6c758f'; // 0-Grad-Label auch Cyan
+          ctx.fillStyle = T === 0 ? PALETTE.isotherm0 : PALETTE.axisLabel;
           ctx.font = '11px IBM Plex Mono, monospace';
           ctx.textAlign = 'center';
           ctx.fillText(T + '°C', c_bottom.x, m.top + H + 16);
@@ -1258,7 +1319,7 @@
       }
 
       // Plotrahmen
-      ctx.strokeStyle = '#3d455c';
+      ctx.strokeStyle = PALETTE.plotBorder;
       ctx.lineWidth = 1;
       ctx.strokeRect(m.left, m.top, W, H);
     }
@@ -1279,10 +1340,14 @@
         ctx.rect(m.left, m.top, proj.W, proj.H);
         ctx.clip();
         // OkTas-Farben: SCT/BKN/OVC mit geringer Deckkraft, kein störendes Überdecken
-        const cloudDiagColors = [null,
-          'rgba(190,205,220,0.25)',  // SCT
-          'rgba(120,140,160,0.45)',  // BKN
-          'rgba(60,78,95,0.65)',     // OVC
+        const cloudDiagColors = PALETTE.isDark ? [null,
+          'rgba(190,205,220,0.25)',
+          'rgba(120,140,160,0.45)',
+          'rgba(60,78,95,0.65)',
+        ] : [null,
+          'rgba(140,160,180,0.18)',
+          'rgba(90,110,130,0.32)',
+          'rgba(50,70,90,0.48)',
         ];
         for (let i = 0; i < lvls.length - 1; i++) {
           const l1 = lvls[i], l2 = lvls[i + 1];
@@ -1331,10 +1396,14 @@
       // --- Wolkenbalken-Legende ---
       {
         const legY = m.top + proj.H + 6;
-        const legItems = [
+        const legItems = PALETTE.isDark ? [
           { label: 'SCT', color: 'rgba(210,220,230,0.60)' },
           { label: 'BKN', color: 'rgba(120,138,155,0.85)' },
           { label: 'OVC', color: 'rgba(55,70,85,1.00)' },
+        ] : [
+          { label: 'SCT', color: 'rgba(140,160,180,0.45)' },
+          { label: 'BKN', color: 'rgba(90,115,135,0.70)' },
+          { label: 'OVC', color: 'rgba(50,75,95,0.88)' },
         ];
         ctx.font = '9px IBM Plex Mono, monospace';
         ctx.textAlign = 'left';
@@ -1342,7 +1411,7 @@
         legItems.forEach(({ label, color }) => {
           ctx.fillStyle = color;
           ctx.fillRect(lx, legY, 8, 8);
-          ctx.fillStyle = '#6c758f';
+          ctx.fillStyle = PALETTE.axisLabel;
           ctx.fillText(label, lx + 10, legY + 8);
           lx += 36;
         });
@@ -1359,12 +1428,12 @@
         ctx.lineTo(c.x, c.y);
       });
       ctx.closePath();
-      ctx.fillStyle = 'rgba(74, 181, 110, 0.13)';
+      ctx.fillStyle = PALETTE.dewArea;
       ctx.fill();
 
       // --- Taupunkt (grün) ---
       ctx.beginPath();
-      ctx.strokeStyle = '#4ab56e';
+      ctx.strokeStyle = PALETTE.dew;
       ctx.lineWidth = 1.5;
       lvls.forEach((l, i) => {
         const c = proj.toCanvas(l.Td_C, l.p_hPa);
@@ -1374,7 +1443,7 @@
 
       // --- Temperatur (rot-orange) ---
       ctx.beginPath();
-      ctx.strokeStyle = '#e05c3a';
+      ctx.strokeStyle = PALETTE.temp;
       ctx.lineWidth = 2.0;
       lvls.forEach((l, i) => {
         const c = proj.toCanvas(l.T_C, l.p_hPa);
@@ -1611,7 +1680,7 @@
         const l = lvls[idx];
         const y = proj.toCanvasY(l.p_hPa);
         drawWindBarb(ctx, barbX, y, l.wspd_kn, l.wdir_deg, 18, layerAdvectionColor(visIdx));
-        ctx.fillStyle = '#6c758f';
+        ctx.fillStyle = PALETTE.axisLabel;
         ctx.font = '9px IBM Plex Mono, monospace';
         ctx.textAlign = 'left';
         ctx.fillText(Math.round(l.p_hPa), barbX + 14, y + 3);
@@ -1667,7 +1736,7 @@
         ? `${snd.grid_lat ?? snd.target_lat}°N  ${snd.grid_lon ?? snd.target_lon}°E` : '';
       const locLabel = coordStr ? getLocLabel(getLocKey(snd)) : (snd.location_alias ?? '');
       const locStr = locLabel && locLabel !== coordStr ? locLabel : coordStr;
-      ctx.fillStyle = '#4a5068';
+      ctx.fillStyle = PALETTE.titleText;
       ctx.font = '11px IBM Plex Mono, monospace';
       ctx.textAlign = 'left';
       ctx.fillText(runStr, m.left + 6, m.top + 14);
@@ -1698,8 +1767,8 @@
 
       // Hintergrund
       ctx.save();
-      ctx.fillStyle = 'rgba(20, 24, 40, 0.82)';
-      ctx.strokeStyle = '#3d455c';
+      ctx.fillStyle = PALETTE.hodoBg;
+      ctx.strokeStyle = PALETTE.hodoBorder;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.roundRect(ox, oy, SIZE, SIZE, 6);
@@ -1707,7 +1776,7 @@
       ctx.stroke();
 
       // Expand-Button oben rechts (außerhalb Clip, damit er klickbar bleibt)
-      ctx.fillStyle = '#4a5580';
+      ctx.fillStyle = PALETTE.hodoLabel;
       ctx.font = '11px sans-serif';
       ctx.textAlign = 'right';
       ctx.fillText(STATE.hodographLarge ? '⊡' : '⤢', ox + SIZE - 4, oy + 12);
@@ -1723,16 +1792,16 @@
         const r = spd_kt * 0.514444 * scale;
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.strokeStyle = '#3a4060';
+        ctx.strokeStyle = PALETTE.hodoGrid;
         ctx.stroke();
-        ctx.fillStyle = '#4a5580';
+        ctx.fillStyle = PALETTE.hodoLabel;
         ctx.font = '7px IBM Plex Mono, monospace';
         ctx.textAlign = 'left';
         ctx.fillText(`${spd_kt}kt`, cx + r + 2, cy - 2);
       }
 
       // Kreuz (u=0, v=0)
-      ctx.strokeStyle = '#3a4060';
+      ctx.strokeStyle = PALETTE.hodoGrid;
       ctx.lineWidth = 0.5;
       ctx.beginPath();
       ctx.moveTo(ox, cy); ctx.lineTo(ox + SIZE, cy);
@@ -1787,7 +1856,7 @@
               ctx.arc(ux, vy, 3, 0, Math.PI * 2);
               ctx.fillStyle = seg.color;
               ctx.fill();
-              ctx.fillStyle = '#e0e4f0';
+              ctx.fillStyle = PALETTE.hodoText;
               ctx.font = 'bold 8px IBM Plex Mono, monospace';
               ctx.textAlign = 'left';
               ctx.fillText(seg.label, ux + 4, vy - 2);
@@ -1845,13 +1914,13 @@
             const sx = cx + us * scale, sy = cy - vs * scale;
             // Kreuz für Sturmzug
             const CS = 6;
-            ctx.strokeStyle = '#ffffff';
+            ctx.strokeStyle = PALETTE.stormMover;
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.moveTo(sx - CS, sy); ctx.lineTo(sx + CS, sy);
             ctx.moveTo(sx, sy - CS); ctx.lineTo(sx, sy + CS);
             ctx.stroke();
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = PALETTE.stormMover;
             ctx.font = '7px IBM Plex Mono, monospace';
             ctx.textAlign = 'left';
             ctx.fillText('RM', sx + CS + 2, sy + 3);
@@ -1875,7 +1944,7 @@
       for (const s of segs) {
         ctx.fillStyle = s.color;
         ctx.fillRect(lx, legY - 6, 18, 4);
-        ctx.fillStyle = '#8890a8';
+        ctx.fillStyle = PALETTE.hodoLegend;
         ctx.fillText(s.label, lx + 20, legY);
         lx += 62;
       }
@@ -4025,6 +4094,24 @@
       STATE.showHodograph = e.target.checked;
       redraw();
     });
+
+    // =========================================================================
+    // Theme-Toggle
+    // =========================================================================
+    (function initTheme() {
+      const btn = document.getElementById('btn-theme');
+      const syncBtn = () => {
+        btn.textContent = PALETTE.isDark ? '☀' : '🌙';
+      };
+      syncBtn();
+      btn.addEventListener('click', () => {
+        const newTheme = PALETTE.isDark ? 'light' : '';
+        document.documentElement.dataset.theme = newTheme;
+        localStorage.setItem('tlogp-theme', newTheme);
+        syncBtn();
+        redraw();
+      });
+    })();
 
     // =========================================================================
     // Init
