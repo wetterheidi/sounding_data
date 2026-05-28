@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls /Users/wetterheidi/.claude/projects/)",
+      "Read(//Users/wetterheidi/.claude/projects/**)"
+    ]
+  }
+}
