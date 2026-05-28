@@ -233,6 +233,12 @@
       color: var(--accent);
     }
 
+    .tick-label.day-break::before {
+      content: '│';
+      margin-right: 3px;
+      color: var(--text3);
+    }
+
     #time-display {
       font-family: var(--mono);
       font-size: 12px;
@@ -1733,11 +1739,9 @@
       if (snd.model === 'Radiosonde') {
         runStr = `Radiosonde  ${snd.valid_time ? snd.valid_time.replace('T', '  ').replace('Z', ' UTC') : ''}`;
       } else if (snd.valid_time) {
-        const vt = new Date(snd.valid_time);
-        const day = String(vt.getUTCDate()).padStart(2, '0');
-        const mon = String(vt.getUTCMonth() + 1).padStart(2, '0');
         const hhmm = snd.valid_time.slice(11, 16);
-        runStr = `${snd.model}  ${day}.${mon}. · ${hhmm} UTC  (+${String(snd.step_h).padStart(3, '0')}h, Run ${snd.run_hour}Z)`;
+        const dateStr = snd.valid_time.slice(0, 10);
+        runStr = `${snd.model}  ${dateStr} · ${hhmm} UTC  (+${String(snd.step_h).padStart(3, '0')}h, Run ${snd.run_hour}Z)`;
       } else {
         runStr = `${snd.model} ${snd.run_date} ${snd.run_hour}Z +${String(snd.step_h).padStart(3, '0')}h`;
       }
@@ -3459,19 +3463,20 @@
       // Tick-Labels
       ticks.innerHTML = '';
       if (n <= 1) return;
-      const firstVT = STATE.soundings[0]?.valid_time;
-      const firstDay = firstVT ? new Date(firstVT).getUTCDate() : null;
+      let prevTickDay = STATE.soundings[0]?.valid_time
+        ? new Date(STATE.soundings[0].valid_time).getUTCDate() : null;
       STATE.soundings.forEach((snd, i) => {
         const pct = i / (n - 1) * 100;
         const span = document.createElement('span');
         span.className = 'tick-label' + (i === STATE.currentIdx ? ' active' : '');
         span.style.left = pct + '%';
         if (snd.model === 'Radiosonde') {
-          span.textContent = snd.valid_time ? snd.valid_time.slice(11, 16) + 'Z' : `#${i + 1}`;
+          span.textContent = snd.valid_time ? snd.valid_time.slice(11, 13) + 'Z' : `#${i + 1}`;
         } else if (snd.valid_time) {
-          const hhmm = snd.valid_time.slice(11, 16) + 'Z';
           const day = new Date(snd.valid_time).getUTCDate();
-          span.textContent = (firstDay !== null && day !== firstDay) ? `${day}. ${hhmm}` : hhmm;
+          if (prevTickDay !== null && day !== prevTickDay) span.classList.add('day-break');
+          prevTickDay = day;
+          span.textContent = snd.valid_time.slice(11, 13) + 'Z';
         } else {
           span.textContent = `+${snd.step_h}h`;
         }
@@ -3491,11 +3496,9 @@
         } else if (snd.model === 'Radiosonde') {
           td.innerHTML = `Radiosonde · ${snd.valid_time ? snd.valid_time.replace('T', ' ').replace('Z', ' UTC') : '—'}`;
         } else if (snd.valid_time) {
-          const vt = new Date(snd.valid_time);
-          const day = String(vt.getUTCDate()).padStart(2, '0');
-          const mon = String(vt.getUTCMonth() + 1).padStart(2, '0');
           const hhmm = snd.valid_time.slice(11, 16);
-          td.innerHTML = `${hhmm} UTC · ${day}.${mon}. <span style="opacity:0.5;font-size:10px">(+${String(snd.step_h).padStart(3, '0')}h)</span>`;
+          const dateStr = snd.valid_time.slice(0, 10);
+          td.innerHTML = `${hhmm} UTC · ${dateStr} <span style="opacity:0.5;font-size:10px">(+${String(snd.step_h).padStart(3, '0')}h)</span>`;
         } else {
           td.innerHTML = `+${String(snd.step_h).padStart(3, '0')}h`;
         }
