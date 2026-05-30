@@ -8,6 +8,23 @@ set -euo pipefail
 MODEL_FILTER="${1:-}"
 JOBS=4          # max. gleichzeitige fetch_sounding.py-Prozesse
 OUTDIR="${OUTDIR:-./data}"   # überschreibbar per Umgebungsvariable (systemd: Environment=OUTDIR=...)
+
+# ---------------------------------------------------------------------------
+# index.json immer regenerieren – auch bei Fehler-Exit (set -e / Netzwerkfehler)
+# ---------------------------------------------------------------------------
+_generate_index() {
+  python3 - <<PYEOF
+import json, pathlib
+out = pathlib.Path("${OUTDIR}")
+files = sorted(
+    f.name for f in out.iterdir()
+    if f.name.startswith('sounding_') and f.name.endswith('.json')
+)
+(out / 'index.json').write_text(json.dumps(files, indent=2) + '\n')
+print(f"  index.json: {len(files)} Dateien eingetragen")
+PYEOF
+}
+trap _generate_index EXIT
 LOCATIONS="./locations.json"
 
 mkdir -p "$OUTDIR"
@@ -70,16 +87,6 @@ echo "$TASKS" | xargs -P "$JOBS" -L 1 bash -c '
 
 echo "Alle Orte abgearbeitet."
 
-# ---------------------------------------------------------------------------
-# Index-Datei generieren
-# ---------------------------------------------------------------------------
-python3 - <<EOF
-import json, pathlib
-out = pathlib.Path("$OUTDIR")
-files = sorted(
-    f.name for f in out.iterdir()
-    if f.name.startswith('sounding_') and f.name.endswith('.json')
-)
-(out / 'index.json').write_text(json.dumps(files, indent=2) + '\n')
-print(f"  index.json: {len(files)} Dateien eingetragen")
-EOF
+echo "Index wird aktualisiert..."
+_generate_index
+# (Wird bei normalem Exit durch den trap oben nochmals aufgerufen – das ist harmlos.)
