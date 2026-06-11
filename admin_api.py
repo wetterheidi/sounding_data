@@ -7,7 +7,11 @@ Endpunkte:
   GET  /locations        → liefert locations.json als JSON
   POST /locations        → überschreibt locations.json (mit Backup)
 
-Authentifizierung übernimmt nginx per Basic Auth (htpasswd).
+Authentifizierung übernimmt nginx per Basic Auth (zentrale htpasswd-Datei);
+der Login-Name wird als X-Remote-User-Header durchgereicht. Autorisiert sind
+nur Nutzer aus der zentralen Rollen-Datei /etc/wetterheidi/roles.json
+(Einträge "global" und "tools.tlogp" — verwaltet über verwaltung.wetterheidi.de).
+Fehlt die Rollen-Datei (lokale Entwicklung), sind alle Anfragen erlaubt.
 Diese API lauscht nur auf 127.0.0.1:8765 und ist nie direkt von außen erreichbar.
 
 Starten (manuell zum Testen):
@@ -30,6 +34,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 # ---------------------------------------------------------------------------
 LOCATIONS_FILE = Path(__file__).parent / "locations.json"
 BACKUP_DIR     = Path(__file__).parent / "backups"
+ROLES_FILE     = Path("/etc/wetterheidi/roles.json")
 HOST           = "127.0.0.1"
 PORT           = 8765
 
@@ -44,10 +49,32 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Handler
 # ---------------------------------------------------------------------------
+def _is_authorized(headers) -> bool:
+    """Login (X-Remote-User) gegen die zentrale Rollen-Datei prüfen."""
+    if not ROLES_FILE.exists():
+        return True   # lokale Entwicklung ohne nginx/Rollen-Datei
+    user = (headers.get("X-Remote-User") or "").strip().lower()
+    try:
+        roles = json.loads(ROLES_FILE.read_text(encoding="utf-8"))
+    except Exception as exc:
+        log.error("Rollen-Datei nicht lesbar: %s", exc)
+        return False   # defekte Datei: lieber sperren als freigeben
+    allowed = list(roles.get("global", [])) + list(roles.get("tools", {}).get("tlogp", []))
+    return bool(user) and user in {a.lower() for a in allowed if a}
+
+
 class AdminHandler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):  # stdlib-Logging unterdrücken, eigenes nutzen
         log.info("%s %s", self.address_string(), fmt % args)
+
+    def _require_auth(self) -> bool:
+        if _is_authorized(self.headers):
+            return True
+        user = (self.headers.get("X-Remote-User") or "").strip()
+        log.warning("Zugriff verweigert für %r", user)
+        self._send_json(403, {"error": "Zugriff nur für TLogP-Administratoren"})
+        return False
 
     # -- CORS-Header für lokale Browser-Entwicklung --------------------------
     def _send_cors_headers(self):
@@ -65,6 +92,8 @@ class AdminHandler(BaseHTTPRequestHandler):
         if self.path not in ("/locations", "/locations/"):
             self._send_json(404, {"error": "Not found"})
             return
+        if not self._require_auth():
+            return
         try:
             data = LOCATIONS_FILE.read_text(encoding="utf-8")
             self.send_response(200)
@@ -79,6 +108,8 @@ class AdminHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path not in ("/locations", "/locations/"):
             self._send_json(404, {"error": "Not found"})
+            return
+        if not self._require_auth():
             return
 
         length = int(self.headers.get("Content-Length", 0))
