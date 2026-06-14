@@ -3947,12 +3947,15 @@
         // AGL ist direkt der Wert aus dem JSON (Da Integration bei 0 startet)
         zAglText = `${Math.round(l.z_m)} m / ${Math.round(l.z_m * 3.28084)} ft`;
 
-        // AMSL: Wir berechnen die Modell-Geländehöhe aus dem Bodendruck via Standardatmosphäre
-        const p_sfc = snd.surface_p_hPa || (snd.levels.length > 0 ? snd.levels[0].p_hPa : 1013.25);
-        const z_sfc_isa = 44330 * (1 - Math.pow(p_sfc / 1013.25, 0.19026));
-
-        // AMSL = AGL + Geländehöhe
-        const amsl_m = l.z_m + Math.max(0, z_sfc_isa);
+        // AMSL = AGL + Geländehöhe (HSURF aus Modell bevorzugt, sonst ISA-Näherung)
+        let z_sfc;
+        if (snd.hsurf_m != null) {
+          z_sfc = snd.hsurf_m;
+        } else {
+          const p_sfc = snd.surface_p_hPa || (snd.levels.length > 0 ? snd.levels[0].p_hPa : 1013.25);
+          z_sfc = 44330 * (1 - Math.pow(p_sfc / 1013.25, 0.19026));
+        }
+        const amsl_m = l.z_m + Math.max(0, z_sfc);
         zAmslText = `~${Math.round(amsl_m)} m / ${Math.round(amsl_m * 3.28084)} ft`;
       }
 

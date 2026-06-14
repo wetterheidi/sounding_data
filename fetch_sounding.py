@@ -107,6 +107,8 @@ def surface_url(model: str, run: str, run_date: datetime, step: int) -> str:
 _grid_coords: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 # Cache: (model, lat, lon) → flat_idx
 _nn_cache: dict[tuple, int] = {}
+# Cache: (model, lat_rounded, lon_rounded) → hsurf in Metern
+_hsurf_cache: dict[tuple, float] = {}
 
 def _clat_clon_url(model: str, run: str, run_date: datetime) -> tuple[str, str]:
     """URLs für CLAT/CLON time-invariant Gitter-Dateien."""
@@ -120,6 +122,28 @@ def _clat_clon_url(model: str, run: str, run_date: datetime) -> tuple[str, str]:
         clat = f"{base}/{run}/clat/{model}_{cfg['scope']}_icosahedral_time-invariant_{date}_CLAT.grib2.bz2"
         clon = f"{base}/{run}/clon/{model}_{cfg['scope']}_icosahedral_time-invariant_{date}_CLON.grib2.bz2"
     return clat, clon
+
+def _hsurf_url(model: str, run: str, run_date: datetime) -> str:
+    cfg  = MODEL_CFG[model]
+    base = cfg["url_base"]
+    date = run_date.strftime("%Y%m%d") + run
+    vn   = _var_filename("hsurf", cfg)
+    if model == "icon-d2":
+        fn = f"{model}_{cfg['scope']}_icosahedral_time-invariant_{date}_000_0_{vn}.grib2.bz2"
+    elif model == "icon":
+        fn = f"{model}_{cfg['scope']}_icosahedral_time-invariant_{date}_{vn}.grib2.bz2"
+    else:  # icon-eu
+        fn = f"{model}_{cfg['scope']}_{cfg['gridtype']}_time-invariant_{date}_{vn}.grib2.bz2"
+    return f"{base}/{run}/hsurf/{fn}"
+
+def fetch_hsurf(model: str, run: str, run_date: datetime, lat: float, lon: float) -> float | None:
+    key = (model, round(lat, 4), round(lon, 4))
+    if key in _hsurf_cache:
+        return _hsurf_cache[key]
+    val = fetch_and_extract(_hsurf_url(model, run, run_date), lat, lon, model=model)
+    if val is not None:
+        _hsurf_cache[key] = val
+    return val
 
 def _extract_all_values(url: str, timeout: int = 60) -> np.ndarray | None:
     """Alle Werte aus einer GRIB-Datei als numpy-Array."""
@@ -291,6 +315,12 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
         if not _load_grid(model, run, run_date):
             return None
 
+    hsurf_m = fetch_hsurf(model, run, run_date, lat, lon)
+    if hsurf_m is not None:
+        log.info(f"  HSURF = {hsurf_m:.1f} m")
+    else:
+        log.warning("  HSURF nicht abrufbar — Geländehöhe fehlt im JSON.")
+
     ps_url = surface_url(model, run, run_date, step)
     ps_pa  = fetch_and_extract(ps_url, lat, lon, model=model)
 
@@ -373,6 +403,7 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
         "target_lat": lat, "target_lon": lon,
         "grid_lat": lat, "grid_lon": lon,
         **({"location_alias": alias} if alias else {}),
+        **({"hsurf_m": round(hsurf_m, 1)} if hsurf_m is not None else {}),
         "surface_p_hPa": round(ps_pa / 100.0, 2),
         "n_levels_loaded": len(levels),
         "levels": levels,
