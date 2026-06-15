@@ -11,6 +11,7 @@ Type=oneshot
 User=www-data
 WorkingDirectory=/apps/TLogPViewer/sounding_data
 ExecStart=/bin/bash run_locations.sh icon
+ExecStartPost=/bin/bash -c 'python3 -c "import json,pathlib; d=pathlib.Path(\"/apps/TLogPViewer/data\"); f=sorted(x.name for x in d.iterdir() if x.name.startswith(\"sounding_\") and x.name.endswith(\".json\")); (d/\"index.json\").write_text(json.dumps(f,indent=2)+\"\\n\"); print(f\"index.json: {len(f)} Dateien\")"'
 Environment=OUTDIR=/apps/TLogPViewer/data
 StandardOutput=journal
 StandardError=journal

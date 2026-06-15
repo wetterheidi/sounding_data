@@ -11,6 +11,8 @@ Type=oneshot
 User=www-data
 WorkingDirectory=/apps/TLogPViewer/sounding_data
 ExecStart=/bin/bash -c 'source /apps/TLogPViewer/venv/bin/activate && bash run_locations.sh'
+# Index immer neu schreiben – auch wenn ExecStart fehlschlägt
+ExecStartPost=/bin/bash -c 'python3 -c "import json,pathlib; d=pathlib.Path(\"/apps/TLogPViewer/data\"); f=sorted(x.name for x in d.iterdir() if x.name.startswith(\"sounding_\") and x.name.endswith(\".json\")); (d/\"index.json\").write_text(json.dumps(f,indent=2)+\"\\n\"); print(f\"index.json: {len(f)} Dateien\")"'
 # Ausgabe-Verzeichnis überschreiben: Daten nach /apps/TLogPViewer/data/ schreiben
 Environment=OUTDIR=/apps/TLogPViewer/data
 StandardOutput=journal
