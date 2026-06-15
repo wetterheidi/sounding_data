@@ -109,6 +109,8 @@ _grid_coords: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 _nn_cache: dict[tuple, int] = {}
 # Cache: (model, lat_rounded, lon_rounded) → hsurf in Metern
 _hsurf_cache: dict[tuple, float] = {}
+# Cache: (model, lat_rounded, lon_rounded) → [z_half_1, ..., z_half_n+1] in Metern MSL
+_hhl_cache: dict[tuple, list] = {}
 
 def _clat_clon_url(model: str, run: str, run_date: datetime) -> tuple[str, str]:
     """URLs für CLAT/CLON time-invariant Gitter-Dateien."""
@@ -144,6 +146,35 @@ def fetch_hsurf(model: str, run: str, run_date: datetime, lat: float, lon: float
     if val is not None:
         _hsurf_cache[key] = val
     return val
+
+def _hhl_url(model: str, run: str, run_date: datetime, half_level: int) -> str:
+    cfg  = MODEL_CFG[model]
+    base = cfg["url_base"]
+    date = run_date.strftime("%Y%m%d") + run
+    vn   = _var_filename("hhl", cfg)
+    if model == "icon-d2":
+        fn = f"{model}_{cfg['scope']}_icosahedral_time-invariant_{date}_000_{half_level}_{vn}.grib2.bz2"
+    elif model == "icon":
+        fn = f"{model}_{cfg['scope']}_icosahedral_time-invariant_{date}_{half_level}_{vn}.grib2.bz2"
+    else:  # icon-eu
+        fn = f"{model}_{cfg['scope']}_{cfg['gridtype']}_time-invariant_{date}_{half_level}_{vn}.grib2.bz2"
+    return f"{base}/{run}/hhl/{fn}"
+
+def fetch_hhl(model: str, run: str, run_date: datetime, lat: float, lon: float, jobs: int = 20) -> list[float | None]:
+    key = (model, round(lat, 4), round(lon, 4))
+    if key in _hhl_cache:
+        return _hhl_cache[key]
+    n_half = MODEL_CFG[model]["n_levels"] + 1
+    hhl: list[float | None] = [None] * n_half
+    def _fetch(k: int):
+        return k, fetch_and_extract(_hhl_url(model, run, run_date, k), lat, lon, model=model)
+    with ThreadPoolExecutor(max_workers=jobs) as pool:
+        for fut in as_completed({pool.submit(_fetch, k): k for k in range(1, n_half + 1)}):
+            k, val = fut.result()
+            hhl[k - 1] = val
+    if any(v is not None for v in hhl):
+        _hhl_cache[key] = hhl
+    return hhl
 
 def _extract_all_values(url: str, timeout: int = 60) -> np.ndarray | None:
     """Alle Werte aus einer GRIB-Datei als numpy-Array."""
@@ -315,11 +346,20 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
         if not _load_grid(model, run, run_date):
             return None
 
-    hsurf_m = fetch_hsurf(model, run, run_date, lat, lon)
-    if hsurf_m is not None:
-        log.info(f"  HSURF = {hsurf_m:.1f} m")
+    hhl = fetch_hhl(model, run, run_date, lat, lon, jobs=jobs)
+    n_hhl_ok = sum(1 for v in hhl if v is not None)
+    if n_hhl_ok >= n_lev:  # Alle Full-Level-Grenzen verfügbar
+        hsurf_m = hhl[-1]
+        use_hhl = True
+        log.info(f"  HHL: {n_hhl_ok}/{len(hhl)} Halbschichten geladen, HSURF = {hsurf_m:.1f} m")
     else:
-        log.warning("  HSURF nicht abrufbar — Geländehöhe fehlt im JSON.")
+        use_hhl = False
+        log.warning(f"  HHL unvollständig ({n_hhl_ok}/{len(hhl)}) — Fallback Hypsometrie + HSURF.")
+        hsurf_m = fetch_hsurf(model, run, run_date, lat, lon)
+        if hsurf_m is not None:
+            log.info(f"  HSURF = {hsurf_m:.1f} m")
+        else:
+            log.warning("  HSURF nicht abrufbar — Geländehöhe fehlt im JSON.")
 
     ps_url = surface_url(model, run, run_date, step)
     ps_pa  = fetch_and_extract(ps_url, lat, lon, model=model)
@@ -362,8 +402,20 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
             p_val = ps_pa * math.exp(-i / n_lev * math.log(ps_pa / 1000.0))
         p_toa.append(p_val)
 
-    T_K_toa = [raw.get(("t", n_lev - i), 255.0) or 255.0 for i in range(n_lev)]
-    z_toa   = geopotential_heights_ground_first(p_toa, T_K_toa, ps_pa)
+    if use_hhl:
+        # Direkte Modellhöhen: Mittelpunkt der Halbschichten, AGL
+        z_toa = []
+        for i in range(n_lev):
+            li_t = n_lev - i          # GRIB-Level (n_lev=Boden, 1=TOA)
+            z_u  = hhl[li_t - 1]     # HHL(li_t)   = obere Grenzfläche
+            z_l  = hhl[li_t]         # HHL(li_t+1) = untere Grenzfläche
+            if z_u is not None and z_l is not None:
+                z_toa.append((z_u + z_l) / 2.0 - hsurf_m)
+            else:
+                z_toa.append(None)
+    else:
+        T_K_toa = [raw.get(("t", n_lev - i), 255.0) or 255.0 for i in range(n_lev)]
+        z_toa   = geopotential_heights_ground_first(p_toa, T_K_toa, ps_pa)
 
     levels = []
     for i in range(n_lev):
@@ -386,7 +438,7 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
         levels.append({
             "level_idx": li_t,
             "p_hPa":    round(p_toa[i] / 100.0, 3),
-            "z_m":      round(z_toa[i], 1),
+            "z_m":      round(z_toa[i], 1) if z_toa[i] is not None else None,
             "T_C":      round(T - 273.15, 2),
             "Td_C":     round(td_val, 2) if td_val is not None else None, # <--- Sauberer Null-Wert
             "wspd_kn":  round(spd, 1) if spd is not None else None,
