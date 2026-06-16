@@ -339,8 +339,9 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
     n_lev = cfg["n_levels"]
     n_par = len(cfg["params"])
 
-    # ICON global: 2.9M Punkte × ~51 MB/Thread — ohne Cap würden 20 Threads ~1 GB allokieren
-    if model == "icon":
+    # Icosahedral grids (ICON global 2.9M, ICON-D2 2.3M Punkte): ~30 MB/Thread
+    # ohne Cap: 20 Threads × 30 MB = 600 MB/Prozess, bei 4 parallelen Prozessen > 1400 MB
+    if cfg["gridtype"] != "regular-lat-lon":
         jobs = min(jobs, 8)
 
     log.info(f"━━ {model.upper()}  {run_date.strftime('%Y%m%d')}/{run}Z  +{step:03d}h  ({lat}, {lon})  {n_lev} Level × {n_par} Parameter = {n_lev * n_par + 1} Downloads ━━")
