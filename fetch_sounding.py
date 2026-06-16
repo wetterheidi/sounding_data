@@ -339,12 +339,19 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
     n_lev = cfg["n_levels"]
     n_par = len(cfg["params"])
 
+    # ICON global: 2.9M Punkte × ~51 MB/Thread — ohne Cap würden 20 Threads ~1 GB allokieren
+    if model == "icon":
+        jobs = min(jobs, 8)
+
     log.info(f"━━ {model.upper()}  {run_date.strftime('%Y%m%d')}/{run}Z  +{step:03d}h  ({lat}, {lon})  {n_lev} Level × {n_par} Parameter = {n_lev * n_par + 1} Downloads ━━")
 
     # Für unstrukturierte Gitter: Koordinaten einmalig laden
     if cfg["gridtype"] != "regular-lat-lon":
         if not _load_grid(model, run, run_date):
             return None
+        # NN-Cache vorab füllen: verhindert Race Condition bei parallelen Downloads
+        # (alle Threads würden sonst gleichzeitig die Haversine-Suche auf 2.9M Punkten starten)
+        _nearest_index(model, lat, lon)
 
     hhl = fetch_hhl(model, run, run_date, lat, lon, jobs=min(jobs, 8))
     n_hhl_ok = sum(1 for v in hhl if v is not None)
