@@ -346,7 +346,7 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
         if not _load_grid(model, run, run_date):
             return None
 
-    hhl = fetch_hhl(model, run, run_date, lat, lon, jobs=jobs)
+    hhl = fetch_hhl(model, run, run_date, lat, lon, jobs=min(jobs, 8))
     n_hhl_ok = sum(1 for v in hhl if v is not None)
     if n_hhl_ok >= n_lev:  # Alle Full-Level-Grenzen verfügbar
         hsurf_m = hhl[-1]
