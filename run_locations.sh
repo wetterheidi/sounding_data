@@ -43,6 +43,9 @@ for f in glob.glob(os.path.join(data_dir, "*.json")):
         print(f"  cleanup: {f}")
 EOF
 
+# Index sofort nach Cleanup aktualisieren – gelöschte Dateien raus, bevor Downloads starten
+_generate_index
+
 # ---------------------------------------------------------------------------
 # Alle aktiven Orte + Modelle aus locations.json einlesen und in eine
 # flache Aufgabenliste umwandeln: "alias lat lon model step"
