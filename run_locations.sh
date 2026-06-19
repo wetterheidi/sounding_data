@@ -14,17 +14,26 @@ OUTDIR="${OUTDIR:-./data}"   # überschreibbar per Umgebungsvariable (systemd: E
 # ---------------------------------------------------------------------------
 _generate_index() {
   python3 - <<PYEOF
-import json, pathlib
+import json, os, pathlib, tempfile
 out = pathlib.Path("${OUTDIR}")
 files = sorted(
     f.name for f in out.iterdir()
     if f.name.startswith('sounding_') and f.name.endswith('.json')
 )
-(out / 'index.json').write_text(json.dumps(files, indent=2) + '\n')
+# Atomar schreiben (temp-file + rename): mehrere parallele Aufrufe
+# (einer pro Location) dürfen sich nicht gegenseitig eine halb
+# geschriebene index.json zeigen.
+fd, tmp_path = tempfile.mkstemp(dir=out, prefix=".index.json.")
+with os.fdopen(fd, "w") as fh:
+    fh.write(json.dumps(files, indent=2) + "\n")
+os.chmod(tmp_path, 0o644)  # mkstemp gibt 0600 -> sonst kann nginx nicht mehr lesen
+os.replace(tmp_path, out / "index.json")
 print(f"  index.json: {len(files)} Dateien eingetragen")
 PYEOF
 }
 trap _generate_index EXIT
+export OUTDIR
+export -f _generate_index
 LOCATIONS="./locations.json"
 
 mkdir -p "$OUTDIR"
@@ -86,6 +95,7 @@ echo "$TASKS" | xargs -P "$JOBS" -L 1 bash -c '
         --alias "$ALIAS" \
     && echo "  ✓ $MODEL $ALIAS fertig  [opendata]" \
     || echo "  ✗ $MODEL $ALIAS FEHLGESCHLAGEN  [opendata]" >&2
+    _generate_index
 
     echo "  → $MODEL $ALIAS ($LAT, $LON) step=$STEP  [OM]"
     python3 fetch_sounding_openmeteo.py \
@@ -95,6 +105,7 @@ echo "$TASKS" | xargs -P "$JOBS" -L 1 bash -c '
         --alias "$ALIAS" \
     && echo "  ✓ $MODEL $ALIAS fertig  [OM]" \
     || echo "  ✗ $MODEL $ALIAS FEHLGESCHLAGEN  [OM]" >&2
+    _generate_index
 ' _
 
 echo "Alle Orte abgearbeitet."
