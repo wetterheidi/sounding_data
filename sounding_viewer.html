@@ -1744,15 +1744,16 @@
       }
 
       // --- Titel ---
+      const srcTag = snd.source === 'open-meteo-dev' ? '  [OM]' : '';
       let runStr;
       if (snd.model === 'Radiosonde') {
         runStr = `Radiosonde  ${snd.valid_time ? snd.valid_time.replace('T', '  ').replace('Z', ' UTC') : ''}`;
       } else if (snd.valid_time) {
         const hhmm = snd.valid_time.slice(11, 16);
         const dateStr = snd.valid_time.slice(0, 10);
-        runStr = `${snd.model}  ${dateStr} · ${hhmm} UTC  (+${String(snd.step_h).padStart(3, '0')}h, Run ${snd.run_hour}Z)`;
+        runStr = `${snd.model}${srcTag}  ${dateStr} · ${hhmm} UTC  (+${String(snd.step_h).padStart(3, '0')}h, Run ${snd.run_hour}Z)`;
       } else {
-        runStr = `${snd.model} ${snd.run_date} ${snd.run_hour}Z +${String(snd.step_h).padStart(3, '0')}h`;
+        runStr = `${snd.model}${srcTag} ${snd.run_date} ${snd.run_hour}Z +${String(snd.step_h).padStart(3, '0')}h`;
       }
       const coordStr = (snd.target_lat != null || snd.grid_lat != null)
         ? `${snd.grid_lat ?? snd.target_lat}°N  ${snd.grid_lon ?? snd.target_lon}°E` : '';
@@ -3584,9 +3585,12 @@
     }
 
     // Hilfsfunktion: Erzeugt einen sauberen Text für den Lauf (z.B. "20260327 06Z")
+    // OM-Läufe (Open-Meteo-Dev) bekommen einen eigenen Key, damit sie im
+    // Dropdown neben dem opendata-Lauf desselben Modells/Runs auswählbar sind.
     function getRunKey(snd) {
       if (snd.model === 'Radiosonde') return 'Radiosonde';
-      return `${snd.model} ${snd.run_date} ${snd.run_hour}Z`;
+      const tag = snd.source === 'open-meteo-dev' ? '  [OM]' : '';
+      return `${snd.model} ${snd.run_date} ${snd.run_hour}Z${tag}`;
     }
 
     // Filtert den großen Datentopf nach dem aktuell ausgewählten Ort und füllt das Lauf-Dropdown
