@@ -499,9 +499,14 @@
       </select>
 
       <select class="chip" id="compare-run-select"
-        title="Zweiten Lauf zum Vergleich überlagern (z.B. OM vs. opendata)"
+        title="Zweiten Lauf zum Vergleich überlagern (z.B. OM vs. opendata, oder den gleichen Lauf für einen Zeitvergleich)"
         style="color: var(--text); outline: none; cursor: pointer; background: var(--bg3);">
         <option value="">Vergleich: Aus</option>
+      </select>
+
+      <select class="chip" id="compare-step-select"
+        title="Zeitpunkt im Vergleichslauf festlegen (automatisch = folgt der Zeitnavigation)"
+        style="color: var(--text); outline: none; cursor: pointer; background: var(--bg3); display: none;">
       </select>
 
       <span class="chip accent" id="chip-time">Keine Daten</span>
@@ -718,6 +723,7 @@
       currentIdx: 0,
       currentRunKey: '',
       compareRunKey: '',      // NEU: zweiter Lauf (z.B. OM), dessen Temp-Kurve überlagert wird
+      compareStepKey: '',     // NEU: gepinnter Zeitpunkt im Vergleichslauf ('' = automatisch, folgt der Zeitnavigation)
       animTimer: null,
       animPlaying: false,
       mouseHover: null,
@@ -1348,6 +1354,20 @@
       ctx.strokeRect(m.left, m.top, W, H);
     }
 
+    // Titel-Text für ein Profil: Modell/Quelle + Zeitpunkt + Vorhersagestunde/Lauf
+    function formatSoundingTitle(snd) {
+      const srcTag = snd.source === 'open-meteo-dev' ? '  [OM]' : '';
+      if (snd.model === 'Radiosonde') {
+        return `Radiosonde  ${snd.valid_time ? snd.valid_time.replace('T', '  ').replace('Z', ' UTC') : ''}`;
+      }
+      if (snd.valid_time) {
+        const hhmm = snd.valid_time.slice(11, 16);
+        const dateStr = snd.valid_time.slice(0, 10);
+        return `${snd.model}${srcTag}  ${dateStr} · ${hhmm} UTC  (+${String(snd.step_h).padStart(3, '0')}h, Run ${snd.run_hour}Z)`;
+      }
+      return `${snd.model}${srcTag} ${snd.run_date} ${snd.run_hour}Z +${String(snd.step_h).padStart(3, '0')}h`;
+    }
+
     function drawSounding(snd, compareSnd) {
       if (!snd || !snd.levels || snd.levels.length === 0) return;
 
@@ -1778,17 +1798,7 @@
       }
 
       // --- Titel ---
-      const srcTag = snd.source === 'open-meteo-dev' ? '  [OM]' : '';
-      let runStr;
-      if (snd.model === 'Radiosonde') {
-        runStr = `Radiosonde  ${snd.valid_time ? snd.valid_time.replace('T', '  ').replace('Z', ' UTC') : ''}`;
-      } else if (snd.valid_time) {
-        const hhmm = snd.valid_time.slice(11, 16);
-        const dateStr = snd.valid_time.slice(0, 10);
-        runStr = `${snd.model}${srcTag}  ${dateStr} · ${hhmm} UTC  (+${String(snd.step_h).padStart(3, '0')}h, Run ${snd.run_hour}Z)`;
-      } else {
-        runStr = `${snd.model}${srcTag} ${snd.run_date} ${snd.run_hour}Z +${String(snd.step_h).padStart(3, '0')}h`;
-      }
+      const runStr = formatSoundingTitle(snd);
       const coordStr = (snd.target_lat != null || snd.grid_lat != null)
         ? `${snd.grid_lat ?? snd.target_lat}°N  ${snd.grid_lon ?? snd.target_lon}°E` : '';
       const locLabel = coordStr ? getLocLabel(getLocKey(snd)) : (snd.location_alias ?? '');
@@ -1802,7 +1812,7 @@
       // --- Vergleichs-Beschriftung (gestrichelte Linie ↔ Vergleichslauf) ---
       if (compareSnd) {
         ctx.fillStyle = PALETTE.compareTemp;
-        ctx.fillText(`- - -  ${getRunKey(compareSnd)}`, m.left + 6, m.top + 38);
+        ctx.fillText(`- - -  ${formatSoundingTitle(compareSnd)}`, m.left + 6, m.top + 38);
       }
     }
 
@@ -3681,19 +3691,92 @@
       });
       STATE.compareRunKey = '';
       compareSelect.value = '';
+      populateCompareStepSelect();
 
       // 6. Jetzt nach Ort UND Lauf filtern
       filterByRun();
     }
 
+    // Eindeutiger Schlüssel für ein Profil INNERHALB eines Laufs (Vorhersagestunde bzw. valid_time)
+    function getCompareStepKeyFor(s) {
+      return (s.model !== 'Radiosonde' && s.step_h != null) ? `step:${s.step_h}` : `time:${s.valid_time}`;
+    }
+
+    // Anzeige-Label für den Zeitpunkt-Dropdown des Vergleichslaufs
+    function formatCompareStepLabel(s) {
+      if (s.model === 'Radiosonde') {
+        return s.valid_time ? s.valid_time.replace('T', '  ').replace('Z', ' UTC') : '—';
+      }
+      if (s.valid_time) {
+        const hhmm = s.valid_time.slice(11, 16);
+        const dateStr = s.valid_time.slice(0, 10);
+        return `${dateStr} ${hhmm} UTC (+${String(s.step_h).padStart(3, '0')}h)`;
+      }
+      return `+${String(s.step_h).padStart(3, '0')}h`;
+    }
+
+    // Befüllt/versteckt den Zeitpunkt-Dropdown für den aktuell gewählten Vergleichslauf.
+    // 'Zeitpunkt: automatisch' (Wert '') lässt den Vergleich der Zeitnavigation folgen (bisheriges Verhalten).
+    // Ist der Vergleichslauf identisch mit dem aktuellen Lauf, wäre "automatisch" ein No-Op
+    // (gleicher Zeitpunkt überlagert sich selbst) — daher wird dann direkt ein anderer Zeitschritt vorausgewählt.
+    function populateCompareStepSelect() {
+      const stepSelect = document.getElementById('compare-step-select');
+      stepSelect.innerHTML = '';
+
+      if (!STATE.compareRunKey) {
+        STATE.compareStepKey = '';
+        stepSelect.style.display = 'none';
+        return;
+      }
+
+      const autoOpt = document.createElement('option');
+      autoOpt.value = '';
+      autoOpt.textContent = 'Zeitpunkt: automatisch';
+      stepSelect.appendChild(autoOpt);
+
+      const candidates = STATE.allSoundings.filter(s =>
+        getLocKey(s) === STATE.currentLocationKey && getRunKey(s) === STATE.compareRunKey
+      );
+      candidates.sort((a, b) =>
+        (a.model !== 'Radiosonde' && a.step_h != null)
+          ? a.step_h - b.step_h
+          : (a.valid_time ?? '').localeCompare(b.valid_time ?? '')
+      );
+      candidates.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = getCompareStepKeyFor(s);
+        opt.textContent = formatCompareStepLabel(s);
+        stepSelect.appendChild(opt);
+      });
+
+      if (STATE.compareRunKey === STATE.currentRunKey) {
+        const current = STATE.soundings[STATE.currentIdx] ?? null;
+        const currentKey = current ? getCompareStepKeyFor(current) : '';
+        const idx = candidates.findIndex(s => getCompareStepKeyFor(s) === currentKey);
+        const next = candidates[idx + 1] ?? candidates[idx - 1] ?? null;
+        STATE.compareStepKey = next ? getCompareStepKeyFor(next) : '';
+      } else {
+        STATE.compareStepKey = '';
+      }
+
+      stepSelect.value = STATE.compareStepKey;
+      stepSelect.style.display = '';
+    }
+
     // Hilfsfunktion: Findet zum aktuellen Profil das passende Profil aus dem Vergleichslauf
-    // (gleicher Ort, gleiche Vorhersagestunde bzw. nächstgelegene valid_time)
+    // (gepinnter Zeitpunkt, sonst gleiche Vorhersagestunde bzw. nächstgelegene valid_time)
     function getCompareSounding(snd) {
       if (!snd || !STATE.compareRunKey) return null;
       const candidates = STATE.allSoundings.filter(s =>
         getLocKey(s) === STATE.currentLocationKey && getRunKey(s) === STATE.compareRunKey
       );
       if (candidates.length === 0) return null;
+
+      if (STATE.compareStepKey) {
+        const pinned = candidates.find(s => getCompareStepKeyFor(s) === STATE.compareStepKey);
+        if (pinned) return pinned;
+      }
+
       if (snd.model !== 'Radiosonde' && snd.step_h != null) {
         return candidates.find(s => s.step_h === snd.step_h) ?? null;
       }
@@ -3707,6 +3790,12 @@
 
     document.getElementById('compare-run-select').addEventListener('change', e => {
       STATE.compareRunKey = e.target.value;
+      populateCompareStepSelect();
+      redraw();
+    });
+
+    document.getElementById('compare-step-select').addEventListener('change', e => {
+      STATE.compareStepKey = e.target.value;
       redraw();
     });
 
