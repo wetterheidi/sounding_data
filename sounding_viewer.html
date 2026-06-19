@@ -498,6 +498,12 @@
         <option value="">Kein Lauf</option>
       </select>
 
+      <select class="chip" id="compare-run-select"
+        title="Zweiten Lauf zum Vergleich überlagern (z.B. OM vs. opendata)"
+        style="color: var(--text); outline: none; cursor: pointer; background: var(--bg3);">
+        <option value="">Vergleich: Aus</option>
+      </select>
+
       <span class="chip accent" id="chip-time">Keine Daten</span>
     </div>
     <div class="file-drop">
@@ -711,6 +717,7 @@
       locationAliases: {},     // Koordinaten-Key → Alias (aus location_alias-Feld der JSON-Daten)
       currentIdx: 0,
       currentRunKey: '',
+      compareRunKey: '',      // NEU: zweiter Lauf (z.B. OM), dessen Temp-Kurve überlagert wird
       animTimer: null,
       animPlaying: false,
       mouseHover: null,
@@ -744,6 +751,7 @@
       get temp()          { return this.isDark ? '#e05c3a'              : '#cc2020'; },
       get dew()           { return this.isDark ? '#4ab56e'              : '#1a8840'; },
       get dewArea()       { return this.isDark ? 'rgba(74,181,110,0.13)': 'rgba(26,140,64,0.10)'; },
+      get compareTemp()   { return this.isDark ? '#c77dff'              : '#7b2fbf'; },
       // Achsen & Beschriftungen
       get axisLabel()     { return this.isDark ? '#8898b8'              : '#5a6e88'; },
       get titleText()     { return this.isDark ? '#606882'              : '#8898ae'; },
@@ -1339,7 +1347,7 @@
       ctx.strokeRect(m.left, m.top, W, H);
     }
 
-    function drawSounding(snd) {
+    function drawSounding(snd, compareSnd) {
       if (!snd || !snd.levels || snd.levels.length === 0) return;
 
       const m = proj.margin;
@@ -1466,6 +1474,21 @@
       });
       ctx.stroke();
 
+      // --- Vergleichs-Temperatur (gestrichelt, z.B. OM vs. opendata) ---
+      if (compareSnd && compareSnd.levels && compareSnd.levels.length > 0) {
+        const cmpLvls = compareSnd.levels.filter(l => l.p_hPa <= proj.p_bot && l.p_hPa >= proj.p_top);
+        ctx.save();
+        ctx.beginPath();
+        ctx.strokeStyle = PALETTE.compareTemp;
+        ctx.lineWidth = 2.0;
+        ctx.setLineDash([6, 4]);
+        cmpLvls.forEach((l, i) => {
+          const c = proj.toCanvas(l.T_C, l.p_hPa);
+          i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
+        });
+        ctx.stroke();
+        ctx.restore();
+      }
 
       // --- CAPE-Flächen (optional, per Checkbox) ---
       if ((STATE.showCapeLfc || STATE.showCapeCcl) && STATE.parcelData) {
@@ -1764,6 +1787,12 @@
       ctx.textAlign = 'left';
       ctx.fillText(runStr, m.left + 6, m.top + 14);
       ctx.fillText(locStr, m.left + 6, m.top + 26);
+
+      // --- Vergleichs-Beschriftung (gestrichelte Linie ↔ Vergleichslauf) ---
+      if (compareSnd) {
+        ctx.fillStyle = PALETTE.compareTemp;
+        ctx.fillText(`- - -  ${getRunKey(compareSnd)}`, m.left + 6, m.top + 38);
+      }
     }
 
     // =========================================================================
@@ -1981,8 +2010,9 @@
       ctx.clearRect(0, 0, W, H);
       drawBackground();
       if (STATE.soundings.length > 0) {
-        computeAndDisplayIndices(STATE.soundings[STATE.currentIdx]);
-        drawSounding(STATE.soundings[STATE.currentIdx]);
+        const snd = STATE.soundings[STATE.currentIdx];
+        computeAndDisplayIndices(snd);
+        drawSounding(snd, getCompareSounding(snd));
       }
       drawInteractiveLines(); // HIER zeichnen wir die neuen Maus-Linien!
       drawHodograph();
@@ -3625,9 +3655,49 @@
         STATE.currentRunKey = '';
       }
 
+      // 5b. Vergleichs-Dropdown mit denselben Läufen befüllen (NEU: opendata vs. OM vergleichen)
+      const compareSelect = document.getElementById('compare-run-select');
+      compareSelect.innerHTML = '';
+      const offOpt = document.createElement('option');
+      offOpt.value = '';
+      offOpt.textContent = 'Vergleich: Aus';
+      compareSelect.appendChild(offOpt);
+      runs.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r;
+        opt.textContent = r;
+        compareSelect.appendChild(opt);
+      });
+      STATE.compareRunKey = '';
+      compareSelect.value = '';
+
       // 6. Jetzt nach Ort UND Lauf filtern
       filterByRun();
     }
+
+    // Hilfsfunktion: Findet zum aktuellen Profil das passende Profil aus dem Vergleichslauf
+    // (gleicher Ort, gleiche Vorhersagestunde bzw. nächstgelegene valid_time)
+    function getCompareSounding(snd) {
+      if (!snd || !STATE.compareRunKey) return null;
+      const candidates = STATE.allSoundings.filter(s =>
+        getLocKey(s) === STATE.currentLocationKey && getRunKey(s) === STATE.compareRunKey
+      );
+      if (candidates.length === 0) return null;
+      if (snd.model !== 'Radiosonde' && snd.step_h != null) {
+        return candidates.find(s => s.step_h === snd.step_h) ?? null;
+      }
+      const targetMs = Date.parse(snd.valid_time ?? '');
+      return candidates.reduce((best, s) => {
+        const dist = Math.abs(Date.parse(s.valid_time ?? '') - targetMs);
+        const bestDist = best ? Math.abs(Date.parse(best.valid_time ?? '') - targetMs) : Infinity;
+        return dist < bestDist ? s : best;
+      }, null);
+    }
+
+    document.getElementById('compare-run-select').addEventListener('change', e => {
+      STATE.compareRunKey = e.target.value;
+      redraw();
+    });
 
     // NEU: Filtert die Daten final nach Ort und dem gewählten Lauf
     function filterByRun() {
