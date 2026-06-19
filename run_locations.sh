@@ -78,14 +78,23 @@ fi
 # ---------------------------------------------------------------------------
 echo "$TASKS" | xargs -P "$JOBS" -L 1 bash -c '
     ALIAS=$1; LAT=$2; LON=$3; MODEL=$4; STEP=$5
-    echo "  → $MODEL $ALIAS ($LAT, $LON) step=$STEP"
+    echo "  → $MODEL $ALIAS ($LAT, $LON) step=$STEP  [opendata]"
     python3 fetch_sounding.py \
         --lat "$LAT" --lon "$LON" \
         --model "$MODEL" --step "$STEP" \
         --outdir "'"$OUTDIR"'" \
         --alias "$ALIAS" \
-    && echo "  ✓ $MODEL $ALIAS fertig" \
-    || echo "  ✗ $MODEL $ALIAS FEHLGESCHLAGEN" >&2
+    && echo "  ✓ $MODEL $ALIAS fertig  [opendata]" \
+    || echo "  ✗ $MODEL $ALIAS FEHLGESCHLAGEN  [opendata]" >&2
+
+    echo "  → $MODEL $ALIAS ($LAT, $LON) step=$STEP  [OM]"
+    python3 fetch_sounding_openmeteo.py \
+        --lat "$LAT" --lon "$LON" \
+        --model "$MODEL" --step "$STEP" \
+        --outdir "'"$OUTDIR"'" \
+        --alias "$ALIAS" \
+    && echo "  ✓ $MODEL $ALIAS fertig  [OM]" \
+    || echo "  ✗ $MODEL $ALIAS FEHLGESCHLAGEN  [OM]" >&2
 ' _
 
 echo "Alle Orte abgearbeitet."
