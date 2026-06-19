@@ -752,6 +752,7 @@
       get dew()           { return this.isDark ? '#4ab56e'              : '#1a8840'; },
       get dewArea()       { return this.isDark ? 'rgba(74,181,110,0.13)': 'rgba(26,140,64,0.10)'; },
       get compareTemp()   { return this.isDark ? '#c77dff'              : '#7b2fbf'; },
+      get compareDew()    { return this.isDark ? '#5ad0c8'              : '#0e8a82'; },
       // Achsen & Beschriftungen
       get axisLabel()     { return this.isDark ? '#8898b8'              : '#5a6e88'; },
       get titleText()     { return this.isDark ? '#606882'              : '#8898ae'; },
@@ -1474,19 +1475,29 @@
       });
       ctx.stroke();
 
-      // --- Vergleichs-Temperatur (gestrichelt, z.B. OM vs. opendata) ---
+      // --- Vergleichs-Temperatur & -Taupunkt (gestrichelt, z.B. OM vs. opendata) ---
       if (compareSnd && compareSnd.levels && compareSnd.levels.length > 0) {
         const cmpLvls = compareSnd.levels.filter(l => l.p_hPa <= proj.p_bot && l.p_hPa >= proj.p_top);
         ctx.save();
-        ctx.beginPath();
-        ctx.strokeStyle = PALETTE.compareTemp;
-        ctx.lineWidth = 2.0;
         ctx.setLineDash([6, 4]);
+        ctx.lineWidth = 2.0;
+
+        ctx.strokeStyle = PALETTE.compareDew;
+        ctx.beginPath();
+        cmpLvls.forEach((l, i) => {
+          const c = proj.toCanvas(l.Td_C, l.p_hPa);
+          i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
+        });
+        ctx.stroke();
+
+        ctx.strokeStyle = PALETTE.compareTemp;
+        ctx.beginPath();
         cmpLvls.forEach((l, i) => {
           const c = proj.toCanvas(l.T_C, l.p_hPa);
           i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
         });
         ctx.stroke();
+
         ctx.restore();
       }
 
