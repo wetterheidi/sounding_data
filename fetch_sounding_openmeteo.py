@@ -24,10 +24,10 @@ from urllib import parse as urlparse, request as urlrequest
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-7s  %(message)s", datefmt="%H:%M:%S")
 log = logging.getLogger(__name__)
 
-# Aktuell rechnet/liefert der Dev-Server diese Daten (siehe Absprache). Bei
-# Umzug auf Produktion hier (und nur hier) die Basis-URLs anpassen.
-BASE_URL = "https://open-meteo-dev.mah.priv.at/v1/forecast"
-META_URL = "https://open-meteo-dev.mah.priv.at/data/{dataset}/static/meta.json"
+# Produktions-Instanz (open-meteo-dev.mah.priv.at hängt an einer kaputten
+# Ingestion und blieb auf altem Modelllauf stehen, siehe Absprache mit Michael).
+BASE_URL = "https://open-meteo.mah.priv.at/v1/forecast"
+META_URL = "https://open-meteo.mah.priv.at/data/{dataset}/static/meta.json"
 
 MODEL_CFG = {
     "icon-d2": {"api_model": "icon_d2", "dataset": "dwd_icon_d2", "n_levels": 65, "label": "ICON-D2"},
