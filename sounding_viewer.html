@@ -1465,6 +1465,14 @@
       // Level ohne Td_C (z.B. oberste Level ohne Feuchtedaten) ausschließen,
       // sonst macht toCanvas(null, ...) daraus per Typkoerzion einen 0°C-Punkt.
       const lvlsTd = lvls.filter(l => l.Td_C != null);
+
+      // Clip aufs Diagrammpapier, damit die Kurven beim Zoomen nicht über
+      // Isobaren-Labels, Wolkenbalken & Windfiedern hinausragen.
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(m.left, m.top, proj.W, proj.H);
+      ctx.clip();
+
       ctx.beginPath();
       lvlsTd.forEach((l, i) => {
         const c = proj.toCanvas(l.T_C, l.p_hPa);
@@ -1523,6 +1531,8 @@
 
         ctx.restore();
       }
+
+      ctx.restore(); // Ende Diagrammpapier-Clip
 
       // --- CAPE-Flächen (optional, per Checkbox) ---
       if ((STATE.showCapeLfc || STATE.showCapeCcl) && STATE.parcelData) {
