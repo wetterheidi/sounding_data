@@ -16,6 +16,7 @@ können). Keine Abhängigkeiten außer der Python-Standardbibliothek.
 import argparse
 import json
 import logging
+import math
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -39,6 +40,24 @@ MODEL_CFG = {
 def _get_json(url: str, timeout: int = 60) -> dict:
     with urlrequest.urlopen(url, timeout=timeout) as r:
         return json.load(r)
+
+
+def qv_to_dewpoint(qv_gkg: float | None, p_hPa: float | None) -> float | None:
+    """Taupunkt über Wasser (Magnus-Formel) aus spezifischer Feuchte.
+
+    Open-Meteo liefert dew_point_levelN über Eis gesättigt (Absprache mit
+    Michael); für die TEMP-Darstellung ist konventionsgemäß der Taupunkt
+    über Wasser korrekt, daher hier aus specific_humidity_levelN selbst
+    berechnet — identische Formel wie qv_to_dewpoint() in fetch_sounding.py,
+    damit beide Pfade (opendata/OM) konsistent sind.
+    """
+    if not qv_gkg or qv_gkg <= 1e-9 or not p_hPa:
+        return None
+    qv = qv_gkg / 1000.0
+    eps = 0.622
+    e = max((qv * p_hPa * 100) / (eps + qv * (1.0 - eps)), 0.01)
+    ln_e = math.log(e / 611.2)
+    return max(-99.0, min(60.0, (243.5 * ln_e) / (17.67 - ln_e)))
 
 
 def current_run(dataset: str) -> tuple[datetime, str]:
@@ -69,7 +88,7 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
     hourly_vars = ["surface_pressure"]
     for n in range(1, n_lev + 1):
         hourly_vars += [f"height_agl_level{n}", f"pressure_level{n}", f"temperature_level{n}",
-                         f"dew_point_level{n}", f"wind_speed_level{n}", f"wind_direction_level{n}"]
+                         f"specific_humidity_level{n}", f"wind_speed_level{n}", f"wind_direction_level{n}"]
 
     run_start = run_date.replace(hour=int(run), minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
     now = datetime.now(timezone.utc)
@@ -109,7 +128,8 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
                 continue
             p   = H.get(f"pressure_level{n}", [None] * len(times))[idx]
             z   = H.get(f"height_agl_level{n}", [None] * len(times))[idx]
-            td  = H.get(f"dew_point_level{n}", [None] * len(times))[idx]
+            qv  = H.get(f"specific_humidity_level{n}", [None] * len(times))[idx]
+            td  = qv_to_dewpoint(qv, p)
             spd = H.get(f"wind_speed_level{n}", [None] * len(times))[idx]
             dr  = H.get(f"wind_direction_level{n}", [None] * len(times))[idx]
             levels.append({
