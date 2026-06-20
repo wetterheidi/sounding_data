@@ -1462,12 +1462,15 @@
       }
 
       // --- Temperaturfläche (schattierter Bereich zwischen T und Td) ---
+      // Level ohne Td_C (z.B. oberste Level ohne Feuchtedaten) ausschließen,
+      // sonst macht toCanvas(null, ...) daraus per Typkoerzion einen 0°C-Punkt.
+      const lvlsTd = lvls.filter(l => l.Td_C != null);
       ctx.beginPath();
-      lvls.forEach((l, i) => {
+      lvlsTd.forEach((l, i) => {
         const c = proj.toCanvas(l.T_C, l.p_hPa);
         i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
       });
-      [...lvls].reverse().forEach(l => {
+      [...lvlsTd].reverse().forEach(l => {
         const c = proj.toCanvas(l.Td_C, l.p_hPa);
         ctx.lineTo(c.x, c.y);
       });
@@ -1479,7 +1482,7 @@
       ctx.beginPath();
       ctx.strokeStyle = PALETTE.dew;
       ctx.lineWidth = 1.5;
-      lvls.forEach((l, i) => {
+      lvlsTd.forEach((l, i) => {
         const c = proj.toCanvas(l.Td_C, l.p_hPa);
         i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
       });
@@ -1504,7 +1507,7 @@
 
         ctx.strokeStyle = PALETTE.compareDew;
         ctx.beginPath();
-        cmpLvls.forEach((l, i) => {
+        cmpLvls.filter(l => l.Td_C != null).forEach((l, i) => {
           const c = proj.toCanvas(l.Td_C, l.p_hPa);
           i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
         });
