@@ -4158,8 +4158,8 @@
       document.getElementById('cur-z-agl').textContent = zAglText;
       document.getElementById('cur-z-amsl').textContent = zAmslText;
 
-      document.getElementById('cur-t').textContent = l.T_C.toFixed(1) + ' °C';
-      document.getElementById('cur-td').textContent = l.Td_C.toFixed(1) + ' °C';
+      document.getElementById('cur-t').textContent = l.T_C != null ? l.T_C.toFixed(1) + ' °C' : '—';
+      document.getElementById('cur-td').textContent = l.Td_C != null ? l.Td_C.toFixed(1) + ' °C' : '—';
 
       // --- NEU: RH berechnen und anzeigen ---
       let rhText = '—';
