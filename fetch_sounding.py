@@ -60,7 +60,7 @@ MODEL_CFG = {
         "ps_param":    "ps",
         "var_case":    "upper",      # Dateinamen: großgeschrieben (T, PS)
         "sl_level":    None,
-        "lag_h":       2,            # DWD stellt Daten ~2h nach Laufstart bereit
+        "lag_h":       3,            # DWD stellt Daten real ~2h36-2h42 nach Laufstart bereit (gemessen 2026-06-21)
     },
     "icon": {
         "url_base":    "https://opendata.dwd.de/weather/nwp/icon/grib",
