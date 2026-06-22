@@ -1356,7 +1356,7 @@
 
     // Titel-Text für ein Profil: Modell/Quelle + Zeitpunkt + Vorhersagestunde/Lauf
     function formatSoundingTitle(snd) {
-      const srcTag = snd.source === 'open-meteo-dev' ? '  [OM]' : '';
+      const srcTag = snd.source === 'open-meteo-dev' ? '  [OM]' : snd.source === 'open-meteo-pl' ? '  [PL]' : '';
       if (snd.model === 'Radiosonde') {
         return `Radiosonde  ${snd.valid_time ? snd.valid_time.replace('T', '  ').replace('Z', ' UTC') : ''}`;
       }
@@ -3662,7 +3662,7 @@
     // Dropdown neben dem opendata-Lauf desselben Modells/Runs auswählbar sind.
     function getRunKey(snd) {
       if (snd.model === 'Radiosonde') return 'Radiosonde';
-      const tag = snd.source === 'open-meteo-dev' ? '  [OM]' : '';
+      const tag = snd.source === 'open-meteo-dev' ? '  [OM]' : snd.source === 'open-meteo-pl' ? '  [PL]' : '';
       return `${snd.model} ${snd.run_date} ${snd.run_hour}Z${tag}`;
     }
 

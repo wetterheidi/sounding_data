@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OM Druckflächen-Tool</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:           #0f1117;
+    --bg2:          #1a1d27;
+    --bg3:          #23273a;
+    --border:       #2e3348;
+    --border2:      #3d455c;
+    --text:         #d0d5e8;
+    --text-dim:     #7a8099;
+    --accent:       #4a7cf7;
+    --accent-dim:   #2a4ea0;
+    --green:        #2ecc71;
+    --info-bg:      #0d1f3a;
+    --info-border:  #2a5ea0;
+    --info-text:    #8ab4ff;
+    --error-bg:     #3a0f0f;
+    --error-border: #c0392b;
+    --error-text:   #ff8a80;
+    --success-bg:   #0d2a1a;
+    --success-border: #1a7a44;
+    --success-text: #5af5a0;
+    --radius:       8px;
+    --font:         -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --mono:         'SF Mono', 'Fira Code', 'Courier New', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 17px; font-weight: 600; flex: 1; min-width: 0; }
+  .btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 8px 16px;
+    text-decoration: none;
+    transition: border-color .15s, color .15s;
+    white-space: nowrap;
+  }
+  .btn-secondary:hover { border-color: var(--border2); color: var(--text); }
+
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 64px; }
+
+  .info-notice {
+    background: var(--info-bg);
+    border: 1px solid var(--info-border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 24px;
+    font-size: 13px;
+    color: var(--info-text);
+  }
+  .info-notice code {
+    font-family: var(--mono);
+    background: rgba(255,255,255,0.08);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 520px) { .form-grid { grid-template-columns: 1fr; } }
+
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group.full { grid-column: 1 / -1; }
+  .form-group label { font-size: 12px; color: var(--text-dim); font-weight: 500; }
+  .form-group input,
+  .form-group select {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 14px;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color .15s;
+    width: 100%;
+    font-family: inherit;
+  }
+  .form-group input:focus,
+  .form-group select:focus { border-color: var(--accent); }
+  .form-group .hint { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+  .panel-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  .btn-primary {
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius);
+    color: #fff;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 10px 20px;
+    transition: background .15s;
+    white-space: nowrap;
+  }
+  .btn-primary:hover { background: var(--accent-dim); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+  .banner {
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-size: 13px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 16px;
+    animation: fadein .2s ease;
+  }
+  @keyframes fadein { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; } }
+  .banner.error   { background: var(--error-bg);   border: 1px solid var(--error-border);   color: var(--error-text); }
+  .banner.success { background: var(--success-bg); border: 1px solid var(--success-border); color: var(--success-text); }
+  .banner .close-btn { margin-left: auto; cursor: pointer; opacity: .7; flex-shrink: 0; }
+  .banner .close-btn:hover { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>OM Druckflächen-Tool</h1>
+  <a class="btn-secondary" href="sounding_viewer.html">&larr; Zum Viewer</a>
+</header>
+
+<main>
+  <div class="info-notice">
+    Lädt Vergleichs-Soundings auf Basis von Druckflächen (1000–30 hPa) von der
+    öffentlichen Open-Meteo-API und speichert sie im selben JSON-Schema wie der
+    TlogP-Viewer. Heruntergeladene Datei einfach per Drag&amp;Drop in
+    <code>sounding_viewer.html</code> ziehen, um sie als Vergleichslauf zu überlagern.
+  </div>
+
+  <div id="banner-area"></div>
+
+  <form id="om-form">
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="loc-select">Ort (gespeichert)</label>
+        <select id="loc-select"><option value="">— manuell —</option></select>
+      </div>
+      <div class="form-group">
+        <label for="alias-input">Alias (optional)</label>
+        <input type="text" id="alias-input" placeholder="z.B. Startplatz">
+      </div>
+      <div class="form-group">
+        <label for="lat-input">Breitengrad (lat)</label>
+        <input type="number" id="lat-input" step="0.0001" placeholder="z.B. 47.981" required>
+      </div>
+      <div class="form-group">
+        <label for="lon-input">Längengrad (lon)</label>
+        <input type="number" id="lon-input" step="0.0001" placeholder="z.B. 11.235" required>
+      </div>
+      <div class="form-group full">
+        <label for="model-select">Modell</label>
+        <select id="model-select"></select>
+        <div class="hint">Level, die das Modell nicht liefert (z.B. ICON-D2 über 200 hPa), werden automatisch übersprungen.</div>
+      </div>
+      <div class="form-group">
+        <label for="date-input">Datum (UTC)</label>
+        <input type="date" id="date-input" required>
+      </div>
+      <div class="form-group">
+        <label for="hours-input">Stunden (UTC)</label>
+        <input type="text" id="hours-input" placeholder="z.B. 12 oder 6,12,18 oder 0:21:3" required>
+      </div>
+    </div>
+
+    <div class="panel-actions">
+      <button type="submit" class="btn-primary" id="fetch-btn">Abrufen &amp; herunterladen</button>
+    </div>
+  </form>
+</main>
+
+<script>
+  // Reihenfolge = Anzeigereihenfolge im Dropdown
+  const MODEL_CFG = {
+    ecmwf_ifs025:        { label: 'ECMWF IFS' },
+    gfs_seamless:         { label: 'GFS' },
+    icon_seamless:        { label: 'ICON (Seamless)' },
+    icon_global:          { label: 'ICON' },
+    icon_eu:              { label: 'ICON-EU' },
+    icon_d2:              { label: 'ICON-D2' },
+    gem_seamless:         { label: 'GEM (Kanada)' },
+    ukmo_seamless:        { label: 'UKMO' },
+    meteofrance_seamless: { label: 'Météo-France' },
+    jma_seamless:         { label: 'JMA' },
+  };
+
+  // Druckflächen, die Open-Meteo grundsätzlich anbietet (Boden -> Modelltop)
+  const PRESSURE_LEVELS = [1000,975,950,925,900,850,800,750,700,650,600,550,500,450,400,350,300,250,200,150,100,70,50,30];
+
+  const $ = id => document.getElementById(id);
+
+  // -------------------------------------------------------------------------
+  // Formular initialisieren
+  // -------------------------------------------------------------------------
+  const modelSelect = $('model-select');
+  Object.entries(MODEL_CFG).forEach(([key, cfg]) => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = cfg.label;
+    modelSelect.appendChild(opt);
+  });
+  modelSelect.value = 'gfs_seamless';
+
+  const now = new Date();
+  $('date-input').value = now.toISOString().slice(0, 10);
+  $('hours-input').value = String(now.getUTCHours());
+
+  // Gespeicherte Orte aus locations.json optional ins Dropdown laden
+  fetch('locations.json').then(r => r.json()).then(locs => {
+    const sel = $('loc-select');
+    locs.forEach((loc, i) => {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = `${loc.alias} (${loc.lat}, ${loc.lon})${loc.enabled ? '' : '  [inaktiv]'}`;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', e => {
+      if (e.target.value === '') return;
+      const loc = locs[Number(e.target.value)];
+      $('lat-input').value = loc.lat;
+      $('lon-input').value = loc.lon;
+      $('alias-input').value = loc.alias;
+    });
+  }).catch(() => { /* locations.json optional - Tool funktioniert auch ohne */ });
+
+  // -------------------------------------------------------------------------
+  // Hilfsfunktionen
+  // -------------------------------------------------------------------------
+  function round(x, n) {
+    if (x == null || Number.isNaN(x)) return null;
+    const f = 10 ** n;
+    return Math.round(x * f) / f;
+  }
+
+  // Stunden-Eingabe wie im fetch_sounding_openmeteo.py-Skript: "12" / "6,12,18" / "0:21:3"
+  function parseSteps(s) {
+    s = s.trim();
+    if (s.includes(':')) {
+      const p = s.split(':').map(Number);
+      const start = p[0], end = p[1], step = p.length > 2 ? p[2] : 1;
+      if ([start, end, step].some(Number.isNaN) || step <= 0) throw new Error('Ungültiger Bereich');
+      const out = [];
+      for (let v = start; v <= end; v += step) out.push(v);
+      return out;
+    }
+    if (s.includes(',')) {
+      return s.split(',').map(x => {
+        const n = Number(x.trim());
+        if (Number.isNaN(n)) throw new Error('Ungültige Stundenliste');
+        return n;
+      });
+    }
+    const n = Number(s);
+    if (Number.isNaN(n)) throw new Error('Ungültige Stunde');
+    return [n];
+  }
+
+  // Taupunkt über Wasser aus T + RH (Magnus-Formel, dieselben Konstanten wie
+  // qv_to_dewpoint() in fetch_sounding_openmeteo.py, damit OM-Modelllevel und
+  // OM-Druckflächen denselben Taupunkt-Standard verwenden).
+  function rhToDewpoint(T, RH) {
+    if (T == null || RH == null || RH <= 0) return null;
+    const es = 6.112 * Math.exp((17.67 * T) / (T + 243.5));
+    const e = es * Math.min(Math.max(RH, 0), 100) / 100;
+    if (e <= 0) return null;
+    const lnRatio = Math.log(e / 6.112);
+    return (243.5 * lnRatio) / (17.67 - lnRatio);
+  }
+
+  function showBanner(type, text) {
+    const area = $('banner-area');
+    area.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = `banner ${type}`;
+    const span = document.createElement('span');
+    span.textContent = text;
+    const close = document.createElement('span');
+    close.className = 'close-btn';
+    close.textContent = '✕';
+    close.onclick = () => div.remove();
+    div.appendChild(span);
+    div.appendChild(close);
+    area.appendChild(div);
+  }
+
+  function buildLevels(H, idx, elev) {
+    const rows = [];
+    for (const L of PRESSURE_LEVELS) {
+      const T = H[`temperature_${L}hPa`]?.[idx];
+      if (T == null) continue;
+      const gph = H[`geopotential_height_${L}hPa`]?.[idx];
+      const rh  = H[`relative_humidity_${L}hPa`]?.[idx];
+      const spd = H[`wind_speed_${L}hPa`]?.[idx];
+      const dr  = H[`wind_direction_${L}hPa`]?.[idx];
+      const td  = rhToDewpoint(T, rh);
+      const z   = (gph != null && elev != null) ? gph - elev : null; // AGL, wie restliches Schema
+      rows.push({
+        p_hPa:    L,
+        z_m:      z != null ? round(z, 1) : null,
+        T_C:      round(T, 2),
+        Td_C:     td != null ? round(td, 2) : null,
+        wspd_kn:  spd != null ? round(spd, 1) : null,
+        wdir_deg: dr != null ? round(dr, 1) : null,
+      });
+    }
+    return rows;
+  }
+
+  // -------------------------------------------------------------------------
+  // Abrufen & JSON erzeugen
+  // -------------------------------------------------------------------------
+  $('om-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    $('banner-area').innerHTML = '';
+
+    const lat = parseFloat($('lat-input').value);
+    const lon = parseFloat($('lon-input').value);
+    if (Number.isNaN(lat) || Number.isNaN(lon)) {
+      showBanner('error', 'Bitte Breiten- und Längengrad angeben.');
+      return;
+    }
+
+    const modelKey = modelSelect.value;
+    const cfg = MODEL_CFG[modelKey];
+
+    let steps;
+    try {
+      steps = parseSteps($('hours-input').value);
+    } catch (err) {
+      showBanner('error', `Stunden-Eingabe: ${err.message}`);
+      return;
+    }
+
+    const [Y, M, D] = $('date-input').value.split('-').map(Number);
+    const anchor0 = Date.UTC(Y, M - 1, D);
+    const n = new Date();
+    const today0 = Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate());
+    const offsetDays = Math.round((anchor0 - today0) / 86400000);
+
+    // stepBase = Versatz (Stunden) vom API-Array-Anfang bis zum gewählten Datum 00:00 UTC
+    const stepBase = offsetDays > 0 ? offsetDays * 24 : 0;
+    const past_days = offsetDays < 0 ? -offsetDays : 0;
+    const maxH = Math.max(...steps);
+    const daysNeeded = Math.ceil((stepBase + maxH + 1) / 24);
+    const forecast_days = Math.max(1, daysNeeded - past_days);
+
+    if (past_days > 92) {
+      showBanner('error', 'Datum liegt zu weit in der Vergangenheit (max. 92 Tage).');
+      return;
+    }
+    if (forecast_days > 16) {
+      showBanner('error', 'Zeitraum zu groß (max. 16 Tage Vorhersage ab heute).');
+      return;
+    }
+
+    const arrayStart0 = today0 - past_days * 86400000;
+    const run_date = new Date(arrayStart0).toISOString().slice(0, 10).replace(/-/g, '');
+
+    const vars = ['surface_pressure'];
+    for (const L of PRESSURE_LEVELS) {
+      vars.push(`temperature_${L}hPa`, `relative_humidity_${L}hPa`, `geopotential_height_${L}hPa`,
+                 `wind_speed_${L}hPa`, `wind_direction_${L}hPa`);
+    }
+
+    const params = new URLSearchParams({
+      latitude: lat, longitude: lon,
+      hourly: vars.join(','),
+      models: modelKey,
+      wind_speed_unit: 'kn',
+      timezone: 'GMT',
+      forecast_days: String(forecast_days),
+      past_days: String(past_days),
+    });
+    const url = `https://api.open-meteo.com/v1/forecast?${params}`;
+
+    const btn = $('fetch-btn');
+    btn.disabled = true;
+    btn.textContent = 'Lädt …';
+
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        const body = await resp.text();
+        throw new Error(`HTTP ${resp.status}: ${body.slice(0, 200)}`);
+      }
+      const data = await resp.json();
+      const H = data.hourly;
+      const times = H.time;
+      const elev = data.elevation ?? null;
+      const grid_lat = data.latitude;
+      const grid_lon = data.longitude;
+      const aliasVal = $('alias-input').value.trim();
+
+      const soundings = [];
+      const skipped = [];
+      for (const h of steps) {
+        const idx = stepBase + h;
+        if (idx < 0 || idx >= times.length) { skipped.push(h); continue; }
+        const levels = buildLevels(H, idx, elev);
+        if (levels.length === 0) { skipped.push(h); continue; }
+        const sp = H.surface_pressure?.[idx];
+        soundings.push({
+          model: cfg.label,
+          source: 'open-meteo-pl',
+          run_date, run_hour: '00',
+          step_h: idx,
+          valid_time: times[idx] + 'Z',
+          target_lat: lat, target_lon: lon,
+          grid_lat, grid_lon,
+          ...(aliasVal ? { location_alias: aliasVal } : {}),
+          ...(elev != null ? { hsurf_m: round(elev, 1) } : {}),
+          surface_p_hPa: sp != null ? round(sp, 2) : null,
+          n_levels_loaded: levels.length,
+          levels,
+        });
+      }
+
+      if (soundings.length === 0) {
+        showBanner('error', `Keine Profile erstellt${skipped.length ? ` (Stunden ohne Daten: ${skipped.join(', ')})` : ''}.`);
+        return;
+      }
+
+      const latS = `${Math.abs(lat).toFixed(2)}${lat >= 0 ? 'N' : 'S'}`;
+      const lonS = `${Math.abs(lon).toFixed(2)}${lon >= 0 ? 'E' : 'W'}`;
+      const filename = `sounding_${modelKey.toUpperCase()}_${run_date}_00Z_${latS}_${lonS}_PL.json`;
+
+      const blob = new Blob([JSON.stringify(soundings, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+
+      showBanner('success',
+        `${soundings.length}/${steps.length} Profile geladen → ${filename}` +
+        (skipped.length ? `  (ohne Daten: +${skipped.join('h, +')}h)` : ''));
+
+    } catch (err) {
+      showBanner('error', `Fehler: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Abrufen & herunterladen';
+    }
+  });
+</script>
+
+</body>
+</html>
