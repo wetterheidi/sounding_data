@@ -1536,6 +1536,13 @@
 
       // --- CAPE-Flächen (optional, per Checkbox) ---
       if ((STATE.showCapeLfc || STATE.showCapeCcl) && STATE.parcelData) {
+        // Clip aufs Diagrammpapier, damit CAPE/CIN-Fläche & Parcel-Kurve beim
+        // Zoomen nicht über den Plot-Rahmen hinausragen (gleiches Problem wie
+        // bei T/Td-Kurve).
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(m.left, m.top, proj.W, proj.H);
+        ctx.clip();
 
         // Hilfsfunktion: CAPE/CIN-Fläche + Parcel-Kurve zeichnen
         function drawCapeArea(parcelPath, startP, endP, color, parcelColor) {
@@ -1636,6 +1643,8 @@
 
           drawCapeArea(cclPath, ccl_p, ccl_el, 'rgba(180, 120, 255, 0.20)', '#c090ff');
         }
+
+        ctx.restore(); // Ende Diagrammpapier-Clip
       }
 
       // --- CAT-Hintergrund (optional) ---
