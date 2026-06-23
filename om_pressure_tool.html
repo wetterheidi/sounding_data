@@ -159,6 +159,8 @@
     öffentlichen Open-Meteo-API und speichert sie im selben JSON-Schema wie der
     TlogP-Viewer. Heruntergeladene Datei einfach per Drag&amp;Drop in
     <code>sounding_viewer.html</code> ziehen, um sie als Vergleichslauf zu überlagern.
+    Am einfachsten über den Knopf <code>+ OM Druckflächen</code> direkt im Viewer öffnen —
+    Ort, Run und Vorhersagestunden sind dann schon vorausgefüllt.
   </div>
 
   <div id="banner-area"></div>
@@ -187,12 +189,17 @@
         <div class="hint">Level, die das Modell nicht liefert (z.B. ICON-D2 über 200 hPa), werden automatisch übersprungen.</div>
       </div>
       <div class="form-group">
-        <label for="date-input">Datum (UTC)</label>
+        <label for="date-input">Run-Datum (UTC)</label>
         <input type="date" id="date-input" required>
       </div>
       <div class="form-group">
-        <label for="hours-input">Stunden (UTC)</label>
-        <input type="text" id="hours-input" placeholder="z.B. 12 oder 6,12,18 oder 0:21:3" required>
+        <label for="run-hour-input">Run-Stunde (UTC)</label>
+        <input type="number" id="run-hour-input" min="0" max="23" step="1" placeholder="z.B. 6" required>
+      </div>
+      <div class="form-group full">
+        <label for="hours-input">Vorhersagestunden (+h ab Run)</label>
+        <input type="text" id="hours-input" placeholder="z.B. 0 oder 0,3,6,9 oder 0:24:3" required>
+        <div class="hint">Dieselbe Zählweise wie beim Modell-Run (Stunden seit Run-Init) — gleiche Werte wie der zu vergleichende Lauf eingeben, dann matched "Zeitpunkt: automatisch" im Viewer über die ganze Zeitleiste.</div>
       </div>
     </div>
 
@@ -236,7 +243,24 @@
 
   const now = new Date();
   $('date-input').value = now.toISOString().slice(0, 10);
-  $('hours-input').value = String(now.getUTCHours());
+  $('run-hour-input').value = String(now.getUTCHours());
+  $('hours-input').value = '0';
+
+  // Deep-Link-Vorbefüllung: der Viewer öffnet dieses Tool mit Query-Parametern
+  // für Ort/Run/Vorhersagestunden des gerade angezeigten Laufs (siehe Button
+  // "+ OM Druckflächen" in sounding_viewer.html), damit nichts mehr von Hand
+  // abgetippt werden muss.
+  const qp = new URLSearchParams(location.search);
+  if (qp.has('lat'))      $('lat-input').value = qp.get('lat');
+  if (qp.has('lon'))      $('lon-input').value = qp.get('lon');
+  if (qp.has('alias'))    $('alias-input').value = qp.get('alias');
+  if (qp.has('run_date')) {
+    const rd = qp.get('run_date'); // YYYYMMDD
+    if (/^\d{8}$/.test(rd)) $('date-input').value = `${rd.slice(0,4)}-${rd.slice(4,6)}-${rd.slice(6,8)}`;
+  }
+  if (qp.has('run_hour')) $('run-hour-input').value = String(Number(qp.get('run_hour')));
+  if (qp.has('steps'))    $('hours-input').value = qp.get('steps');
+  if (qp.has('model') && MODEL_CFG[qp.get('model')]) modelSelect.value = qp.get('model');
 
   // Gespeicherte Orte aus locations.json optional ins Dropdown laden
   fetch('locations.json').then(r => r.json()).then(locs => {
@@ -364,21 +388,30 @@
       return;
     }
 
+    const runHourInput = Number($('run-hour-input').value);
+    if (Number.isNaN(runHourInput) || runHourInput < 0 || runHourInput > 23) {
+      showBanner('error', 'Run-Stunde muss zwischen 0 und 23 liegen.');
+      return;
+    }
+
     const [Y, M, D] = $('date-input').value.split('-').map(Number);
-    const anchor0 = Date.UTC(Y, M - 1, D);
+    const runDate0 = Date.UTC(Y, M - 1, D);
     const n = new Date();
     const today0 = Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate());
-    const offsetDays = Math.round((anchor0 - today0) / 86400000);
+    const offsetDays = Math.round((runDate0 - today0) / 86400000);
 
-    // stepBase = Versatz (Stunden) vom API-Array-Anfang bis zum gewählten Datum 00:00 UTC
+    // stepBase = Versatz (Stunden) vom API-Array-Anfang bis zum Run-Datum 00:00 UTC.
+    // idx = stepBase + Run-Stunde + Vorhersagestunde h, step_h im JSON bleibt einfach h
+    // (dieselbe Zählweise "Stunden seit Run-Init" wie bei den Modelllevel-Daten),
+    // damit "Zeitpunkt: automatisch" im Viewer darüber matchen kann.
     const stepBase = offsetDays > 0 ? offsetDays * 24 : 0;
     const past_days = offsetDays < 0 ? -offsetDays : 0;
     const maxH = Math.max(...steps);
-    const daysNeeded = Math.ceil((stepBase + maxH + 1) / 24);
+    const daysNeeded = Math.ceil((stepBase + runHourInput + maxH + 1) / 24);
     const forecast_days = Math.max(1, daysNeeded - past_days);
 
     if (past_days > 92) {
-      showBanner('error', 'Datum liegt zu weit in der Vergangenheit (max. 92 Tage).');
+      showBanner('error', 'Run-Datum liegt zu weit in der Vergangenheit (max. 92 Tage).');
       return;
     }
     if (forecast_days > 16) {
@@ -386,8 +419,8 @@
       return;
     }
 
-    const arrayStart0 = today0 - past_days * 86400000;
-    const run_date = new Date(arrayStart0).toISOString().slice(0, 10).replace(/-/g, '');
+    const run_date = `${Y}${String(M).padStart(2, '0')}${String(D).padStart(2, '0')}`;
+    const run_hour = String(runHourInput).padStart(2, '0');
 
     const vars = ['surface_pressure'];
     for (const L of PRESSURE_LEVELS) {
@@ -427,7 +460,7 @@
       const soundings = [];
       const skipped = [];
       for (const h of steps) {
-        const idx = stepBase + h;
+        const idx = stepBase + runHourInput + h;
         if (idx < 0 || idx >= times.length) { skipped.push(h); continue; }
         const levels = buildLevels(H, idx, elev);
         if (levels.length === 0) { skipped.push(h); continue; }
@@ -435,8 +468,8 @@
         soundings.push({
           model: cfg.label,
           source: 'open-meteo-pl',
-          run_date, run_hour: '00',
-          step_h: idx,
+          run_date, run_hour,
+          step_h: h,
           valid_time: times[idx] + 'Z',
           target_lat: lat, target_lon: lon,
           grid_lat, grid_lon,
@@ -455,7 +488,7 @@
 
       const latS = `${Math.abs(lat).toFixed(2)}${lat >= 0 ? 'N' : 'S'}`;
       const lonS = `${Math.abs(lon).toFixed(2)}${lon >= 0 ? 'E' : 'W'}`;
-      const filename = `sounding_${modelKey.toUpperCase()}_${run_date}_00Z_${latS}_${lonS}_PL.json`;
+      const filename = `sounding_${modelKey.toUpperCase()}_${run_date}_${run_hour}Z_${latS}_${lonS}_PL.json`;
 
       const blob = new Blob([JSON.stringify(soundings, null, 2)], { type: 'application/json' });
       const a = document.createElement('a');

@@ -509,6 +509,12 @@
         style="color: var(--text); outline: none; cursor: pointer; background: var(--bg3); display: none;">
       </select>
 
+      <button class="chip" id="btn-om-pl"
+        title="Open-Meteo-Druckflächen-Tool in neuem Tab öffnen, vorausgefüllt mit Ort/Run/Vorhersagestunden des aktuell angezeigten Laufs"
+        style="cursor: pointer; display: none;">
+        + OM Druckflächen
+      </button>
+
       <span class="chip accent" id="chip-time">Keine Daten</span>
     </div>
     <div class="file-drop">
@@ -3821,6 +3827,26 @@
       redraw();
     });
 
+    // Öffnet das OM-Druckflächen-Tool in neuem Tab, vorausgefüllt mit Ort/Run/
+    // Vorhersagestunden des aktuell angezeigten Laufs — damit man dort nur noch
+    // das Vergleichsmodell wählen und abrufen muss, statt alles von Hand abzutippen.
+    document.getElementById('btn-om-pl').addEventListener('click', () => {
+      const list = STATE.soundings;
+      if (!list || list.length === 0 || list[0].model === 'Radiosonde') return;
+      const ref = list[0];
+      const lat = ref.target_lat ?? ref.grid_lat;
+      const lon = ref.target_lon ?? ref.grid_lon;
+      const alias = STATE.locationAliases?.[STATE.currentLocationKey] ?? '';
+      const steps = Array.from(new Set(list.map(s => s.step_h))).sort((a, b) => a - b);
+      const params = new URLSearchParams({
+        lat: lat, lon: lon,
+        run_date: ref.run_date, run_hour: ref.run_hour,
+        steps: steps.join(','),
+        ...(alias ? { alias } : {}),
+      });
+      window.open(`om_pressure_tool.html?${params}`, '_blank');
+    });
+
     // NEU: Filtert die Daten final nach Ort und dem gewählten Lauf
     function filterByRun() {
       if (!STATE.currentLocationKey || !STATE.currentRunKey) return;
@@ -3842,6 +3868,11 @@
       STATE.currentIdx = 0;
       updateTimeslider();
       jumpTo(0);
+
+      // 4. "+ OM Druckflächen"-Knopf nur anzeigen, wenn der Lauf echte Modell-
+      // Vorhersagestunden hat (Radiosonde hat keinen run_date/run_hour/step_h)
+      const omBtn = document.getElementById('btn-om-pl');
+      omBtn.style.display = (STATE.soundings.length > 0 && STATE.soundings[0].model !== 'Radiosonde') ? '' : 'none';
     }
 
     // Event-Listener für das neue Dropdown
