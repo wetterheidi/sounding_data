@@ -42,22 +42,76 @@ def _get_json(url: str, timeout: int = 60) -> dict:
         return json.load(r)
 
 
-def qv_to_dewpoint(qv_gkg: float | None, p_hPa: float | None) -> float | None:
-    """Taupunkt über Wasser (Magnus-Formel) aus spezifischer Feuchte.
+def _e_to_dewpoint_water(e_Pa: float) -> float:
+    """Magnus-Inversion über Wasser, e in Pa -> Td in °C."""
+    e = max(e_Pa, 0.01)
+    ln_e = math.log(e / 611.2)
+    return max(-99.0, min(60.0, (243.5 * ln_e) / (17.67 - ln_e)))
+
+
+def _saturation_vapor_pressure_mixed_phase_Pa(T_C: float) -> float:
+    """Sättigungsdampfdruck nach Murphy & Koop (2005), Mixed-Phase wie
+    Meteorology.swift::specificToRelativeHumidity (ECMWF-Konvention,
+    Übergang flüssig/Eis zwischen -23°C und 0.01°C). Identische Formel wie
+    serverseitig zur Berechnung von relative_humidity_levelN verwendet, damit
+    das aus RH zurückgerechnete e exakt zum Server-Wert passt.
+    """
+    T0 = 273.16
+    Tice = 250.16
+    T = T_C + 273.15
+
+    ln_esi = 9.550426 - (5723.265 / T) + 3.53068 * math.log(T) - 0.00728332 * T
+    esi = math.exp(ln_esi)
+
+    term1 = 54.842763 - 6763.22 / T - 4.210 * math.log(T) + 0.000367 * T
+    term2 = math.tanh(0.0415 * (T - 218.8)) * (53.878 - 1331.22 / T - 9.44523 * math.log(T) + 0.014025 * T)
+    esw = math.exp(term1 + term2)
+
+    if T <= Tice:
+        f_liquid = 0.0
+    elif T >= T0:
+        f_liquid = 1.0
+    else:
+        f_liquid = ((T - Tice) / (T0 - Tice)) ** 2
+
+    return f_liquid * esw + (1.0 - f_liquid) * esi
+
+
+def humidity_to_dewpoint(qv_gkg: float | None, rh_pct: float | None,
+                          T_C: float | None, p_hPa: float | None) -> float | None:
+    """Taupunkt über Wasser (Magnus-Formel), primär aus specific_humidity_levelN.
 
     Open-Meteo liefert dew_point_levelN über Eis gesättigt (Absprache mit
     Michael); für die TEMP-Darstellung ist konventionsgemäß der Taupunkt
     über Wasser korrekt, daher hier aus specific_humidity_levelN selbst
     berechnet — identische Formel wie qv_to_dewpoint() in fetch_sounding.py,
     damit beide Pfade (opendata/OM) konsistent sind.
+
+    specific_humidity_levelN wird von der API aber nur mit 2 Nachkommastellen
+    in g/kg ausgegeben. In der Stratosphäre (qv ~ 1e-4...1e-2 g/kg) rundet
+    das auf angezeigte 0.0 — genau der Dynamikbereich, den Michaels
+    log-int16-Fix im OM-File eigentlich retten sollte, geht hier auf der
+    JSON-Ausgabeebene wieder verloren. Fallback in diesem Fall: e aus
+    relative_humidity_levelN + Temperatur rekonstruieren (RH bleibt relativ
+    zur exponentiell fallenden Sättigungsfeuchte auflösungsfähig, gleiches
+    Prinzip wie die log-Kompression). relative_humidity_levelN wird
+    serverseitig über _saturation_vapor_pressure_mixed_phase_Pa() (Murphy &
+    Koop 2005, mixed-phase) berechnet, hier exakt nachgebildet für die
+    Rückrechnung auf e; e selbst ist konventionsfrei, die Td-Inversion
+    danach bleibt unverändert über Wasser.
     """
-    if not qv_gkg or qv_gkg <= 1e-9 or not p_hPa:
+    if p_hPa is None:
         return None
-    qv = qv_gkg / 1000.0
-    eps = 0.622
-    e = max((qv * p_hPa * 100) / (eps + qv * (1.0 - eps)), 0.01)
-    ln_e = math.log(e / 611.2)
-    return max(-99.0, min(60.0, (243.5 * ln_e) / (17.67 - ln_e)))
+    if qv_gkg and qv_gkg > 1e-9:
+        qv = qv_gkg / 1000.0
+        eps = 0.622
+        e_Pa = (qv * p_hPa * 100) / (eps + qv * (1.0 - eps))
+        return _e_to_dewpoint_water(e_Pa)
+    if rh_pct is not None and rh_pct > 0 and T_C is not None:
+        es_Pa = _saturation_vapor_pressure_mixed_phase_Pa(T_C)
+        e_Pa = (rh_pct / 100.0) * es_Pa
+        return _e_to_dewpoint_water(e_Pa)
+    return None
 
 
 def current_run(dataset: str) -> tuple[datetime, str]:
@@ -88,7 +142,8 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
     hourly_vars = ["surface_pressure"]
     for n in range(1, n_lev + 1):
         hourly_vars += [f"height_agl_level{n}", f"pressure_level{n}", f"temperature_level{n}",
-                         f"specific_humidity_level{n}", f"wind_speed_level{n}", f"wind_direction_level{n}"]
+                         f"specific_humidity_level{n}", f"relative_humidity_level{n}",
+                         f"wind_speed_level{n}", f"wind_direction_level{n}"]
 
     run_start = run_date.replace(hour=int(run), minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
     now = datetime.now(timezone.utc)
@@ -129,7 +184,8 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
             p   = H.get(f"pressure_level{n}", [None] * len(times))[idx]
             z   = H.get(f"height_agl_level{n}", [None] * len(times))[idx]
             qv  = H.get(f"specific_humidity_level{n}", [None] * len(times))[idx]
-            td  = qv_to_dewpoint(qv, p)
+            rh  = H.get(f"relative_humidity_level{n}", [None] * len(times))[idx]
+            td  = humidity_to_dewpoint(qv, rh, T, p)
             spd = H.get(f"wind_speed_level{n}", [None] * len(times))[idx]
             dr  = H.get(f"wind_direction_level{n}", [None] * len(times))[idx]
             levels.append({
