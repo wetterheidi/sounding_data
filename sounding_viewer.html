@@ -3850,9 +3850,27 @@
       filterByRun();
     });
 
-    // Neue Lade-Routine (wird von Cloud und Drag&Drop genutzt)
-    function loadSoundings(files_or_data) {
-      STATE.allSoundings = [...files_or_data];
+    // Eindeutiger Schlüssel für ein Profil, um beim Mergen (NEU: manuelle Dateien
+    // zu Cloud-Daten dazuladen) Duplikate/Updates desselben Profils zu erkennen.
+    function soundingIdentityKey(s) {
+      return [s.model, s.source ?? '', s.run_date ?? '', s.run_hour ?? '', s.step_h ?? '',
+              s.valid_time ?? '', s.target_lat ?? s.grid_lat ?? '', s.target_lon ?? s.grid_lon ?? ''].join('|');
+    }
+
+    // Neue Lade-Routine (wird von Cloud und Drag&Drop genutzt).
+    // merge=true (Drag&Drop/Dateidialog): neue Profile werden zu den bereits
+    // geladenen (z.B. per Cloud-Button) HINZUGEFÜGT, statt sie zu ersetzen —
+    // damit man Modelllevel-Daten wie gewohnt per Cloud laden und einen manuell
+    // erstellten Vergleichslauf (z.B. OM-Druckflächen) einfach dazuziehen kann,
+    // ohne die Modelllevel-Daten vorher per scp lokal holen zu müssen.
+    // merge=false (Cloud-Refresh): voller Ersatz wie bisher.
+    function loadSoundings(files_or_data, merge = false) {
+      if (merge) {
+        const newKeys = new Set(files_or_data.map(soundingIdentityKey));
+        STATE.allSoundings = STATE.allSoundings.filter(s => !newKeys.has(soundingIdentityKey(s))).concat(files_or_data);
+      } else {
+        STATE.allSoundings = [...files_or_data];
+      }
       if (STATE.allSoundings.length === 0) return;
 
       // 0. Alias-Map aus den Sounding-Daten aufbauen (location_alias-Feld, falls vorhanden)
@@ -3876,8 +3894,12 @@
         select.appendChild(opt);
       });
 
-      // 3. Ersten Ort als Standard setzen und Filter anwenden
-      STATE.currentLocationKey = locations[0];
+      // 3. Ort als Standard setzen (beim Mergen: bisherigen Ort behalten, falls noch
+      // vorhanden, damit ein dazugezogener Vergleichslauf nicht aus der Ansicht springt)
+      // und Filter anwenden
+      if (!merge || !STATE.currentLocationKey || !locations.includes(STATE.currentLocationKey)) {
+        STATE.currentLocationKey = locations[0];
+      }
       select.value = STATE.currentLocationKey;
 
       document.getElementById('empty-state').classList.add('hidden');
@@ -3989,7 +4011,7 @@
           const info = dec.map(s => `${s.location_alias}: ${s.n_levels_raw} → ${s.n_levels_loaded} Level`).join(', ');
           console.info(`Radiosonde dezimiert (50 m-Bins): ${info}`);
         }
-        loadSoundings(all);
+        loadSoundings(all, true);
       }).catch(err => alert('Fehler: ' + err));
     }
 
