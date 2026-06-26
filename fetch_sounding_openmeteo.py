@@ -87,18 +87,24 @@ def humidity_to_dewpoint(qv_gkg: float | None, rh_pct: float | None,
     berechnet — identische Formel wie qv_to_dewpoint() in fetch_sounding.py,
     damit beide Pfade (opendata/OM) konsistent sind.
 
-    specific_humidity_levelN wird von der API aber nur mit 2 Nachkommastellen
-    in g/kg ausgegeben. In der Stratosphäre (qv ~ 1e-4...1e-2 g/kg) rundet
-    das auf angezeigte 0.0 — genau der Dynamikbereich, den Michaels
-    log-int16-Fix im OM-File eigentlich retten sollte, geht hier auf der
-    JSON-Ausgabeebene wieder verloren. Fallback in diesem Fall: e aus
-    relative_humidity_levelN + Temperatur rekonstruieren (RH bleibt relativ
-    zur exponentiell fallenden Sättigungsfeuchte auflösungsfähig, gleiches
-    Prinzip wie die log-Kompression). relative_humidity_levelN wird
-    serverseitig über _saturation_vapor_pressure_mixed_phase_Pa() (Murphy &
-    Koop 2005, mixed-phase) berechnet, hier exakt nachgebildet für die
-    Rückrechnung auf e; e selbst ist konventionsfrei, die Td-Inversion
-    danach bleibt unverändert über Wasser.
+    Bis 2026-06 gab die API specific_humidity_levelN nur mit 2 Nachkommastellen
+    in g/kg aus; in der Stratosphäre (qv ~ 1e-4...1e-2 g/kg) rundete das auf
+    angezeigte 0.0 und der seinerzeitige Code (`if not qv_gkg ...: return None`)
+    hat das fälschlich als "keine Daten" behandelt -> Td riss oberhalb von
+    ~150-200 hPa ab. Seit Michaels Fix (mehr Nachkommastellen bei kleinen qv)
+    liefert specific_humidity_levelN auch oben reale Nicht-Null-Werte, daher
+    greift der untere Zweig im Normalfall durch.
+
+    Der RH-Fallback bleibt trotzdem als Absicherung bestehen, falls qv aus
+    irgendeinem Grund wieder null/exakt 0 zurückkommt (anderes Modell/Level,
+    künftige Server-Änderung etc.): e wird dann aus relative_humidity_levelN +
+    Temperatur rekonstruiert (RH bleibt relativ zur exponentiell fallenden
+    Sättigungsfeuchte auflösungsfähig, gleiches Prinzip wie die log-Kompression
+    im OM-File). relative_humidity_levelN wird serverseitig über
+    _saturation_vapor_pressure_mixed_phase_Pa() (Murphy & Koop 2005,
+    mixed-phase) berechnet, hier exakt nachgebildet für die Rückrechnung auf e;
+    e selbst ist konventionsfrei, die Td-Inversion danach bleibt unverändert
+    über Wasser.
     """
     if p_hPa is None:
         return None
