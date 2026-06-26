@@ -313,8 +313,8 @@
   }
 
   // Taupunkt über Wasser aus T + RH (Magnus-Formel, dieselben Konstanten wie
-  // qv_to_dewpoint() in fetch_sounding_openmeteo.py, damit OM-Modelllevel und
-  // OM-Druckflächen denselben Taupunkt-Standard verwenden).
+  // _e_to_dewpoint_water() in fetch_sounding_openmeteo.py, damit OM-Modelllevel
+  // und OM-Druckflächen denselben Taupunkt-Standard verwenden).
   function rhToDewpoint(T, RH) {
     if (T == null || RH == null || RH <= 0) return null;
     const es = 6.112 * Math.exp((17.67 * T) / (T + 243.5));
