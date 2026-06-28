@@ -4262,6 +4262,14 @@
       const emptyStateText = document.querySelector('#empty-state p');
       const originalText = emptyStateText.innerHTML;
 
+      // Sichtbares Feedback am Button selbst, da #empty-state nach dem ersten
+      // erfolgreichen Laden dauerhaft ausgeblendet ist (.hidden) und ein Klick
+      // sonst spurlos bliebe.
+      const cloudBtn = document.getElementById('btn-cloud');
+      const originalBtnHtml = cloudBtn.innerHTML;
+      cloudBtn.disabled = true;
+      cloudBtn.innerHTML = '⏳ Lade...';
+
       try {
         emptyStateText.innerHTML = 'Suche aktuelle Daten...<br><span style="color:var(--accent)">Bitte warten</span>';
 
@@ -4274,6 +4282,7 @@
           throw new Error('Keine Sounding-Dateien im Index gefunden.');
 
         emptyStateText.innerHTML = `Lade ${fileNames.length} Profile herunter...<br><span style="color:var(--accent)">Bitte warten</span>`;
+        cloudBtn.innerHTML = `⏳ Lade ${fileNames.length} Profile...`;
 
         // 2. Alle Dateien parallel laden
         const fetchPromises = fileNames.map(name =>
@@ -4289,12 +4298,21 @@
         const flatData = allData.flatMap(r => Array.isArray(r) ? r : [r]);
         loadSoundings(flatData);
 
+        cloudBtn.innerHTML = '✓ Aktualisiert';
+        setTimeout(() => { cloudBtn.innerHTML = originalBtnHtml; }, 2000);
+
       } catch (error) {
         console.error('Cloud-Download Fehler:', error);
         emptyStateText.innerHTML = `Download fehlgeschlagen:<br><i>${error.message}</i><br><br>Lokale Datei laden.`;
         setTimeout(() => {
           if (STATE.soundings.length === 0) emptyStateText.innerHTML = originalText;
         }, 5000);
+
+        cloudBtn.innerHTML = '✗ Fehlgeschlagen';
+        cloudBtn.title = error.message;
+        setTimeout(() => { cloudBtn.innerHTML = originalBtnHtml; cloudBtn.title = ''; }, 3000);
+      } finally {
+        cloudBtn.disabled = false;
       }
     }
 
