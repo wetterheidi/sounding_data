@@ -57,7 +57,8 @@ _generate_index
 
 # ---------------------------------------------------------------------------
 # Alle aktiven Orte + Modelle aus locations.json einlesen und in eine
-# flache Aufgabenliste umwandeln: "alias lat lon model step"
+# flache Aufgabenliste umwandeln: "alias<TAB>lat<TAB>lon<TAB>model<TAB>step"
+# Tab als Trenner, damit Aliase Leerzeichen enthalten dürfen.
 # ---------------------------------------------------------------------------
 TASKS=$(python3 - <<EOF
 import json, sys
@@ -73,7 +74,7 @@ for loc in locs:
     for model, cfg in loc.get("models", {}).items():
         if filter_model and filter_model != model:
             continue
-        print(loc["alias"], loc["lat"], loc["lon"], model, cfg["step"])
+        print("\t".join(str(v) for v in (loc["alias"], loc["lat"], loc["lon"], model, cfg["step"])))
 EOF
 )
 
@@ -84,9 +85,12 @@ fi
 
 # ---------------------------------------------------------------------------
 # Aufgaben parallel ausführen (max. $JOBS gleichzeitig via xargs)
+# Jede Zeile wird NUL-terminiert als EIN Argument übergeben und erst im
+# Subprozess per Tab zerlegt — xargs-Wortsplitting/Quote-Interpretation
+# kann Aliase mit Leerzeichen oder Sonderzeichen so nicht mehr verschieben.
 # ---------------------------------------------------------------------------
-echo "$TASKS" | xargs -P "$JOBS" -L 1 bash -c '
-    ALIAS=$1; LAT=$2; LON=$3; MODEL=$4; STEP=$5
+printf '%s\n' "$TASKS" | tr '\n' '\0' | xargs -0 -P "$JOBS" -n 1 bash -c '
+    IFS=$(printf "\t") read -r ALIAS LAT LON MODEL STEP <<< "$1"
     echo "  → $MODEL $ALIAS ($LAT, $LON) step=$STEP  [OM]"
     python3 fetch_sounding_openmeteo.py \
         --lat "$LAT" --lon "$LON" \
