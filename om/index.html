@@ -4392,11 +4392,13 @@
     const OM_ML_META = dataset => `https://open-meteo.mah.priv.at/data/${dataset}/static/meta.json`;
     const OM_PL_BASE = 'https://api.open-meteo.com/v1/forecast';
 
-    // Konfiguration identisch zu fetch_sounding_openmeteo.py
+    // Konfiguration identisch zu fetch_sounding_openmeteo.py; interval_h =
+    // Abstand zwischen zwei Modellläufen (für den Rückfall auf den Vorlauf,
+    // falls der neueste Lauf laut meta.json noch nicht fertig ingestiert ist)
     const OM_ML_MODELS = {
-      'ml:icon-d2': { api_model: 'icon_d2',     dataset: 'dwd_icon_d2', n_levels: 65,  label: 'ICON-D2', defSteps: '0:24:1' },
-      'ml:icon-eu': { api_model: 'icon_eu',     dataset: 'dwd_icon_eu', n_levels: 74,  label: 'ICON-EU', defSteps: '0:48:3' },
-      'ml:icon':    { api_model: 'icon_global', dataset: 'dwd_icon',    n_levels: 120, label: 'ICON',    defSteps: '0:72:6' },
+      'ml:icon-d2': { api_model: 'icon_d2',     dataset: 'dwd_icon_d2', n_levels: 65,  label: 'ICON-D2', defSteps: '0:24:1', interval_h: 3 },
+      'ml:icon-eu': { api_model: 'icon_eu',     dataset: 'dwd_icon_eu', n_levels: 74,  label: 'ICON-EU', defSteps: '0:48:3', interval_h: 6 },
+      'ml:icon':    { api_model: 'icon_global', dataset: 'dwd_icon',    n_levels: 120, label: 'ICON',    defSteps: '0:72:6', interval_h: 6 },
     };
     // Reihenfolge = Anzeigereihenfolge, wie in om_pressure_tool.html
     const OM_PL_MODELS = {
@@ -4515,10 +4517,8 @@
     let omLastRaw = null;
 
     // ---- Modelllevel vom OM-Server (Portierung von build_soundings()) ----
-    async function omFetchModelLevels(cfg, lat, lon, alias, steps, setStatus) {
-      setStatus('Aktuellen Lauf abfragen (meta.json) …');
-      const meta = (await omGetJson(OM_ML_META(cfg.dataset), 30000)).data;
-      const runStartMs = meta.last_run_initialisation_time * 1000;
+    // Ruft genau einen Modelllauf ab; der Lauf-Rückfall sitzt in omFetchModelLevels()
+    async function omFetchMlRun(cfg, runStartMs, lat, lon, alias, steps, setStatus) {
       const runStart = new Date(runStartMs);
       const run_date = `${runStart.getUTCFullYear()}${omPad2(runStart.getUTCMonth() + 1)}${omPad2(runStart.getUTCDate())}`;
       const run_hour = omPad2(runStart.getUTCHours());
@@ -4602,11 +4602,30 @@
         });
       }
 
-      omLastRaw = {
-        text,
-        filename: `omserver_modellevel_${cfg.label}_${run_date}_${run_hour}Z_${omLatLabel(lat)}_${omLonLabel(lon)}.json`,
-      };
-      return { soundings, skipped, runLabel: `${run_date}/${run_hour}Z` };
+      return { soundings, skipped, run_date, run_hour, text };
+    }
+
+    async function omFetchModelLevels(cfg, lat, lon, alias, steps, setStatus) {
+      setStatus('Aktuellen Lauf abfragen (meta.json) …');
+      const meta = (await omGetJson(OM_ML_META(cfg.dataset), 30000)).data;
+      const runStartMs = meta.last_run_initialisation_time * 1000;
+
+      let r = await omFetchMlRun(cfg, runStartMs, lat, lon, alias, steps, setStatus);
+      if (r.soundings.length === 0) {
+        // Direkt nach einem Lauf-Wechsel kann meta.json schon den neuen Lauf
+        // melden, obwohl dessen Stundendaten noch nicht (vollständig) auf dem
+        // Server liegen -> einmal mit dem davorliegenden Lauf versuchen
+        setStatus(`Lauf noch unvollständig — versuche Vorlauf (−${cfg.interval_h} h) …`);
+        r = await omFetchMlRun(cfg, runStartMs - cfg.interval_h * 3600000, lat, lon, alias, steps, setStatus);
+      }
+
+      if (r.soundings.length > 0) {
+        omLastRaw = {
+          text: r.text,
+          filename: `omserver_modellevel_${cfg.label}_${r.run_date}_${r.run_hour}Z_${omLatLabel(lat)}_${omLonLabel(lon)}.json`,
+        };
+      }
+      return { soundings: r.soundings, skipped: r.skipped, runLabel: `${r.run_date}/${r.run_hour}Z`, sourceLabel: 'Modelllevel · OM-Server' };
     }
 
     // ---- Druckflächen von api.open-meteo.com (wie om_pressure_tool.html) ----
@@ -4699,7 +4718,7 @@
         text,
         filename: `openmeteo_druckflaechen_${cfg.key.toUpperCase()}_${run_date}_${run_hour}Z_${omLatLabel(lat)}_${omLonLabel(lon)}.json`,
       };
-      return { soundings, skipped, runLabel: `${run_date}/${run_hour}Z` };
+      return { soundings, skipped, runLabel: `${run_date}/${run_hour}Z`, sourceLabel: 'Druckflächen · api.open-meteo.com' };
     }
 
     // =========================================================================
@@ -4712,12 +4731,16 @@
 
     // Modell-Dropdown mit beiden Quellen-Gruppen befüllen
     (function fillOmModels() {
+      // Quelle steht mit im Options-Text: das geschlossene Dropdown zeigt nur
+      // die gewählte Option (ohne optgroup-Überschrift), und ICON-D2 & Co.
+      // gibt es in beiden Gruppen — sonst sind Modelllevel und Druckflächen
+      // nicht zu unterscheiden
       const gMl = document.createElement('optgroup');
       gMl.label = 'Modelllevel — OM-Server';
       Object.entries(OM_ML_MODELS).forEach(([key, cfg]) => {
         const opt = document.createElement('option');
         opt.value = key;
-        opt.textContent = `${cfg.label} (${cfg.n_levels} Level)`;
+        opt.textContent = `${cfg.label} · Modelllevel (${cfg.n_levels})`;
         gMl.appendChild(opt);
       });
       const gPl = document.createElement('optgroup');
@@ -4725,7 +4748,7 @@
       Object.entries(OM_PL_MODELS).forEach(([key, cfg]) => {
         const opt = document.createElement('option');
         opt.value = key;
-        opt.textContent = cfg.label;
+        opt.textContent = `${cfg.label} · Druckflächen`;
         gPl.appendChild(opt);
       });
       omModelSel.appendChild(gMl);
@@ -4923,7 +4946,8 @@
           : await omFetchPressureLevels({ key: key.slice(3), ...OM_PL_MODELS[key] }, lat, lon, alias, steps, setStatus);
 
         if (result.soundings.length === 0) {
-          throw new Error(`Keine Profile erhalten${result.skipped.length ? ` (Stunden ohne Daten: +${result.skipped.join('h, +')}h)` : ''}.`);
+          throw new Error(`Keine Profile erhalten${result.skipped.length ? ` (Stunden ohne Daten: +${result.skipped.join('h, +')}h)` : ''}.`
+            + ' Möglicherweise wird der aktuelle Lauf gerade erst auf den Server geladen — in ein paar Minuten erneut versuchen.');
         }
 
         document.getElementById('om-download').disabled = !omLastRaw;
@@ -4964,7 +4988,7 @@
         omCompareIntent = false;
 
         saveOmSettings(lat, lon, alias);
-        setStatus(`✓ ${result.soundings.length}/${steps.length} Profile geladen (Lauf ${result.runLabel})`
+        setStatus(`✓ ${result.soundings.length}/${steps.length} Profile geladen — ${result.sourceLabel}, Lauf ${result.runLabel}`
           + (result.skipped.length ? ` — ohne Daten: +${result.skipped.join('h, +')}h` : ''));
         setTimeout(closeOmDialog, 600);
       } catch (err) {
