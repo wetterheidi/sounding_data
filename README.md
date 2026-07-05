@@ -156,6 +156,30 @@ Dateien älter als 3 Tage werden automatisch von `run_locations.sh` gelöscht.
 
 ---
 
+## OM Viewer (öffentliche Variante, `om/`)
+
+Eigenständige Variante des Viewers unter https://tlogpviewer.wetterheidi.de/om/ —
+**ohne Passwortschutz** und **ohne Server-Pipeline**: Alle Daten werden clientseitig
+live von Open-Meteo geladen, der Ort wird per Leaflet-Karte (oder Koordinaten-Eingabe)
+gewählt.
+
+- **Modelllevel** (native ICON-Level): OM-Server `open-meteo.mah.priv.at`, Lauf
+  automatisch der neueste laut `meta.json` — JS-Portierung von `fetch_sounding_openmeteo.py`
+- **Druckflächen** (1000–30 hPa): öffentliche API `api.open-meteo.com` — Logik aus
+  `om_pressure_tool.html`, hier direkt in den Viewer integriert
+- **Rohdaten-Download**: die letzte Server-Antwort kann unverändert (byte-identisch)
+  als JSON gespeichert werden
+- Leaflet liegt lokal unter `om/leaflet/` (kein CDN); einzige externe Abhängigkeiten
+  zur Laufzeit sind die beiden Open-Meteo-APIs und die OSM-Kartenkacheln
+
+`om/index.html` ist eine Kopie von `sounding_viewer.html` mit ersetztem Datenpfad —
+der Skew-T-Rendering-Kern ist identisch. Änderungen am Diagramm-Kern müssen daher
+in beiden Dateien nachgezogen werden. Die Hauptversion (`sounding_viewer.html`,
+DWD-Pipeline, Basic Auth) bleibt unberührt; ausgeliefert wird `om/` über einen
+eigenen `location /om/`-Block ohne `auth_basic` (siehe `deploy/nginx-tlogpviewer.conf`).
+
+---
+
 ## Fallback auf GitHub Actions
 
 Falls der Server ausfällt oder Probleme auftreten:
