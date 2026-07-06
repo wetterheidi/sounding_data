@@ -505,7 +505,6 @@
     html.simple-mode #compare-step-select,
     html.simple-mode #btn-om-pl,
     html.simple-mode #btn-json,
-    html.simple-mode #om-download,
     html.simple-mode #om-pl-group,
     html.simple-mode .om-pl-only { display: none !important; }
 
@@ -4907,7 +4906,7 @@
       omPrevModelKey = key;
       document.getElementById('om-hint').textContent = isMl
         ? (SIMPLE_MODE
-          ? 'Native ICON-Modelllevel vom OM-Server; der neueste verfügbare Lauf wird automatisch bestimmt. Die passenden Druckflächen von Open-Meteo werden automatisch als Vergleichskurve (gestrichelt) mit angezeigt.'
+          ? 'Native ICON-Modelllevel vom OM-Server; der neueste verfügbare Lauf wird automatisch bestimmt. Die passenden Druckflächen von Open-Meteo werden automatisch als Vergleichskurve (gestrichelt) mit angezeigt. Nach dem Laden kann die Modelllevel-Antwort des Servers unverändert gespeichert werden (Rohdaten-Knopf).'
           : 'Native ICON-Modelllevel vom OM-Server. Der Lauf wird automatisch bestimmt (neuester verfügbarer laut meta.json). Nach dem Laden kann die Server-Antwort unverändert als JSON gespeichert werden (Rohdaten-Knopf).')
         : 'Druckflächen (1000–30 hPa) von der öffentlichen Open-Meteo-API. Die Vorhersagestunden zählen ab dem angegebenen Lauf (bis 92 Tage rückwirkend). Level, die das Modell nicht liefert, werden übersprungen.';
     }
@@ -5010,6 +5009,10 @@
           const ref = result.soundings[0];
           const plKey = OM_ML_TO_PL[ref.model];
           if (plKey) {
+            // Der Rohdaten-Knopf soll die Modelllevel-Antwort des OM-Servers
+            // liefern — der Druckflächen-Abruf würde omLastRaw sonst mit der
+            // api.open-meteo.com-Antwort überschreiben
+            const mlRaw = omLastRaw;
             try {
               const rd = ref.run_date; // YYYYMMDD
               const plResult = await omFetchPressureLevels(
@@ -5018,6 +5021,8 @@
               if (plResult.soundings.length > 0) autoPl = plResult;
             } catch (err) {
               console.warn('Druckflächen-Vergleich konnte nicht geladen werden:', err);
+            } finally {
+              omLastRaw = mlRaw;
             }
           }
         }
