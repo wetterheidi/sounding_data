@@ -12,6 +12,20 @@
     // Theme sofort setzen, bevor CSS greift → kein Aufflackern
     const _t = localStorage.getItem('tlogp-theme');
     if (_t) document.documentElement.dataset.theme = _t;
+
+    // Einfach-/Experten-Modus: Standard ist der Einfach-Modus — nur Modelllevel
+    // vom OM-Server laden, die passenden Druckflächen von api.open-meteo.com
+    // werden automatisch als Vergleich überlagert; Vergleichs-Dropdowns,
+    // "+ OM Druckflächen", Rohdaten-/JSON-Knöpfe und die Druckflächen-Quellen
+    // im Dialog sind ausgeblendet (siehe html.simple-mode-Regeln im CSS).
+    // ?expert=1 schaltet die volle UI frei und merkt das in localStorage,
+    // ?expert=0 schaltet zurück. Hier im <head>, damit nichts aufflackert.
+    (function () {
+      const qp = new URLSearchParams(location.search);
+      if (qp.get('expert') === '1') localStorage.setItem('tlogp-expert', '1');
+      else if (qp.get('expert') === '0') localStorage.removeItem('tlogp-expert');
+      if (!localStorage.getItem('tlogp-expert')) document.documentElement.classList.add('simple-mode');
+    })();
   </script>
   <style>
     /* ------------------------------------------------------------------ */
@@ -482,6 +496,20 @@
     }
 
     /* ------------------------------------------------------------------ */
+    /* Einfach-Modus (Standard): Vergleichs- und Experten-UI ausblenden.   */
+    /* !important, weil einige dieser Elemente per JS-Inline-Style ein-/   */
+    /* ausgeblendet werden (btn-om-pl, compare-step-select, .om-pl-only).  */
+    /* Experten-UI freischalten: ?expert=1 (siehe Skript im <head>)        */
+    /* ------------------------------------------------------------------ */
+    html.simple-mode #compare-run-select,
+    html.simple-mode #compare-step-select,
+    html.simple-mode #btn-om-pl,
+    html.simple-mode #btn-json,
+    html.simple-mode #om-download,
+    html.simple-mode #om-pl-group,
+    html.simple-mode .om-pl-only { display: none !important; }
+
+    /* ------------------------------------------------------------------ */
     /* OM-Abruf-Dialog (Ortsauswahl per Leaflet-Karte)                     */
     /* ------------------------------------------------------------------ */
     #om-dialog {
@@ -625,7 +653,7 @@
         TXT Export ⭳
       </button>
 
-      <button class="btn primary" onclick="document.getElementById('file-input').click()">
+      <button class="btn primary" id="btn-json" onclick="document.getElementById('file-input').click()">
         JSON laden ↑
       </button>
       <input type="file" id="file-input" accept=".json" multiple style="display:none">
@@ -3839,10 +3867,16 @@
       // 3. Läufe absteigend sortieren (der NEUESTE Lauf steht ganz oben / an Index 0!)
       const runs = Array.from(runSet).sort((a, b) => b.localeCompare(a));
 
+      // Im Einfach-Modus sind Druckflächen-Läufe reine Vergleichs-Overlays und
+      // tauchen nicht als eigenständig wählbarer Hauptlauf auf (das Vergleichs-
+      // Dropdown unten bekommt weiterhin alle Läufe — es wird programmatisch
+      // vom automatischen Druckflächen-Abruf gesetzt und ist ausgeblendet)
+      const mainRuns = SIMPLE_MODE ? runs.filter(r => !r.endsWith('[PL]')) : runs;
+
       // 4. Lauf-Dropdown befüllen
       const runSelect = document.getElementById('run-select');
       runSelect.innerHTML = '';
-      runs.forEach(r => {
+      mainRuns.forEach(r => {
         const opt = document.createElement('option');
         opt.value = r;
         opt.textContent = r;
@@ -3850,8 +3884,8 @@
       });
 
       // 5. Automatisch den neuesten Lauf auswählen!
-      if (runs.length > 0) {
-        STATE.currentRunKey = runs[0];
+      if (mainRuns.length > 0) {
+        STATE.currentRunKey = mainRuns[0];
         runSelect.value = STATE.currentRunKey;
       } else {
         STATE.currentRunKey = '';
@@ -4392,6 +4426,11 @@
     const OM_ML_META = dataset => `https://open-meteo.mah.priv.at/data/${dataset}/static/meta.json`;
     const OM_PL_BASE = 'https://api.open-meteo.com/v1/forecast';
 
+    // Einfach-Modus (Standard, siehe Skript im <head>): Modelllevel laden und
+    // die passenden Druckflächen automatisch als Vergleich dazuholen; die
+    // Experten-UI ist per CSS (html.simple-mode) ausgeblendet.
+    const SIMPLE_MODE = document.documentElement.classList.contains('simple-mode');
+
     // Konfiguration identisch zu fetch_sounding_openmeteo.py; interval_h =
     // Abstand zwischen zwei Modellläufen (für den Rückfall auf den Vorlauf,
     // falls der neueste Lauf laut meta.json noch nicht fertig ingestiert ist)
@@ -4629,9 +4668,10 @@
     }
 
     // ---- Druckflächen von api.open-meteo.com (wie om_pressure_tool.html) ----
-    async function omFetchPressureLevels(cfg, lat, lon, alias, steps, setStatus) {
-      const runDateVal = document.getElementById('om-run-date').value;
-      const runHour = Number(document.getElementById('om-run-hour').value);
+    // runDateVal ('YYYY-MM-DD') und runHour kommen als Parameter: im Experten-
+    // Modus aus den Dialog-Feldern, im Einfach-Modus aus dem gerade geladenen
+    // Modelllevel-Lauf (automatischer Vergleichs-Abruf)
+    async function omFetchPressureLevels(cfg, lat, lon, alias, steps, setStatus, runDateVal, runHour) {
       if (!runDateVal || Number.isNaN(runHour) || runHour < 0 || runHour > 23) {
         throw new Error('Bitte Lauf-Datum und Lauf-Stunde (0–23) angeben.');
       }
@@ -4744,6 +4784,7 @@
         gMl.appendChild(opt);
       });
       const gPl = document.createElement('optgroup');
+      gPl.id = 'om-pl-group';   // im Einfach-Modus per CSS ausgeblendet
       gPl.label = 'Druckflächen — api.open-meteo.com';
       Object.entries(OM_PL_MODELS).forEach(([key, cfg]) => {
         const opt = document.createElement('option');
@@ -4752,7 +4793,10 @@
         gPl.appendChild(opt);
       });
       omModelSel.appendChild(gMl);
-      omModelSel.appendChild(gPl);
+      // Einfach-Modus: Druckflächen sind keine wählbare Quelle (sie werden
+      // automatisch als Vergleich geladen); Safari ignoriert display:none auf
+      // <optgroup>, daher die Gruppe gar nicht erst anhängen
+      if (!SIMPLE_MODE) omModelSel.appendChild(gPl);
     })();
 
     function setOmLocation(lat, lon, { pan = false } = {}) {
@@ -4862,7 +4906,9 @@
       if (!keepSteps) document.getElementById('om-steps').value = isMl ? OM_ML_MODELS[key].defSteps : '0:24:3';
       omPrevModelKey = key;
       document.getElementById('om-hint').textContent = isMl
-        ? 'Native ICON-Modelllevel vom OM-Server. Der Lauf wird automatisch bestimmt (neuester verfügbarer laut meta.json). Nach dem Laden kann die Server-Antwort unverändert als JSON gespeichert werden (Rohdaten-Knopf).'
+        ? (SIMPLE_MODE
+          ? 'Native ICON-Modelllevel vom OM-Server; der neueste verfügbare Lauf wird automatisch bestimmt. Die passenden Druckflächen von Open-Meteo werden automatisch als Vergleichskurve (gestrichelt) mit angezeigt.'
+          : 'Native ICON-Modelllevel vom OM-Server. Der Lauf wird automatisch bestimmt (neuester verfügbarer laut meta.json). Nach dem Laden kann die Server-Antwort unverändert als JSON gespeichert werden (Rohdaten-Knopf).')
         : 'Druckflächen (1000–30 hPa) von der öffentlichen Open-Meteo-API. Die Vorhersagestunden zählen ab dem angegebenen Lauf (bis 92 Tage rückwirkend). Level, die das Modell nicht liefert, werden übersprungen.';
     }
     omModelSel.addEventListener('change', applyOmModelUi);
@@ -4889,7 +4935,10 @@
 
       let saved = null;
       try { saved = JSON.parse(localStorage.getItem(OM_SETTINGS_KEY) ?? 'null'); } catch { /* ignorieren */ }
-      if (saved?.model && (OM_ML_MODELS[saved.model] || OM_PL_MODELS[saved.model])) omModelSel.value = saved.model;
+      // Im Einfach-Modus sind Druckflächen-Quellen nicht wählbar — eine evtl.
+      // noch gespeicherte pl:-Auswahl (aus dem Experten-Modus) nicht übernehmen
+      if (saved?.model && (OM_ML_MODELS[saved.model] || OM_PL_MODELS[saved.model])
+          && !(SIMPLE_MODE && saved.model.startsWith('pl:'))) omModelSel.value = saved.model;
       applyOmModelUi();
       if (saved) {
         if (saved.lat != null) document.getElementById('om-lat').value = saved.lat;
@@ -4943,11 +4992,34 @@
       try {
         const result = key.startsWith('ml:')
           ? await omFetchModelLevels(OM_ML_MODELS[key], lat, lon, alias, steps, setStatus)
-          : await omFetchPressureLevels({ key: key.slice(3), ...OM_PL_MODELS[key] }, lat, lon, alias, steps, setStatus);
+          : await omFetchPressureLevels({ key: key.slice(3), ...OM_PL_MODELS[key] }, lat, lon, alias, steps, setStatus,
+              document.getElementById('om-run-date').value, Number(document.getElementById('om-run-hour').value));
 
         if (result.soundings.length === 0) {
           throw new Error(`Keine Profile erhalten${result.skipped.length ? ` (Stunden ohne Daten: +${result.skipped.join('h, +')}h)` : ''}.`
             + ' Möglicherweise wird der aktuelle Lauf gerade erst auf den Server geladen — in ein paar Minuten erneut versuchen.');
+        }
+
+        // Einfach-Modus: zum Modelllevel-Lauf automatisch die passenden Druck-
+        // flächen von api.open-meteo.com dazuladen (gleiches Modell, gleicher
+        // Lauf, gleiche Stunden) — integrierter Ersatz für den Expertenweg
+        // über den "+ OM Druckflächen"-Knopf. Scheitert der Abruf, wird der
+        // Modelllevel-Lauf trotzdem normal angezeigt.
+        let autoPl = null;
+        if (SIMPLE_MODE && key.startsWith('ml:')) {
+          const ref = result.soundings[0];
+          const plKey = OM_ML_TO_PL[ref.model];
+          if (plKey) {
+            try {
+              const rd = ref.run_date; // YYYYMMDD
+              const plResult = await omFetchPressureLevels(
+                { key: plKey.slice(3), ...OM_PL_MODELS[plKey] }, lat, lon, alias, steps, setStatus,
+                `${rd.slice(0, 4)}-${rd.slice(4, 6)}-${rd.slice(6, 8)}`, Number(ref.run_hour));
+              if (plResult.soundings.length > 0) autoPl = plResult;
+            } catch (err) {
+              console.warn('Druckflächen-Vergleich konnte nicht geladen werden:', err);
+            }
+          }
         }
 
         document.getElementById('om-download').disabled = !omLastRaw;
@@ -4958,7 +5030,8 @@
         const prevRunKey = STATE.currentRunKey;
 
         // Neue Profile zu evtl. schon geladenen dazu mergen und direkt anzeigen
-        loadSoundings(result.soundings, true);
+        // (im Einfach-Modus zusammen mit den automatisch geholten Druckflächen)
+        loadSoundings(autoPl ? result.soundings.concat(autoPl.soundings) : result.soundings, true);
         const first = result.soundings[0];
         const locKey = getLocKey(first);
         const runKey = getRunKey(first);
@@ -4987,9 +5060,24 @@
         }
         omCompareIntent = false;
 
+        // Einfach-Modus: die automatisch geholten Druckflächen als Vergleichs-
+        // Overlay setzen ("Zeitpunkt: automatisch" folgt der Zeitnavigation)
+        if (autoPl) {
+          const plRunKey = getRunKey(autoPl.soundings[0]);
+          const cmpSelect = document.getElementById('compare-run-select');
+          if (plRunKey !== STATE.currentRunKey && [...cmpSelect.options].some(o => o.value === plRunKey)) {
+            STATE.compareRunKey = plRunKey;
+            cmpSelect.value = plRunKey;
+            populateCompareStepSelect();
+            redraw();
+          }
+        }
+
         saveOmSettings(lat, lon, alias);
         setStatus(`✓ ${result.soundings.length}/${steps.length} Profile geladen — ${result.sourceLabel}, Lauf ${result.runLabel}`
-          + (result.skipped.length ? ` — ohne Daten: +${result.skipped.join('h, +')}h` : ''));
+          + (result.skipped.length ? ` — ohne Daten: +${result.skipped.join('h, +')}h` : '')
+          + (autoPl ? ` — Druckflächen-Vergleich: ${autoPl.soundings.length} Profile` : '')
+          + (SIMPLE_MODE && key.startsWith('ml:') && !autoPl ? ' — Druckflächen-Vergleich derzeit nicht verfügbar' : ''));
         setTimeout(closeOmDialog, 600);
       } catch (err) {
         console.error('OM-Abruf Fehler:', err);
