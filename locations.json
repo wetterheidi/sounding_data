@@ -6,7 +6,7 @@
     "enabled": true,
     "models": {
       "icon-d2": {
-        "step": "0:24:1"
+        "step": "0:36:1"
       }
     }
   },
@@ -69,10 +69,65 @@
     "alias": "Bobby",
     "lat": 47.839,
     "lon": 10.866,
-    "enabled": true,
+    "enabled": false,
     "models": {
       "icon-d2": {
         "step": "0:24:1"
+      }
+    }
+  },
+  {
+    "alias": "Norbert",
+    "lat": 42.66,
+    "lon": 18.048,
+    "enabled": false,
+    "models": {
+      "icon-eu": {
+        "step": "0:48:3"
+      }
+    }
+  },
+  {
+    "alias": "Grönland",
+    "lat": 67.134,
+    "lon": -49.509,
+    "enabled": false,
+    "models": {
+      "icon": {
+        "step": "0:120:6"
+      }
+    }
+  },
+  {
+    "alias": "LukasGB",
+    "lat": 35.685,
+    "lon": 76.645,
+    "enabled": false,
+    "models": {
+      "icon": {
+        "step": "0:120:6"
+      }
+    }
+  },
+  {
+    "alias": "Suelze",
+    "lat": 52.289,
+    "lon": 9.207,
+    "enabled": false,
+    "models": {
+      "icon-d2": {
+        "step": "0:24:1"
+      }
+    }
+  },
+  {
+    "alias": "SeukendorfW",
+    "lat": 49.513,
+    "lon": 10.627,
+    "enabled": true,
+    "models": {
+      "icon-d2": {
+        "step": "0:48:2"
       }
     }
   }

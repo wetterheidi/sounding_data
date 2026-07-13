@@ -1,13 +1,16 @@
 # Deploy-Anleitung: Lokale Code-Änderungen auf den Server bringen
 
-## Architektur (Stand Mai 2026)
+## Architektur (Stand Juli 2026, nach Pförtner-Umstellung)
 
 | Was | Wo |
 |-----|----|
 | Code-Repo | GitHub: `wetterheidi/sounding_data` |
-| Server-Verzeichnis | `/apps/TLogPViewer/sounding_data/` |
+| Server-Verzeichnis (Repo-Klon) | `/apps/TLogPViewer/sounding_data/` |
+| Admin-API (laufende Kopie) | `/apps/TLogPViewer/admin_api.py` — läuft bewusst **außerhalb** des Repo-Klons |
+| Backups von locations.json | `/apps/TLogPViewer/backups/` |
 | Datendateien | `/apps/TLogPViewer/data/` (von git ignoriert) |
 | Daten-Fetching | systemd-Timer auf dem Server (`tlogp-d2eu.timer`, `tlogp-icon.timer`) |
+| Login/Adminrechte | Pförtner (`verwaltung.wetterheidi.de`) per nginx `auth_request` — kein htpasswd mehr |
 
 `data/*.json` steht in `.gitignore` — Wetterdaten werden nie mehr committed.
 Es gibt keine GitHub Action mehr. Push-Konflikte durch "Wetter-Update"-Commits
@@ -36,6 +39,16 @@ git pull --ff-only
 ```
 
 Fertig.
+
+### Sonderfall: Änderung an admin_api.py
+
+Die API läuft aus einer Kopie in `/apps/TLogPViewer/` (damit `git pull` sie nie
+im laufenden Betrieb verändert). Nach einer Änderung zusätzlich:
+
+```bash
+cp /apps/TLogPViewer/sounding_data/admin_api.py /apps/TLogPViewer/admin_api.py
+systemctl restart tlogp-api.service
+```
 
 ---
 

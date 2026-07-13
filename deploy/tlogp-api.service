@@ -11,7 +11,7 @@ After=network.target
 [Service]
 Type=simple
 User=www-data
-WorkingDirectory=/apps/TLogPViewer/sounding_data
+WorkingDirectory=/apps/TLogPViewer
 ExecStart=/apps/TLogPViewer/venv/bin/python3 admin_api.py
 Restart=on-failure
 RestartSec=10
