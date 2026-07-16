@@ -3599,7 +3599,17 @@
       setIdx('idx-bs6', bs6_kt, ' kt', 0);
       setIdx('idx-bs1', bs1_kt, ' kt', 0);
 
-      // --- 0°C Grenze (Freezing Level) in m und ft AGL ---
+      // Geländehöhe für AMSL-Referenz (HSURF aus Modell bevorzugt, sonst ISA-Näherung)
+      let z_sfc_amsl;
+      if (snd.hsurf_m != null) {
+        z_sfc_amsl = snd.hsurf_m;
+      } else {
+        const p_sfc = snd.surface_p_hPa || (lvls.length > 0 ? lvls[0].p_hPa : 1013.25);
+        z_sfc_amsl = 44330 * (1 - Math.pow(p_sfc / 1013.25, 0.19026));
+      }
+      z_sfc_amsl = Math.max(0, z_sfc_amsl);
+
+      // --- 0°C Grenze (Freezing Level) in m und ft AMSL ---
       // --- Niederschlagsphase ---
       const precip = computePrecipPhase(lvls);
       const PRECIP_LABELS = {
@@ -3629,16 +3639,18 @@
 
       const isoEl = document.getElementById('idx-iso0');
       if (iso0_m !== null) {
-        isoEl.textContent = `${Math.round(iso0_m)} m / ${Math.round(iso0_m * 3.28084)} ft AGL`;
+        const iso0_amsl = iso0_m + z_sfc_amsl;
+        isoEl.textContent = `${Math.round(iso0_amsl)} m / ${Math.round(iso0_amsl * 3.28084)} ft AMSL`;
       } else {
         isoEl.textContent = '—';
       }
       isoEl.className = 'index-val';
 
-      // --- Tropopause in m und ft AGL ---
+      // --- Tropopause in m und ft AMSL ---
       const tropoEl = document.getElementById('idx-tropo');
       if (tropo_m !== null) {
-        tropoEl.textContent = `${Math.round(tropo_m)} m / ${Math.round(tropo_m * 3.28084)} ft AGL`;
+        const tropo_amsl = tropo_m + z_sfc_amsl;
+        tropoEl.textContent = `${Math.round(tropo_amsl)} m / ${Math.round(tropo_amsl * 3.28084)} ft AMSL`;
       } else {
         tropoEl.textContent = '—';
       }
