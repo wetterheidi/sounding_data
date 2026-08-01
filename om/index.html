@@ -879,6 +879,14 @@
             id="idx-tropo">—</span></div>
         <div class="index-row"><span class="index-name">0°C Grenze</span><span class="index-val" id="idx-iso0">—</span>
         </div>
+        <div style="margin-top:4px;">
+          <label style="cursor:pointer;font-size:10px;line-height:1.4;display:flex;gap:4px;">
+            <input type="checkbox" id="chk-cloud-source-model" style="margin-top:1px;">
+            <span>Wolken: Modell-Wasser/-Eis (QW/QI/Cover) statt RH-Heuristik</span>
+          </label>
+          <div id="cloud-source-note" style="display:none;font-size:10px;color:var(--text2);margin-top:2px;">
+            Modelldaten nicht verfügbar – RH-Heuristik verwendet</div>
+        </div>
       </details>
       <details class="sidebar-section" closed style="opacity: 0.7;">
         <summary>Steuerung</summary>
@@ -918,6 +926,7 @@
       showCat: false,
       showContrails: false,
       showClouds: false,
+      cloudSource: 'rh', // 'rh' (Standard) | 'model' (QW/QI/Cloud-Cover, mit Auto-Fallback auf RH)
       showHodograph: false,
       hodographLarge: false,
       parcelData: null,
@@ -1137,9 +1146,8 @@
       return 3;                // OVC
     }
 
-    function getCloudColor(T_C, Td_C) {
-      const oktas = cloudOktas(T_C, Td_C);
-      if (oktas === 0) return null;
+    function oktasColor(oktas) {
+      if (!oktas) return null;
       if (PALETTE.isDark) {
         if (oktas === 1) return 'rgba(210,220,230,0.60)'; // SCT
         if (oktas === 2) return 'rgba(120,138,155,0.85)'; // BKN
@@ -1149,6 +1157,60 @@
         if (oktas === 2) return 'rgba(90,115,135,0.70)';  // BKN
         return 'rgba(50,75,95,0.88)';                     // OVC
       }
+    }
+
+    /**
+     * Alternative Wolkenanalyse aus Modell-Diagnosen statt RH-Heuristik:
+     * bevorzugt cloud_cover_levelN (clc_pct, direkte Modellausgabe), sonst
+     * Bedeckungsgrad aus Wolkenwasser+eis (qw_kgkg+qi_kgkg) über eine
+     * Sättigungs-Näherung. Portiert aus droneforecast/src/clouds.js
+     * (cloudFraction, QCOND_SCALE=1e-5 kg/kg als Kalibrierungs-Platzhalter,
+     * typische Cirrus/Stratus-Werte ~1e-5…1e-4 kg/kg).
+     * Liefert null, wenn für dieses Level keine Modell-Wolkendaten vorhanden
+     * sind -> Aufrufer soll dann auf die RH-Heuristik zurückfallen.
+     */
+    function cloudFractionModel(level) {
+      if (!level) return null;
+      if (Number.isFinite(level.clc_pct)) return Math.max(0, Math.min(1, level.clc_pct / 100));
+      if (Number.isFinite(level.qw_kgkg) || Number.isFinite(level.qi_kgkg)) {
+        const q = (level.qw_kgkg || 0) + (level.qi_kgkg || 0);
+        return Math.max(0, Math.min(1, 1 - Math.exp(-q / 1e-5)));
+      }
+      return null;
+    }
+
+    // Schwellen wie droneforecast/src/clouds.js (CF_SCT/CF_BKN/CF_OVC), auf die
+    // bestehende 4er-Oktas-Skala (0/SCT/BKN/OVC) dieses Viewers gemappt.
+    function cloudFractionToOktas(cf) {
+      if (cf == null) return 0;
+      if (cf < 0.25) return 0;
+      if (cf < 0.50) return 1;
+      if (cf < 0.90) return 2;
+      return 3;
+    }
+
+    function soundingHasCloudModelData(snd) {
+      return !!(snd && snd.levels && snd.levels.some(l =>
+        l.clc_pct != null || l.qw_kgkg != null || l.qi_kgkg != null));
+    }
+
+    /**
+     * Oktas-Klasse für die Schicht zwischen l1/l2, je nach STATE.cloudSource.
+     * 'model' nutzt cloudFractionModel je Level (gemittelt); ist für diese
+     * konkrete Schicht keine Modelldiagnose vorhanden, fällt NUR diese Schicht
+     * still auf die RH-Heuristik zurück (kein Hinweis nötig, siehe
+     * soundingHasCloudModelData für den Fall "gar keine Modelldaten").
+     */
+    function layerOktas(l1, l2, useModel) {
+      if (useModel) {
+        const cf1 = cloudFractionModel(l1);
+        const cf2 = cloudFractionModel(l2);
+        if (cf1 != null && cf2 != null) return cloudFractionToOktas((cf1 + cf2) / 2);
+        if (cf1 != null) return cloudFractionToOktas(cf1);
+        if (cf2 != null) return cloudFractionToOktas(cf2);
+      }
+      if (l1.T_C == null || l1.Td_C == null || l2.T_C == null || l2.Td_C == null) return 0;
+      return cloudOktas((l1.T_C + l2.T_C) / 2, (l1.Td_C + l2.Td_C) / 2);
     }
 
     // =========================================================================
@@ -1563,6 +1625,12 @@
       );
       if (lvls.length === 0) return;
 
+      const cloudUseModel = STATE.cloudSource === 'model' && soundingHasCloudModelData(snd);
+      const cloudNoteEl = document.getElementById('cloud-source-note');
+      if (cloudNoteEl) {
+        cloudNoteEl.style.display = (STATE.cloudSource === 'model' && !cloudUseModel) ? 'block' : 'none';
+      }
+
       // --- Wolken-Überlagerung im Diagramm (optional) ---
       if (STATE.showClouds) {
         ctx.save();
@@ -1581,10 +1649,7 @@
         ];
         for (let i = 0; i < lvls.length - 1; i++) {
           const l1 = lvls[i], l2 = lvls[i + 1];
-          if (l1.T_C == null || l1.Td_C == null || l2.T_C == null || l2.Td_C == null) continue;
-          const T_mid = (l1.T_C + l2.T_C) / 2;
-          const Td_mid = (l1.Td_C + l2.Td_C) / 2;
-          const oktas = cloudOktas(T_mid, Td_mid);
+          const oktas = layerOktas(l1, l2, cloudUseModel);
           if (oktas === 0) continue;
           const col = cloudDiagColors[oktas];
           if (!col) continue;
@@ -1605,12 +1670,7 @@
         const l1 = lvls[i];   // Unteres Level (z.B. 1000 hPa)
         const l2 = lvls[i + 1]; // Oberes Level (z.B. 950 hPa)
 
-        if (l1.T_C == null || l1.Td_C == null || l2.T_C == null || l2.Td_C == null) continue;
-
-        // Repräsentative Schichtmitte für Wolkenfarbe
-        const T_mid = (l1.T_C + l2.T_C) / 2;
-        const Td_mid = (l1.Td_C + l2.Td_C) / 2;
-        const color = getCloudColor(T_mid, Td_mid);
+        const color = oktasColor(layerOktas(l1, l2, cloudUseModel));
 
         if (color) {
           const y1 = proj.toCanvasY(l1.p_hPa);
@@ -4574,10 +4634,12 @@
       const run_hour = omPad2(runStart.getUTCHours());
 
       const hourlyVars = ['surface_pressure'];
+      const cloudVars = [];
       for (let n = 1; n <= cfg.n_levels; n++) {
         hourlyVars.push(`height_agl_level${n}`, `pressure_level${n}`, `temperature_level${n}`,
           `specific_humidity_level${n}`, `relative_humidity_level${n}`,
           `wind_speed_level${n}`, `wind_direction_level${n}`);
+        cloudVars.push(`cloud_water_level${n}`, `cloud_ice_level${n}`, `cloud_cover_level${n}`);
       }
 
       const now = new Date();
@@ -4587,18 +4649,28 @@
       const past_days = runStartMs < today0 ? Math.ceil((today0 - runStartMs) / 86400000) : 0;
       const forecast_days = Math.max(1, Math.floor((runStartMs - now.getTime()) / 86400000) + Math.floor(maxStep / 24) + 2);
 
-      const params = new URLSearchParams({
-        latitude: String(lat), longitude: String(lon),
-        hourly: hourlyVars.join(','),
-        models: cfg.api_model,
-        wind_speed_unit: 'kn',       // Server liefert Knoten direkt
-        timezone: 'GMT',
-        forecast_days: String(forecast_days),
-      });
-      if (past_days > 0) params.set('past_days', String(past_days));
+      function buildParams(vars) {
+        const p = new URLSearchParams({
+          latitude: String(lat), longitude: String(lon),
+          hourly: vars.join(','),
+          models: cfg.api_model,
+          wind_speed_unit: 'kn',       // Server liefert Knoten direkt
+          timezone: 'GMT',
+          forecast_days: String(forecast_days),
+        });
+        if (past_days > 0) p.set('past_days', String(past_days));
+        return p;
+      }
 
       setStatus(`${cfg.label} ${run_date}/${run_hour}Z laden (${cfg.n_levels} Level) …`);
-      const { data, text } = await omGetJson(`${OM_ML_BASE}?${params}`);
+      let data, text;
+      try {
+        ({ data, text } = await omGetJson(`${OM_ML_BASE}?${buildParams(hourlyVars.concat(cloudVars))}`));
+      } catch (err) {
+        // cloud_water/ice/cover_levelN sind noch nicht überall verfügbar (neu
+        // seit 2026) -> einmal ohne diese Felder retryen statt ganz abzubrechen.
+        ({ data, text } = await omGetJson(`${OM_ML_BASE}?${buildParams(hourlyVars)}`));
+      }
       const H = data.hourly;
       const times = H.time;
       const elev = data.elevation ?? null;
@@ -4624,6 +4696,11 @@
           const z  = H[`height_agl_level${n}`]?.[idx];
           const qv = H[`specific_humidity_level${n}`]?.[idx];
           const rh = H[`relative_humidity_level${n}`]?.[idx];
+          // cloud_water/ice_levelN kommen in g/kg (hourly_units bestätigt) ->
+          // kg/kg fürs einheitliche Schema; cloud_cover_levelN ist bereits %.
+          const qw  = H[`cloud_water_level${n}`]?.[idx];
+          const qi_ = H[`cloud_ice_level${n}`]?.[idx];
+          const clc = H[`cloud_cover_level${n}`]?.[idx];
           levels.push({
             level_idx: n,
             p_hPa:    omRound(p, 3),
@@ -4632,6 +4709,9 @@
             Td_C:     omRound(omHumidityToDewpoint(qv, rh, T, p), 2),
             wspd_kn:  omRound(H[`wind_speed_level${n}`]?.[idx], 1),
             wdir_deg: omRound(H[`wind_direction_level${n}`]?.[idx], 1),
+            qw_kgkg:  qw == null ? null : omRound(qw / 1000, 8),
+            qi_kgkg:  qi_ == null ? null : omRound(qi_ / 1000, 8),
+            clc_pct:  omRound(clc, 1),
           });
         }
         if (levels.length === 0) { skipped.push(step); continue; }
@@ -5188,6 +5268,10 @@
     });
     document.getElementById('chk-clouds').addEventListener('change', (e) => {
       STATE.showClouds = e.target.checked;
+      redraw();
+    });
+    document.getElementById('chk-cloud-source-model').addEventListener('change', (e) => {
+      STATE.cloudSource = e.target.checked ? 'model' : 'rh';
       redraw();
     });
     document.getElementById('chk-hodograph').addEventListener('change', (e) => {

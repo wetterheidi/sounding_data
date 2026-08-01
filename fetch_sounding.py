@@ -43,7 +43,7 @@ MODEL_CFG = {
         "n_levels":    65,
         "runs":        ["00", "03", "06", "09", "12", "15", "18", "21"],
         "max_step":    48,
-        "params":      ["t", "qv", "u", "v", "p"],
+        "params":      ["t", "qv", "u", "v", "p", "qc", "qi", "clc"],
         "ps_param":    "ps",
         "var_case":    "lower",      # Dateinamen: kleingeschrieben (t, ps)
         "sl_level":    "2d",         # Single-Level-Dateien haben Extra-Feld "2d"
@@ -56,7 +56,7 @@ MODEL_CFG = {
         "n_levels":    74,
         "runs":        ["00", "03", "06", "09", "12", "15", "18", "21"],
         "max_step":    120,
-        "params":      ["t", "qv", "u", "v", "p"],
+        "params":      ["t", "qv", "u", "v", "p", "qc", "qi", "clc"],
         "ps_param":    "ps",
         "var_case":    "upper",      # Dateinamen: großgeschrieben (T, PS)
         "sl_level":    None,
@@ -69,7 +69,7 @@ MODEL_CFG = {
         "n_levels":    120,
         "runs":        ["00", "06", "12", "18"],
         "max_step":    180,
-        "params":      ["t", "qv", "u", "v", "p"],
+        "params":      ["t", "qv", "u", "v", "p", "qc", "qi", "clc"],
         "ps_param":    "ps",
         "var_case":    "upper",      # Dateinamen: großgeschrieben (T, PS)
         "sl_level":    None,
@@ -432,6 +432,9 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
         qv  = raw.get(("qv", li_t))
         u   = raw.get(("u",  li_t))
         v   = raw.get(("v",  li_t))
+        qc  = raw.get(("qc",  li_t))
+        qi  = raw.get(("qi",  li_t))
+        clc = raw.get(("clc", li_t))
 
         if T is None: continue
 
@@ -451,6 +454,10 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
             "Td_C":     round(td_val, 2) if td_val is not None else None, # <--- Sauberer Null-Wert
             "wspd_kn":  round(spd, 1) if spd is not None else None,
             "wdir_deg": round(dir, 1) if dir is not None else None,
+            # qc/qi bereits kg/kg (GRIB-Einheit "kg kg**-1"), clc bereits % -> keine Skalierung nötig
+            "qw_kgkg":  round(qc, 8) if qc is not None else None,
+            "qi_kgkg":  round(qi, 8) if qi is not None else None,
+            "clc_pct":  round(clc, 1) if clc is not None else None,
         })
 
     valid_dt = run_date.replace(hour=int(run), tzinfo=timezone.utc) + timedelta(hours=step)

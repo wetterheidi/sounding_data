@@ -20,7 +20,7 @@ import math
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from urllib import parse as urlparse, request as urlrequest
+from urllib import error as urlerror, parse as urlparse, request as urlrequest
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-7s  %(message)s", datefmt="%H:%M:%S")
 log = logging.getLogger(__name__)
@@ -146,10 +146,12 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
     n_lev = cfg["n_levels"]
 
     hourly_vars = ["surface_pressure"]
+    cloud_vars = []
     for n in range(1, n_lev + 1):
         hourly_vars += [f"height_agl_level{n}", f"pressure_level{n}", f"temperature_level{n}",
                          f"specific_humidity_level{n}", f"relative_humidity_level{n}",
                          f"wind_speed_level{n}", f"wind_direction_level{n}"]
+        cloud_vars += [f"cloud_water_level{n}", f"cloud_ice_level{n}", f"cloud_cover_level{n}"]
 
     run_start = run_date.replace(hour=int(run), minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
     now = datetime.now(timezone.utc)
@@ -158,7 +160,14 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
 
     log.info(f"━━ {cfg['label']}  {run_date.strftime('%Y%m%d')}/{run}Z  ({lat}, {lon})  "
              f"{n_lev} Level, {len(steps)} Schritte, 1 Request ━━")
-    data = fetch_hourly(lat, lon, cfg["api_model"], hourly_vars, forecast_days)
+    try:
+        data = fetch_hourly(lat, lon, cfg["api_model"], hourly_vars + cloud_vars, forecast_days)
+    except urlerror.HTTPError as e:
+        # cloud_water/ice/cover_levelN sind noch nicht überall verfügbar (neu seit
+        # 2026, siehe Absprache mit Michael) -> einmal ohne diese Felder retryen,
+        # statt den ganzen Lauf abzubrechen.
+        log.warning(f"  cloud_water/ice/cover_levelN nicht abrufbar ({e.code}), retry ohne Wolkenfelder")
+        data = fetch_hourly(lat, lon, cfg["api_model"], hourly_vars, forecast_days)
     H = data["hourly"]
     times = H["time"]
     elev = data.get("elevation")
@@ -194,6 +203,11 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
             td  = humidity_to_dewpoint(qv, rh, T, p)
             spd = H.get(f"wind_speed_level{n}", [None] * len(times))[idx]
             dr  = H.get(f"wind_direction_level{n}", [None] * len(times))[idx]
+            # cloud_water/ice_levelN kommen in g/kg (hourly_units bestätigt) ->
+            # kg/kg fürs einheitliche JSON-Schema; cloud_cover_levelN ist bereits %.
+            qw  = H.get(f"cloud_water_level{n}", [None] * len(times))[idx]
+            qi_ = H.get(f"cloud_ice_level{n}", [None] * len(times))[idx]
+            clc = H.get(f"cloud_cover_level{n}", [None] * len(times))[idx]
             levels.append({
                 "level_idx": n,
                 "p_hPa":    round(p, 3) if p is not None else None,
@@ -202,6 +216,9 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
                 "Td_C":     round(td, 2) if td is not None else None,
                 "wspd_kn":  round(spd, 1) if spd is not None else None,
                 "wdir_deg": round(dr, 1) if dr is not None else None,
+                "qw_kgkg":  round(qw / 1000.0, 8) if qw is not None else None,
+                "qi_kgkg":  round(qi_ / 1000.0, 8) if qi_ is not None else None,
+                "clc_pct":  round(clc, 1) if clc is not None else None,
             })
 
         soundings.append({
