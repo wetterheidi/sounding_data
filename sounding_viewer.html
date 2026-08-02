@@ -617,6 +617,8 @@
         <div class="index-row"><span class="index-name">Hagel (Moore/Pino)</span><span class="index-val"
             id="idx-hail">—</span>
         </div>
+        <div class="index-row" id="row-lpi" style="display:none"><span class="index-name">LPI</span><span
+            class="index-val" id="idx-lpi">—</span></div>
         <div class="index-row"><span class="index-name">PPW (SFC–400 hPa)</span><span class="index-val"
             id="idx-pw">—</span></div>
         <div class="index-row"><span class="index-name"><label style="cursor:pointer"><input type="checkbox"
@@ -3289,9 +3291,17 @@
         if (id === 'idx-bs6') cls = val > 40 ? 'pos' : val > 25 ? 'warn' : '';
         // Bulk Shear 0-1 km: > 20 kt erhöhte Tornadogefahr
         if (id === 'idx-bs1') cls = val > 20 ? 'pos' : val > 10 ? 'warn' : '';
+        // LPI (Lynn & Yair 2010, nur ICON-D2): > 20 J/kg hohes, > 5 J/kg erhöhtes Blitzpotential
+        if (id === 'idx-lpi') cls = val > 20 ? 'pos' : val > 5 ? 'warn' : '';
 
         if (cls !== '') el.classList.add(cls);
       }
+
+      // LPI ist ein natives ICON-D2-Feld (DWD-Opendata "lpi" bzw. Open-Meteo
+      // "lightning_potential") und für andere Modelle nicht verfügbar.
+      const lpiRow = document.getElementById('row-lpi');
+      if (lpiRow) lpiRow.style.display = (snd.model === 'ICON-D2') ? '' : 'none';
+      setIdx('idx-lpi', snd.model === 'ICON-D2' ? snd.lpi_jkg : null, ' J/kg', 1);
 
       setIdx('idx-cape', parcelData ? parcelData.cape : null, ' J/kg', 0);
       setIdx('idx-cape-ccl', parcelData ? parcelData.cape_ccl : null, ' J/kg', 0);

@@ -88,17 +88,19 @@ def model_level_url(model: str, run: str, run_date: datetime, step: int, level: 
     fn   = f"{model}_{cfg['scope']}_{cfg['gridtype']}_model-level_{date}_{step:03d}_{level}_{vn}.grib2.bz2"
     return f"{cfg['url_base']}/{run}/{param}/{fn}"
 
-def surface_url(model: str, run: str, run_date: datetime, step: int) -> str:
-    cfg   = MODEL_CFG[model]
-    date  = run_date.strftime("%Y%m%d") + run
-    param = cfg["ps_param"]
-    vn    = _var_filename(param, cfg)
-    sl    = cfg.get("sl_level")
+def single_level_url(model: str, run: str, run_date: datetime, step: int, param: str) -> str:
+    cfg  = MODEL_CFG[model]
+    date = run_date.strftime("%Y%m%d") + run
+    vn   = _var_filename(param, cfg)
+    sl   = cfg.get("sl_level")
     if sl:
         fn = f"{model}_{cfg['scope']}_{cfg['gridtype']}_single-level_{date}_{step:03d}_{sl}_{vn}.grib2.bz2"
     else:
         fn = f"{model}_{cfg['scope']}_{cfg['gridtype']}_single-level_{date}_{step:03d}_{vn}.grib2.bz2"
     return f"{cfg['url_base']}/{run}/{param}/{fn}"
+
+def surface_url(model: str, run: str, run_date: datetime, step: int) -> str:
+    return single_level_url(model, run, run_date, step, MODEL_CFG[model]["ps_param"])
 
 # ---------------------------------------------------------------------------
 # Nearest-Neighbor für unstrukturierte Gitter (ICON, ICON-D2)
@@ -305,7 +307,13 @@ def fetch_and_extract(url: str, lat: float, lon: float, model: str = "icon-eu", 
 
             if flat_idx is not None and flat_idx < len(values):
                 v = float(values[flat_idx])
-                value = v if math.isfinite(v) else None
+                # LPI und ähnliche Felder maskieren per Bitmap Gitterpunkte, an denen
+                # der Wert nicht definiert ist (z.B. keine Konvektion), kodiert als
+                # "missingValue" (bei LPI: 9999) statt als NaN -> muss explizit
+                # geprüft werden, sonst würde ein maskierter Punkt fälschlich als
+                # Extremwert interpretiert.
+                missing_val = eccodes.codes_get(gid, "missingValue")
+                value = v if (math.isfinite(v) and v != missing_val) else None
             eccodes.codes_release(gid)
     finally:
         Path(tmp_path).unlink(missing_ok=True)
@@ -377,6 +385,12 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
         return None
 
     log.info(f"  PS = {ps_pa / 100:.1f} hPa")
+
+    # LPI (Lightning Potential Index, Lynn & Yair 2010): natives ICON-D2-Feld,
+    # bei ICON-EU/ICON global nicht als Opendata-Parameter verfügbar.
+    lpi_jkg = None
+    if model == "icon-d2":
+        lpi_jkg = fetch_and_extract(single_level_url(model, run, run_date, step, "lpi"), lat, lon, model=model)
 
     tasks = {
         (p, lv): model_level_url(model, run, run_date, step, lv, p)
@@ -472,6 +486,7 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
         **({"location_alias": alias} if alias else {}),
         **({"hsurf_m": round(hsurf_m, 1)} if hsurf_m is not None else {}),
         "surface_p_hPa": round(ps_pa / 100.0, 2),
+        **({"lpi_jkg": round(lpi_jkg, 2)} if lpi_jkg is not None else {}),
         "n_levels_loaded": len(levels),
         "levels": levels,
     }

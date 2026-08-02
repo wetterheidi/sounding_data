@@ -147,6 +147,9 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
 
     hourly_vars = ["surface_pressure"]
     cloud_vars = []
+    # LPI (Lightning Potential Index, Lynn & Yair 2010): natives ICON-D2-Feld,
+    # bei ICON-EU/ICON global von Open-Meteo nicht bereitgestellt.
+    lpi_vars = ["lightning_potential"] if model == "icon-d2" else []
     for n in range(1, n_lev + 1):
         hourly_vars += [f"height_agl_level{n}", f"pressure_level{n}", f"temperature_level{n}",
                          f"specific_humidity_level{n}", f"relative_humidity_level{n}",
@@ -161,7 +164,7 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
     log.info(f"━━ {cfg['label']}  {run_date.strftime('%Y%m%d')}/{run}Z  ({lat}, {lon})  "
              f"{n_lev} Level, {len(steps)} Schritte, 1 Request ━━")
     try:
-        data = fetch_hourly(lat, lon, cfg["api_model"], hourly_vars + cloud_vars, forecast_days)
+        data = fetch_hourly(lat, lon, cfg["api_model"], hourly_vars + cloud_vars + lpi_vars, forecast_days)
     except urlerror.HTTPError as e:
         # cloud_water/ice/cover_levelN sind noch nicht überall verfügbar (neu seit
         # 2026, siehe Absprache mit Michael) -> einmal ohne diese Felder retryen,
@@ -184,6 +187,7 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
             log.warning(f"  ✗  +{step:03d}h  kein Zeitschritt {target_t} in Server-Antwort")
             continue
 
+        lpi_val = H.get("lightning_potential", [None] * len(times))[idx] if lpi_vars else None
         surface_p = H.get("surface_pressure", [None] * len(times))[idx]
         if surface_p is None:
             # Dev-Server hat aktuell nur die Modelllevel-Gruppe, keine reguläre
@@ -233,6 +237,7 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
             **({"location_alias": alias} if alias else {}),
             **({"hsurf_m": round(elev, 1)} if elev is not None else {}),
             "surface_p_hPa": round(surface_p, 2) if surface_p is not None else None,
+            **({"lpi_jkg": round(lpi_val, 2)} if lpi_val is not None else {}),
             "n_levels_loaded": len(levels),
             "levels": levels,
         })

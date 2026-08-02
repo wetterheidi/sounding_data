@@ -797,6 +797,8 @@
         <div class="index-row"><span class="index-name">Hagel (Moore/Pino)</span><span class="index-val"
             id="idx-hail">—</span>
         </div>
+        <div class="index-row" id="row-lpi" style="display:none"><span class="index-name">LPI</span><span
+            class="index-val" id="idx-lpi">—</span></div>
         <div class="index-row"><span class="index-name">PPW (SFC–400 hPa)</span><span class="index-val"
             id="idx-pw">—</span></div>
         <div class="index-row"><span class="index-name"><label style="cursor:pointer"><input type="checkbox"
@@ -3469,9 +3471,17 @@
         if (id === 'idx-bs6') cls = val > 40 ? 'pos' : val > 25 ? 'warn' : '';
         // Bulk Shear 0-1 km: > 20 kt erhöhte Tornadogefahr
         if (id === 'idx-bs1') cls = val > 20 ? 'pos' : val > 10 ? 'warn' : '';
+        // LPI (Lynn & Yair 2010, nur ICON-D2): > 20 J/kg hohes, > 5 J/kg erhöhtes Blitzpotential
+        if (id === 'idx-lpi') cls = val > 20 ? 'pos' : val > 5 ? 'warn' : '';
 
         if (cls !== '') el.classList.add(cls);
       }
+
+      // LPI ist ein natives ICON-D2-Feld (DWD-Opendata "lpi" bzw. Open-Meteo
+      // "lightning_potential") und für andere Modelle nicht verfügbar.
+      const lpiRow = document.getElementById('row-lpi');
+      if (lpiRow) lpiRow.style.display = (snd.model === 'ICON-D2') ? '' : 'none';
+      setIdx('idx-lpi', snd.model === 'ICON-D2' ? snd.lpi_jkg : null, ' J/kg', 1);
 
       setIdx('idx-cape', parcelData ? parcelData.cape : null, ' J/kg', 0);
       setIdx('idx-cape-ccl', parcelData ? parcelData.cape_ccl : null, ' J/kg', 0);
@@ -4705,6 +4715,9 @@
 
       const hourlyVars = ['surface_pressure'];
       const cloudVars = [];
+      // LPI (Lightning Potential Index, Lynn & Yair 2010): natives ICON-D2-Feld,
+      // bei ICON-EU/ICON global von Open-Meteo nicht bereitgestellt.
+      const lpiVars = cfg.api_model === 'icon_d2' ? ['lightning_potential'] : [];
       for (let n = 1; n <= cfg.n_levels; n++) {
         hourlyVars.push(`height_agl_level${n}`, `pressure_level${n}`, `temperature_level${n}`,
           `specific_humidity_level${n}`, `relative_humidity_level${n}`,
@@ -4735,7 +4748,7 @@
       setStatus(`${cfg.label} ${run_date}/${run_hour}Z laden (${cfg.n_levels} Level) …`);
       let data, text;
       try {
-        ({ data, text } = await omGetJson(`${OM_ML_BASE}?${buildParams(hourlyVars.concat(cloudVars))}`));
+        ({ data, text } = await omGetJson(`${OM_ML_BASE}?${buildParams(hourlyVars.concat(cloudVars).concat(lpiVars))}`));
       } catch (err) {
         // cloud_water/ice/cover_levelN sind noch nicht überall verfügbar (neu
         // seit 2026) -> einmal ohne diese Felder retryen statt ganz abzubrechen.
@@ -4757,6 +4770,7 @@
         // Modelllevel (~10 m AGL) als Näherung für den Bodendruck
         let surface_p = H.surface_pressure?.[idx];
         if (surface_p == null) surface_p = H[`pressure_level${cfg.n_levels}`]?.[idx];
+        const lpiVal = lpiVars.length ? H.lightning_potential?.[idx] : null;
 
         const levels = [];
         for (let n = cfg.n_levels; n >= 1; n--) {   // Boden -> Modelltop
@@ -4797,6 +4811,7 @@
           ...(alias ? { location_alias: alias } : {}),
           ...(elev != null ? { hsurf_m: omRound(elev, 1) } : {}),
           surface_p_hPa: omRound(surface_p, 2),
+          ...(lpiVal != null ? { lpi_jkg: omRound(lpiVal, 2) } : {}),
           n_levels_loaded: levels.length,
           levels,
         });
