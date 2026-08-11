@@ -27,13 +27,19 @@ log = logging.getLogger(__name__)
 
 # Produktions-Instanz (open-meteo-dev.mah.priv.at hängt an einer kaputten
 # Ingestion und blieb auf altem Modelllauf stehen, siehe Absprache mit Michael).
-BASE_URL = "https://open-meteo.mah.priv.at/v1/forecast"
-META_URL = "https://open-meteo.mah.priv.at/data/{dataset}/static/meta.json"
+SERVER_DEFAULT = "open-meteo.mah.priv.at"
+# ICON Global (Modelllevel) läuft seit 2026-08 auf einem eigenen Server (Absprache
+# mit Michael): die dwd_icon-Ingestion auf SERVER_DEFAULT ist kaputt (meta.json
+# liefert 500, Modelllevel-Felder kommen durchgehend null zurück) — auf diesem
+# Server ist ICON Global separat lauffähig.
+SERVER_ICON_GLOBAL = "open-meteo-temp.mah.priv.at"
+BASE_URL = "https://{server}/v1/forecast"
+META_URL = "https://{server}/data/{dataset}/static/meta.json"
 
 MODEL_CFG = {
-    "icon-d2": {"api_model": "icon_d2", "dataset": "dwd_icon_d2", "n_levels": 65, "label": "ICON-D2"},
-    "icon-eu": {"api_model": "icon_eu", "dataset": "dwd_icon_eu", "n_levels": 74, "label": "ICON-EU"},
-    "icon":    {"api_model": "icon_global", "dataset": "dwd_icon", "n_levels": 120, "label": "ICON"},
+    "icon-d2": {"api_model": "icon_d2", "dataset": "dwd_icon_d2", "n_levels": 65, "label": "ICON-D2", "server": SERVER_DEFAULT},
+    "icon-eu": {"api_model": "icon_eu", "dataset": "dwd_icon_eu", "n_levels": 74, "label": "ICON-EU", "server": SERVER_DEFAULT},
+    "icon":    {"api_model": "icon_global", "dataset": "dwd_icon", "n_levels": 120, "label": "ICON", "server": SERVER_ICON_GLOBAL},
 }
 
 
@@ -120,14 +126,14 @@ def humidity_to_dewpoint(qv_gkg: float | None, rh_pct: float | None,
     return None
 
 
-def current_run(dataset: str) -> tuple[datetime, str]:
+def current_run(server: str, dataset: str) -> tuple[datetime, str]:
     """Liest den aktuell auf dem Server geladenen Modelllauf aus meta.json."""
-    meta = _get_json(META_URL.format(dataset=dataset))
+    meta = _get_json(META_URL.format(server=server, dataset=dataset))
     dt = datetime.fromtimestamp(meta["last_run_initialisation_time"], tz=timezone.utc)
     return dt, f"{dt.hour:02d}"
 
 
-def fetch_hourly(lat: float, lon: float, api_model: str, hourly_vars: list[str], forecast_days: int) -> dict:
+def fetch_hourly(server: str, lat: float, lon: float, api_model: str, hourly_vars: list[str], forecast_days: int) -> dict:
     query = {
         "latitude": lat, "longitude": lon,
         "hourly": ",".join(hourly_vars),
@@ -136,7 +142,7 @@ def fetch_hourly(lat: float, lon: float, api_model: str, hourly_vars: list[str],
         "timezone": "GMT",
         "forecast_days": forecast_days,
     }
-    url = f"{BASE_URL}?{urlparse.urlencode(query)}"
+    url = f"{BASE_URL.format(server=server)}?{urlparse.urlencode(query)}"
     return _get_json(url, timeout=90)
 
 
@@ -164,13 +170,13 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
     log.info(f"━━ {cfg['label']}  {run_date.strftime('%Y%m%d')}/{run}Z  ({lat}, {lon})  "
              f"{n_lev} Level, {len(steps)} Schritte, 1 Request ━━")
     try:
-        data = fetch_hourly(lat, lon, cfg["api_model"], hourly_vars + cloud_vars + lpi_vars, forecast_days)
+        data = fetch_hourly(cfg["server"], lat, lon, cfg["api_model"], hourly_vars + cloud_vars + lpi_vars, forecast_days)
     except urlerror.HTTPError as e:
         # cloud_water/ice/cover_levelN sind noch nicht überall verfügbar (neu seit
         # 2026, siehe Absprache mit Michael) -> einmal ohne diese Felder retryen,
         # statt den ganzen Lauf abzubrechen.
         log.warning(f"  cloud_water/ice/cover_levelN nicht abrufbar ({e.code}), retry ohne Wolkenfelder")
-        data = fetch_hourly(lat, lon, cfg["api_model"], hourly_vars, forecast_days)
+        data = fetch_hourly(cfg["server"], lat, lon, cfg["api_model"], hourly_vars, forecast_days)
     H = data["hourly"]
     times = H["time"]
     elev = data.get("elevation")
@@ -274,7 +280,7 @@ def main():
         run_date = datetime.strptime(args.date, "%Y%m%d") if args.date else datetime.now(timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
     else:
-        run_date, run = current_run(cfg["dataset"])
+        run_date, run = current_run(cfg["server"], cfg["dataset"])
         run_date = run_date.replace(tzinfo=None)
         log.info(f"Aktueller Lauf laut meta.json: {run_date.strftime('%Y%m%d')}/{run}Z")
 

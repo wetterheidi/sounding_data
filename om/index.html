@@ -4568,13 +4568,20 @@
 
     // =========================================================================
     // Live-Abruf von Open-Meteo
-    //   Modelllevel:  OM-Server (open-meteo.mah.priv.at) — native ICON-Level,
+    //   Modelllevel:  OM-Server (open-meteo.mah.priv.at, ICON Global separat
+    //                 auf open-meteo-temp.mah.priv.at) — native ICON-Level,
     //                 Portierung von fetch_sounding_openmeteo.py nach JS
     //   Druckflächen: öffentliche API (api.open-meteo.com) — Portierung von
     //                 om_pressure_tool.html, hier direkt in den Viewer geladen
     // =========================================================================
-    const OM_ML_BASE = 'https://open-meteo.mah.priv.at/v1/forecast';
-    const OM_ML_META = dataset => `https://open-meteo.mah.priv.at/data/${dataset}/static/meta.json`;
+    const OM_ML_SERVER_DEFAULT = 'open-meteo.mah.priv.at';
+    // ICON Global (Modelllevel) läuft seit 2026-08 auf einem eigenen Server
+    // (Absprache mit Michael): die dwd_icon-Ingestion auf OM_ML_SERVER_DEFAULT
+    // ist kaputt (meta.json liefert 500, Modelllevel-Felder kommen durchgehend
+    // null zurück) — auf diesem Server ist ICON Global separat lauffähig.
+    const OM_ML_SERVER_ICON_GLOBAL = 'open-meteo-temp.mah.priv.at';
+    const OM_ML_BASE = server => `https://${server}/v1/forecast`;
+    const OM_ML_META = (server, dataset) => `https://${server}/data/${dataset}/static/meta.json`;
     const OM_PL_BASE = 'https://api.open-meteo.com/v1/forecast';
 
     // Einfach-Modus (Standard, siehe Skript im <head>): Modelllevel laden und
@@ -4586,9 +4593,9 @@
     // Abstand zwischen zwei Modellläufen (für den Rückfall auf den Vorlauf,
     // falls der neueste Lauf laut meta.json noch nicht fertig ingestiert ist)
     const OM_ML_MODELS = {
-      'ml:icon-d2': { api_model: 'icon_d2',     dataset: 'dwd_icon_d2', n_levels: 65,  label: 'ICON-D2', defSteps: '0:24:1', interval_h: 3 },
-      'ml:icon-eu': { api_model: 'icon_eu',     dataset: 'dwd_icon_eu', n_levels: 74,  label: 'ICON-EU', defSteps: '0:48:3', interval_h: 6 },
-      'ml:icon':    { api_model: 'icon_global', dataset: 'dwd_icon',    n_levels: 120, label: 'ICON',    defSteps: '0:72:6', interval_h: 6 },
+      'ml:icon-d2': { api_model: 'icon_d2',     dataset: 'dwd_icon_d2', n_levels: 65,  label: 'ICON-D2', defSteps: '0:24:1', interval_h: 3, server: OM_ML_SERVER_DEFAULT },
+      'ml:icon-eu': { api_model: 'icon_eu',     dataset: 'dwd_icon_eu', n_levels: 74,  label: 'ICON-EU', defSteps: '0:48:3', interval_h: 6, server: OM_ML_SERVER_DEFAULT },
+      'ml:icon':    { api_model: 'icon_global', dataset: 'dwd_icon',    n_levels: 120, label: 'ICON',    defSteps: '0:72:6', interval_h: 6, server: OM_ML_SERVER_ICON_GLOBAL },
     };
     // Reihenfolge = Anzeigereihenfolge, wie in om_pressure_tool.html
     const OM_PL_MODELS = {
@@ -4748,11 +4755,11 @@
       setStatus(`${cfg.label} ${run_date}/${run_hour}Z laden (${cfg.n_levels} Level) …`);
       let data, text;
       try {
-        ({ data, text } = await omGetJson(`${OM_ML_BASE}?${buildParams(hourlyVars.concat(cloudVars).concat(lpiVars))}`));
+        ({ data, text } = await omGetJson(`${OM_ML_BASE(cfg.server)}?${buildParams(hourlyVars.concat(cloudVars).concat(lpiVars))}`));
       } catch (err) {
         // cloud_water/ice/cover_levelN sind noch nicht überall verfügbar (neu
         // seit 2026) -> einmal ohne diese Felder retryen statt ganz abzubrechen.
-        ({ data, text } = await omGetJson(`${OM_ML_BASE}?${buildParams(hourlyVars)}`));
+        ({ data, text } = await omGetJson(`${OM_ML_BASE(cfg.server)}?${buildParams(hourlyVars)}`));
       }
       const H = data.hourly;
       const times = H.time;
@@ -4822,7 +4829,7 @@
 
     async function omFetchModelLevels(cfg, lat, lon, alias, steps, setStatus) {
       setStatus('Aktuellen Lauf abfragen (meta.json) …');
-      const meta = (await omGetJson(OM_ML_META(cfg.dataset), 30000)).data;
+      const meta = (await omGetJson(OM_ML_META(cfg.server, cfg.dataset), 30000)).data;
       const runStartMs = meta.last_run_initialisation_time * 1000;
 
       let r = await omFetchMlRun(cfg, runStartMs, lat, lon, alias, steps, setStatus);
