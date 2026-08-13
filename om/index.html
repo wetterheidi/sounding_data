@@ -1098,6 +1098,29 @@
         const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
           'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
         return dirs[Math.round(deg / 22.5) % 16];
+      },
+      // --- Internationale Standardatmosphäre (ICAO), nur für die Höhenachse ---
+      // Troposphäre bis 11 km (Gradient -6.5 K/km), darüber isotherm bis 20 km.
+      // Dient nur der groben Höhenorientierung am rechten Rand, nicht der Meteorologie-Berechnung.
+      _ISA_p0: 1013.25, _ISA_T0: 288.15, _ISA_L: 0.0065, _ISA_R: 287.05287, _ISA_g0: 9.80665,
+      _ISA_z11: 11000, _ISA_p11: 226.32, _ISA_T11: 216.65,
+      /** Geopotentielle Höhe [m] aus Druck [hPa] nach ISA */
+      z_from_p_std(p_hPa) {
+        const { _ISA_p0: p0, _ISA_T0: T0, _ISA_L: L, _ISA_R: R, _ISA_g0: g0,
+          _ISA_z11: z11, _ISA_p11: p11, _ISA_T11: T11 } = MET;
+        if (p_hPa >= p11) {
+          return (T0 / L) * (1 - Math.pow(p_hPa / p0, (R * L) / g0));
+        }
+        return z11 + (R * T11 / g0) * Math.log(p11 / p_hPa);
+      },
+      /** Druck [hPa] aus geopotentieller Höhe [m] nach ISA (Umkehrung von z_from_p_std) */
+      p_from_z_std(z_m) {
+        const { _ISA_p0: p0, _ISA_T0: T0, _ISA_L: L, _ISA_R: R, _ISA_g0: g0,
+          _ISA_z11: z11, _ISA_p11: p11, _ISA_T11: T11 } = MET;
+        if (z_m <= z11) {
+          return p0 * Math.pow(1 - (L * z_m) / T0, g0 / (R * L));
+        }
+        return p11 * Math.exp(-g0 * (z_m - z11) / (R * T11));
       }
     };
 
@@ -1289,7 +1312,7 @@
     // TlogP-Projektion
     // =========================================================================
     class SkewTProj {
-      constructor(canvas, margin = { top: 40, right: 120, bottom: 40, left: 50 }) {
+      constructor(canvas, margin = { top: 40, right: 165, bottom: 40, left: 50 }) {
         this.canvas = canvas;
         this.margin = margin;
         this.p_top = 100;
@@ -1564,6 +1587,34 @@
         ctx.textAlign = 'right';
         ctx.fillText(p, m.left + 5, y + 3);
       });
+
+      // --- Höhenachse (km, Standardatmosphäre) am rechten Rand ---
+      // Rein zur groben Orientierung, rechts neben Windbarbs/Druck-Beschriftung.
+      {
+        const axisX = m.left + W + 112;
+        ctx.strokeStyle = PALETTE.isobar;
+        ctx.lineWidth = 1.0;
+        ctx.beginPath();
+        ctx.moveTo(axisX, m.top);
+        ctx.lineTo(axisX, m.top + H);
+        ctx.stroke();
+
+        const kmTop = Math.floor(MET.z_from_p_std(proj.p_top) / 1000);
+        const kmBot = Math.ceil(MET.z_from_p_std(proj.p_bot) / 1000);
+        ctx.font = '10px IBM Plex Mono, monospace';
+        ctx.textAlign = 'left';
+        for (let km = Math.max(kmBot, 0); km <= kmTop; km++) {
+          const y = proj.toCanvasY(MET.p_from_z_std(km * 1000));
+          if (y < m.top || y > m.top + H) continue;
+          ctx.strokeStyle = PALETTE.isobar;
+          ctx.beginPath();
+          ctx.moveTo(axisX, y);
+          ctx.lineTo(axisX + 5, y);
+          ctx.stroke();
+          ctx.fillStyle = PALETTE.axisLabel;
+          ctx.fillText(km + ' km', axisX + 8, y + 3);
+        }
+      }
 
       // --- START CLIPPING ---
       ctx.save();
