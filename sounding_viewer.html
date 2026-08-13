@@ -1132,7 +1132,7 @@
     // TlogP-Projektion
     // =========================================================================
     class SkewTProj {
-      constructor(canvas, margin = { top: 40, right: 165, bottom: 40, left: 50 }) {
+      constructor(canvas, margin = { top: 40, right: 135, bottom: 40, left: 50 }) {
         this.canvas = canvas;
         this.margin = margin;
         this.p_top = 100;
@@ -1409,30 +1409,17 @@
       });
 
       // --- Höhenachse (km, Standardatmosphäre) am rechten Rand ---
-      // Rein zur groben Orientierung, rechts neben Windbarbs/Druck-Beschriftung.
+      // Analog zur Druckachse links: nackte Zahlen direkt an der Plot-Kante, ohne eigenes Lineal.
       {
-        const axisX = m.left + W + 112;
-        ctx.strokeStyle = PALETTE.isobar;
-        ctx.lineWidth = 1.0;
-        ctx.beginPath();
-        ctx.moveTo(axisX, m.top);
-        ctx.lineTo(axisX, m.top + H);
-        ctx.stroke();
-
         const kmTop = Math.floor(MET.z_from_p_std(proj.p_top) / 1000);
         const kmBot = Math.ceil(MET.z_from_p_std(proj.p_bot) / 1000);
+        ctx.fillStyle = PALETTE.axisLabel;
         ctx.font = '10px IBM Plex Mono, monospace';
         ctx.textAlign = 'left';
         for (let km = Math.max(kmBot, 0); km <= kmTop; km++) {
           const y = proj.toCanvasY(MET.p_from_z_std(km * 1000));
           if (y < m.top || y > m.top + H) continue;
-          ctx.strokeStyle = PALETTE.isobar;
-          ctx.beginPath();
-          ctx.moveTo(axisX, y);
-          ctx.lineTo(axisX + 5, y);
-          ctx.stroke();
-          ctx.fillStyle = PALETTE.axisLabel;
-          ctx.fillText(km + ' km', axisX + 8, y + 3);
+          ctx.fillText(km + ' km', m.left + W - 5, y + 3);
         }
       }
 
@@ -1606,7 +1593,7 @@
 
       // --- NEU: Wolkenbalken zeichnen ---
       const cbWidth = 16; // Breite des Wolkenbalkens
-      const cbX = m.left + proj.W + 15; // Exakt zwischen Diagramm und Windfiedern
+      const cbX = m.left + proj.W + 30; // Rechts neben der Höhenachsen-Beschriftung
 
       ctx.save();
       for (let i = 0; i < lvls.length - 1; i++) {
@@ -1916,7 +1903,7 @@
       // --- Windbarbs (rechte Spalte) ---
       // Mindestabstand in Pixeln zwischen zwei Windbarbs (zoom-unabhängig → mehr Barbs beim Zoomen)
       const MIN_BARB_PX = 22;
-      const barbX = m.left + proj.W + 60;
+      const barbX = m.left + proj.W + 75;
 
       // Hilfsfunktion: Richtungsdifferenz mit 360°-Wrap [-180, +180]
       const dirDelta = (a, b) => { let d = a - b; if (d > 180) d -= 360; if (d < -180) d += 360; return d; };
