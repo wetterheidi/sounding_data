@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TlogP Sounding Viewer</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="leaflet/leaflet.css">
+  <script src="leaflet/leaflet.js"></script>
   <script>
     // Theme sofort setzen, bevor CSS greift → kein Aufflackern
     const _t = localStorage.getItem('tlogp-theme');
@@ -478,6 +480,100 @@
       z-index: 10;
       pointer-events: none;
     }
+
+    /* ------------------------------------------------------------------ */
+    /* OM-Abruf-Dialog (Ortsauswahl per Leaflet-Karte)                     */
+    /* ------------------------------------------------------------------ */
+    #om-dialog {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, .55);
+      padding: 16px;
+    }
+
+    #om-dialog.hidden { display: none; }
+
+    #om-panel {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      width: min(680px, 100%);
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    #om-panel-head { display: flex; align-items: center; }
+    #om-panel-head h2 { font-size: 15px; font-weight: 500; flex: 1; }
+
+    #om-close {
+      background: none;
+      border: none;
+      color: var(--text3);
+      cursor: pointer;
+      font-size: 15px;
+      padding: 2px 6px;
+    }
+    #om-close:hover { color: var(--text); }
+
+    #om-map {
+      height: 300px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg3);
+      cursor: crosshair;
+    }
+
+    /* Karte im Dunkelmodus etwas abdunkeln, damit sie nicht blendet */
+    :root:not([data-theme="light"]) #om-map .leaflet-tile { filter: brightness(.75) contrast(1.05) saturate(.85); }
+
+    .om-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+    }
+
+    .om-field { display: flex; flex-direction: column; gap: 4px; }
+    .om-field label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .om-field input,
+    .om-field select {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      padding: 7px 9px;
+      outline: none;
+    }
+    .om-field input:focus,
+    .om-field select:focus { border-color: var(--accent); }
+
+    .om-hint { font-size: 11px; color: var(--text3); line-height: 1.5; }
+
+    #om-status {
+      font-family: var(--mono);
+      font-size: 12px;
+      min-height: 16px;
+      color: var(--text2);
+      white-space: pre-wrap;
+    }
+    #om-status.error { color: #ff8a80; }
+
+    #om-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
   </style>
 </head>
 
@@ -510,7 +606,7 @@
       </select>
 
       <button class="chip" id="btn-om-pl"
-        title="Open-Meteo-Druckflächen-Tool in neuem Tab öffnen, vorausgefüllt mit Ort/Run/Vorhersagestunden des aktuell angezeigten Laufs"
+        title="Druckflächen zum Vergleich laden: öffnet den Abruf-Dialog vorausgefüllt mit Ort, Lauf und Vorhersagestunden des aktuell angezeigten Laufs"
         style="cursor: pointer; display: none;">
         + OM Druckflächen
       </button>
@@ -525,6 +621,10 @@
         ☁️ Aktuelle Daten laden
       </button>
 
+      <button class="btn" id="btn-fetch" style="color: var(--accent); border-color: var(--accent);">
+        📍 OM-Ort laden
+      </button>
+
       <button class="btn" id="btn-export" style="color: #4ab56e; border-color: #4ab56e;">
         TXT Export ⭳
       </button>
@@ -535,6 +635,62 @@
       <input type="file" id="file-input" accept=".json" multiple style="display:none">
     </div>
   </header>
+
+  <!-- ====================================================================
+     OM-ABRUF-DIALOG (Ortsauswahl per Karte, Live-Daten von Open-Meteo)
+     ==================================================================== -->
+  <div id="om-dialog" class="hidden">
+    <div id="om-panel">
+      <div id="om-panel-head">
+        <h2>Ort wählen &amp; Daten von Open-Meteo laden</h2>
+        <button id="om-close" title="Schließen (Esc)">✕</button>
+      </div>
+
+      <div id="om-map"></div>
+
+      <div class="om-grid">
+        <div class="om-field">
+          <label for="om-lat">Breitengrad</label>
+          <input type="number" id="om-lat" step="0.0001" min="-90" max="90" placeholder="z.B. 47.981">
+        </div>
+        <div class="om-field">
+          <label for="om-lon">Längengrad</label>
+          <input type="number" id="om-lon" step="0.0001" min="-180" max="180" placeholder="z.B. 11.235">
+        </div>
+        <div class="om-field">
+          <label for="om-alias">Alias (optional)</label>
+          <input type="text" id="om-alias" placeholder="z.B. Startplatz">
+        </div>
+        <div class="om-field">
+          <label for="om-model">Modell / Datenquelle</label>
+          <select id="om-model"></select>
+        </div>
+        <div class="om-field">
+          <label for="om-steps">Vorhersagestunden (+h ab Lauf)</label>
+          <input type="text" id="om-steps" placeholder="z.B. 0:24:1 oder 0,6,12">
+        </div>
+        <div class="om-field om-pl-only">
+          <label for="om-run-date">Lauf-Datum (UTC)</label>
+          <input type="date" id="om-run-date">
+        </div>
+        <div class="om-field om-pl-only">
+          <label for="om-run-hour">Lauf-Stunde (UTC)</label>
+          <input type="number" id="om-run-hour" min="0" max="23" step="1">
+        </div>
+      </div>
+
+      <div class="om-hint" id="om-hint"></div>
+      <div id="om-status"></div>
+
+      <div id="om-actions">
+        <button class="btn" id="om-download" disabled
+          title="Letzte Server-Antwort unverändert als JSON-Datei speichern (Modelllevel-Rohdaten, wie sie der OM-Server liefert)">
+          Rohdaten (JSON) ⭳
+        </button>
+        <button class="btn primary" id="om-load">Daten laden</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ====================================================================
      TIMESLIDER
@@ -4017,24 +4173,652 @@
       redraw();
     });
 
-    // Öffnet das OM-Druckflächen-Tool in neuem Tab, vorausgefüllt mit Ort/Run/
-    // Vorhersagestunden des aktuell angezeigten Laufs — damit man dort nur noch
-    // das Vergleichsmodell wählen und abrufen muss, statt alles von Hand abzutippen.
+    // =========================================================================
+    // Live-Abruf von Open-Meteo (Portierung aus om/index.html)
+    //   Modelllevel:  OM-Server (open-meteo.mah.priv.at, ICON Global separat
+    //                 auf open-meteo-temp.mah.priv.at) — native ICON-Level,
+    //                 Portierung von fetch_sounding_openmeteo.py nach JS
+    //   Druckflächen: öffentliche API (api.open-meteo.com) — Portierung von
+    //                 om_pressure_tool.html, hier direkt in den Viewer geladen
+    // Diese Quellen sind eine ZUSÄTZLICHE Ortsauswahl per Karte, unabhängig von
+    // den vordefinierten Orten aus /data/index.json (DWD-Opendata-Pipeline,
+    // Admin-Panel) — deren Ladepfad (fetchFromCloud) bleibt unverändert.
+    // =========================================================================
+    const OM_ML_SERVER_DEFAULT = 'open-meteo.mah.priv.at';
+    // ICON Global (Modelllevel) läuft seit 2026-08 auf einem eigenen Server
+    // (Absprache mit Michael): die dwd_icon-Ingestion auf OM_ML_SERVER_DEFAULT
+    // ist kaputt (meta.json liefert 500, Modelllevel-Felder kommen durchgehend
+    // null zurück) — auf diesem Server ist ICON Global separat lauffähig.
+    const OM_ML_SERVER_ICON_GLOBAL = 'open-meteo-temp.mah.priv.at';
+    const OM_ML_BASE = server => `https://${server}/v1/forecast`;
+    const OM_ML_META = (server, dataset) => `https://${server}/data/${dataset}/static/meta.json`;
+    const OM_PL_BASE = 'https://api.open-meteo.com/v1/forecast';
+
+    // Konfiguration identisch zu fetch_sounding_openmeteo.py; interval_h =
+    // Abstand zwischen zwei Modellläufen (für den Rückfall auf den Vorlauf,
+    // falls der neueste Lauf laut meta.json noch nicht fertig ingestiert ist)
+    const OM_ML_MODELS = {
+      'ml:icon-d2': { api_model: 'icon_d2',     dataset: 'dwd_icon_d2', n_levels: 65,  label: 'ICON-D2', defSteps: '0:24:1', interval_h: 3, server: OM_ML_SERVER_DEFAULT },
+      'ml:icon-eu': { api_model: 'icon_eu',     dataset: 'dwd_icon_eu', n_levels: 74,  label: 'ICON-EU', defSteps: '0:48:3', interval_h: 6, server: OM_ML_SERVER_DEFAULT },
+      'ml:icon':    { api_model: 'icon_global', dataset: 'dwd_icon',    n_levels: 120, label: 'ICON',    defSteps: '0:72:6', interval_h: 6, server: OM_ML_SERVER_ICON_GLOBAL },
+    };
+    // Reihenfolge = Anzeigereihenfolge, wie in om_pressure_tool.html
+    const OM_PL_MODELS = {
+      'pl:ecmwf_ifs025':        { label: 'ECMWF IFS' },
+      'pl:gfs_seamless':        { label: 'GFS' },
+      'pl:icon_seamless':       { label: 'ICON (Seamless)' },
+      'pl:icon_global':         { label: 'ICON' },
+      'pl:icon_eu':             { label: 'ICON-EU' },
+      'pl:icon_d2':             { label: 'ICON-D2' },
+      'pl:gem_seamless':        { label: 'GEM (Kanada)' },
+      'pl:ukmo_seamless':       { label: 'UKMO' },
+      'pl:meteofrance_seamless':{ label: 'Météo-France' },
+      'pl:jma_seamless':        { label: 'JMA' },
+    };
+    const OM_PRESSURE_LEVELS = [1000, 975, 950, 925, 900, 850, 800, 750, 700, 650, 600, 550, 500, 450, 400, 350, 300, 250, 200, 150, 100, 70, 50, 30];
+
+    const omPad2 = n => String(n).padStart(2, '0');
+    const omLatLabel = lat => `${Math.abs(lat).toFixed(2)}${lat >= 0 ? 'N' : 'S'}`;
+    const omLonLabel = lon => `${Math.abs(lon).toFixed(2)}${lon >= 0 ? 'E' : 'W'}`;
+
+    function omRound(x, n) {
+      if (x == null || Number.isNaN(x)) return null;
+      const f = 10 ** n;
+      return Math.round(x * f) / f;
+    }
+
+    // Stunden-Eingabe wie in fetch_sounding_openmeteo.py: "12" / "6,12,18" / "0:24:3"
+    function omParseSteps(s) {
+      s = s.trim();
+      if (s.includes(':')) {
+        const p = s.split(':').map(Number);
+        const start = p[0], end = p[1], step = p.length > 2 ? p[2] : 1;
+        if ([start, end, step].some(Number.isNaN) || step <= 0) throw new Error('Ungültiger Bereich');
+        const out = [];
+        for (let v = start; v <= end; v += step) out.push(v);
+        if (out.length === 0) throw new Error('Leerer Bereich');
+        return out;
+      }
+      if (s.includes(',')) {
+        return s.split(',').map(x => {
+          const n = Number(x.trim());
+          if (Number.isNaN(n)) throw new Error('Ungültige Stundenliste');
+          return n;
+        });
+      }
+      const n = Number(s);
+      if (Number.isNaN(n)) throw new Error('Ungültige Stunde');
+      return [n];
+    }
+
+    // ---- Taupunkt-Helfer (1:1-Portierung aus fetch_sounding_openmeteo.py) ----
+    function omEToDewpointWater(e_Pa) {
+      // Magnus-Inversion über Wasser, e in Pa -> Td in °C
+      const e = Math.max(e_Pa, 0.01);
+      const lnE = Math.log(e / 611.2);
+      return Math.max(-99, Math.min(60, (243.5 * lnE) / (17.67 - lnE)));
+    }
+
+    function omSatVaporPressureMixedPhasePa(T_C) {
+      // Murphy & Koop (2005), Mixed-Phase (ECMWF-Konvention) — identisch zur
+      // serverseitigen Berechnung von relative_humidity_levelN
+      const T0 = 273.16, Tice = 250.16, T = T_C + 273.15;
+      const esi = Math.exp(9.550426 - 5723.265 / T + 3.53068 * Math.log(T) - 0.00728332 * T);
+      const term1 = 54.842763 - 6763.22 / T - 4.210 * Math.log(T) + 0.000367 * T;
+      const term2 = Math.tanh(0.0415 * (T - 218.8)) * (53.878 - 1331.22 / T - 9.44523 * Math.log(T) + 0.014025 * T);
+      const esw = Math.exp(term1 + term2);
+      const fLiquid = T <= Tice ? 0 : T >= T0 ? 1 : ((T - Tice) / (T0 - Tice)) ** 2;
+      return fLiquid * esw + (1 - fLiquid) * esi;
+    }
+
+    // Taupunkt über Wasser, primär aus specific_humidity, RH-Fallback für
+    // qv==0-Fälle (Details siehe Docstring in fetch_sounding_openmeteo.py)
+    function omHumidityToDewpoint(qv_gkg, rh_pct, T_C, p_hPa) {
+      if (p_hPa == null) return null;
+      if (qv_gkg && qv_gkg > 1e-9) {
+        const qv = qv_gkg / 1000, eps = 0.622;
+        const e_Pa = (qv * p_hPa * 100) / (eps + qv * (1 - eps));
+        return omEToDewpointWater(e_Pa);
+      }
+      if (rh_pct != null && rh_pct > 0 && T_C != null) {
+        return omEToDewpointWater((rh_pct / 100) * omSatVaporPressureMixedPhasePa(T_C));
+      }
+      return null;
+    }
+
+    // Taupunkt aus T + RH für Druckflächen (Magnus, wie om_pressure_tool.html)
+    function omRhToDewpoint(T, RH) {
+      if (T == null || RH == null || RH <= 0) return null;
+      const es = 6.112 * Math.exp((17.67 * T) / (T + 243.5));
+      const e = es * Math.min(Math.max(RH, 0), 100) / 100;
+      if (e <= 0) return null;
+      const lnRatio = Math.log(e / 6.112);
+      return (243.5 * lnRatio) / (17.67 - lnRatio);
+    }
+
+    // Fetch mit Fehlerbehandlung; Rohtext wird für den Rohdaten-Download behalten
+    async function omGetJson(url, timeoutMs = 90000) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      try {
+        const resp = await fetch(url, { signal: ctrl.signal });
+        const text = await resp.text();
+        let data = null;
+        try { data = JSON.parse(text); } catch { /* unten als Fehler behandelt */ }
+        if (!resp.ok || data == null) throw new Error(data?.reason ?? `HTTP ${resp.status}: ${text.slice(0, 200)}`);
+        if (data.error) throw new Error(data.reason ?? 'Unbekannter API-Fehler');
+        return { data, text };
+      } catch (err) {
+        throw err.name === 'AbortError' ? new Error('Zeitüberschreitung beim Server-Abruf') : err;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    // Letzte unveränderte Server-Antwort (für den Rohdaten-Download)
+    let omLastRaw = null;
+
+    // ---- Modelllevel vom OM-Server (Portierung von build_soundings()) ----
+    // Ruft genau einen Modelllauf ab; der Lauf-Rückfall sitzt in omFetchModelLevels()
+    async function omFetchMlRun(cfg, runStartMs, lat, lon, alias, steps, setStatus) {
+      const runStart = new Date(runStartMs);
+      const run_date = `${runStart.getUTCFullYear()}${omPad2(runStart.getUTCMonth() + 1)}${omPad2(runStart.getUTCDate())}`;
+      const run_hour = omPad2(runStart.getUTCHours());
+
+      const hourlyVars = ['surface_pressure'];
+      const cloudVars = [];
+      // LPI (Lightning Potential Index, Lynn & Yair 2010): natives ICON-D2-Feld,
+      // bei ICON-EU/ICON global von Open-Meteo nicht bereitgestellt.
+      const lpiVars = cfg.api_model === 'icon_d2' ? ['lightning_potential'] : [];
+      for (let n = 1; n <= cfg.n_levels; n++) {
+        hourlyVars.push(`height_agl_level${n}`, `pressure_level${n}`, `temperature_level${n}`,
+          `specific_humidity_level${n}`, `relative_humidity_level${n}`,
+          `wind_speed_level${n}`, `wind_direction_level${n}`);
+        cloudVars.push(`cloud_water_level${n}`, `cloud_ice_level${n}`, `cloud_cover_level${n}`);
+      }
+
+      const now = new Date();
+      const today0 = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+      const maxStep = Math.max(...steps);
+      // Zeitachse der API beginnt heute 00Z: Läufe von gestern brauchen past_days
+      const past_days = runStartMs < today0 ? Math.ceil((today0 - runStartMs) / 86400000) : 0;
+      const forecast_days = Math.max(1, Math.floor((runStartMs - now.getTime()) / 86400000) + Math.floor(maxStep / 24) + 2);
+
+      function buildParams(vars) {
+        const p = new URLSearchParams({
+          latitude: String(lat), longitude: String(lon),
+          hourly: vars.join(','),
+          models: cfg.api_model,
+          wind_speed_unit: 'kn',       // Server liefert Knoten direkt
+          timezone: 'GMT',
+          forecast_days: String(forecast_days),
+        });
+        if (past_days > 0) p.set('past_days', String(past_days));
+        return p;
+      }
+
+      setStatus(`${cfg.label} ${run_date}/${run_hour}Z laden (${cfg.n_levels} Level) …`);
+      let data, text;
+      try {
+        ({ data, text } = await omGetJson(`${OM_ML_BASE(cfg.server)}?${buildParams(hourlyVars.concat(cloudVars).concat(lpiVars))}`));
+      } catch (err) {
+        // cloud_water/ice/cover_levelN sind noch nicht überall verfügbar (neu
+        // seit 2026) -> einmal ohne diese Felder retryen statt ganz abzubrechen.
+        ({ data, text } = await omGetJson(`${OM_ML_BASE(cfg.server)}?${buildParams(hourlyVars)}`));
+      }
+      const H = data.hourly;
+      const times = H.time;
+      const elev = data.elevation ?? null;
+
+      const soundings = [];
+      const skipped = [];
+      for (const step of steps) {
+        const validMs = runStartMs + step * 3600000;
+        const target = new Date(validMs).toISOString().slice(0, 16);
+        const idx = times.indexOf(target);
+        if (idx < 0) { skipped.push(step); continue; }
+
+        // Dev-Server hat teils keine Surface-Gruppe ingestiert -> unterstes
+        // Modelllevel (~10 m AGL) als Näherung für den Bodendruck
+        let surface_p = H.surface_pressure?.[idx];
+        if (surface_p == null) surface_p = H[`pressure_level${cfg.n_levels}`]?.[idx];
+        const lpiVal = lpiVars.length ? H.lightning_potential?.[idx] : null;
+
+        const levels = [];
+        for (let n = cfg.n_levels; n >= 1; n--) {   // Boden -> Modelltop
+          const T = H[`temperature_level${n}`]?.[idx];
+          if (T == null) continue;
+          const p  = H[`pressure_level${n}`]?.[idx];
+          const z  = H[`height_agl_level${n}`]?.[idx];
+          const qv = H[`specific_humidity_level${n}`]?.[idx];
+          const rh = H[`relative_humidity_level${n}`]?.[idx];
+          // cloud_water/ice_levelN kommen in g/kg (hourly_units bestätigt) ->
+          // kg/kg fürs einheitliche Schema; cloud_cover_levelN ist bereits %.
+          const qw  = H[`cloud_water_level${n}`]?.[idx];
+          const qi_ = H[`cloud_ice_level${n}`]?.[idx];
+          const clc = H[`cloud_cover_level${n}`]?.[idx];
+          levels.push({
+            level_idx: n,
+            p_hPa:    omRound(p, 3),
+            z_m:      omRound(z, 1),
+            T_C:      omRound(T, 2),
+            Td_C:     omRound(omHumidityToDewpoint(qv, rh, T, p), 2),
+            wspd_kn:  omRound(H[`wind_speed_level${n}`]?.[idx], 1),
+            wdir_deg: omRound(H[`wind_direction_level${n}`]?.[idx], 1),
+            qw_kgkg:  qw == null ? null : omRound(qw / 1000, 8),
+            qi_kgkg:  qi_ == null ? null : omRound(qi_ / 1000, 8),
+            clc_pct:  omRound(clc, 1),
+          });
+        }
+        if (levels.length === 0) { skipped.push(step); continue; }
+
+        soundings.push({
+          model: cfg.label,
+          source: 'open-meteo-dev',
+          run_date, run_hour,
+          step_h: step,
+          valid_time: new Date(validMs).toISOString().slice(0, 16) + 'Z',
+          target_lat: lat, target_lon: lon,
+          grid_lat: data.latitude ?? lat, grid_lon: data.longitude ?? lon,
+          ...(alias ? { location_alias: alias } : {}),
+          ...(elev != null ? { hsurf_m: omRound(elev, 1) } : {}),
+          surface_p_hPa: omRound(surface_p, 2),
+          ...(lpiVal != null ? { lpi_jkg: omRound(lpiVal, 2) } : {}),
+          n_levels_loaded: levels.length,
+          levels,
+        });
+      }
+
+      return { soundings, skipped, run_date, run_hour, text };
+    }
+
+    async function omFetchModelLevels(cfg, lat, lon, alias, steps, setStatus) {
+      setStatus('Aktuellen Lauf abfragen (meta.json) …');
+      const meta = (await omGetJson(OM_ML_META(cfg.server, cfg.dataset), 30000)).data;
+      const runStartMs = meta.last_run_initialisation_time * 1000;
+
+      let r = await omFetchMlRun(cfg, runStartMs, lat, lon, alias, steps, setStatus);
+      if (r.soundings.length === 0) {
+        // Direkt nach einem Lauf-Wechsel kann meta.json schon den neuen Lauf
+        // melden, obwohl dessen Stundendaten noch nicht (vollständig) auf dem
+        // Server liegen -> einmal mit dem davorliegenden Lauf versuchen
+        setStatus(`Lauf noch unvollständig — versuche Vorlauf (−${cfg.interval_h} h) …`);
+        r = await omFetchMlRun(cfg, runStartMs - cfg.interval_h * 3600000, lat, lon, alias, steps, setStatus);
+      }
+
+      if (r.soundings.length > 0) {
+        omLastRaw = {
+          text: r.text,
+          filename: `omserver_modellevel_${cfg.label}_${r.run_date}_${r.run_hour}Z_${omLatLabel(lat)}_${omLonLabel(lon)}.json`,
+        };
+      }
+      return { soundings: r.soundings, skipped: r.skipped, runLabel: `${r.run_date}/${r.run_hour}Z`, sourceLabel: 'Modelllevel · OM-Server' };
+    }
+
+    // ---- Druckflächen von api.open-meteo.com (wie om_pressure_tool.html) ----
+    async function omFetchPressureLevels(cfg, lat, lon, alias, steps, setStatus, runDateVal, runHour) {
+      if (!runDateVal || Number.isNaN(runHour) || runHour < 0 || runHour > 23) {
+        throw new Error('Bitte Lauf-Datum und Lauf-Stunde (0–23) angeben.');
+      }
+      const [Y, M, D] = runDateVal.split('-').map(Number);
+      const runDate0 = Date.UTC(Y, M - 1, D);
+      const n = new Date();
+      const today0 = Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate());
+      const offsetDays = Math.round((runDate0 - today0) / 86400000);
+
+      // stepBase = Versatz (Stunden) vom API-Array-Anfang bis zum Lauf-Datum 00:00 UTC
+      const stepBase = offsetDays > 0 ? offsetDays * 24 : 0;
+      const past_days = offsetDays < 0 ? -offsetDays : 0;
+      const maxH = Math.max(...steps);
+      const daysNeeded = Math.ceil((stepBase + runHour + maxH + 1) / 24);
+      const forecast_days = Math.max(1, daysNeeded - past_days);
+      if (past_days > 92) throw new Error('Lauf-Datum liegt zu weit in der Vergangenheit (max. 92 Tage).');
+      if (forecast_days > 16) throw new Error('Zeitraum zu groß (max. 16 Tage Vorhersage ab heute).');
+
+      const run_date = `${Y}${omPad2(M)}${omPad2(D)}`;
+      const run_hour = omPad2(runHour);
+
+      const vars = ['surface_pressure'];
+      for (const L of OM_PRESSURE_LEVELS) {
+        vars.push(`temperature_${L}hPa`, `relative_humidity_${L}hPa`, `geopotential_height_${L}hPa`,
+          `wind_speed_${L}hPa`, `wind_direction_${L}hPa`);
+      }
+      const params = new URLSearchParams({
+        latitude: String(lat), longitude: String(lon),
+        hourly: vars.join(','),
+        models: cfg.key,
+        wind_speed_unit: 'kn',
+        timezone: 'GMT',
+        forecast_days: String(forecast_days),
+        past_days: String(past_days),
+      });
+
+      setStatus(`${cfg.label}-Druckflächen laden …`);
+      const { data, text } = await omGetJson(`${OM_PL_BASE}?${params}`);
+      const H = data.hourly;
+      const times = H.time;
+      const elev = data.elevation ?? null;
+
+      const soundings = [];
+      const skipped = [];
+      for (const h of steps) {
+        const idx = stepBase + runHour + h;
+        if (idx < 0 || idx >= times.length) { skipped.push(h); continue; }
+
+        const levels = [];
+        for (const L of OM_PRESSURE_LEVELS) {
+          const T = H[`temperature_${L}hPa`]?.[idx];
+          if (T == null) continue;
+          const gph = H[`geopotential_height_${L}hPa`]?.[idx];
+          const rh  = H[`relative_humidity_${L}hPa`]?.[idx];
+          const z   = (gph != null && elev != null) ? gph - elev : null; // AGL, wie restliches Schema
+          levels.push({
+            p_hPa:    L,
+            z_m:      omRound(z, 1),
+            T_C:      omRound(T, 2),
+            Td_C:     omRound(omRhToDewpoint(T, rh), 2),
+            wspd_kn:  omRound(H[`wind_speed_${L}hPa`]?.[idx], 1),
+            wdir_deg: omRound(H[`wind_direction_${L}hPa`]?.[idx], 1),
+          });
+        }
+        if (levels.length === 0) { skipped.push(h); continue; }
+
+        soundings.push({
+          model: cfg.label,
+          source: 'open-meteo-pl',
+          run_date, run_hour,
+          step_h: h,
+          valid_time: times[idx] + 'Z',
+          target_lat: lat, target_lon: lon,
+          grid_lat: data.latitude ?? lat, grid_lon: data.longitude ?? lon,
+          ...(alias ? { location_alias: alias } : {}),
+          ...(elev != null ? { hsurf_m: omRound(elev, 1) } : {}),
+          surface_p_hPa: omRound(H.surface_pressure?.[idx], 2),
+          n_levels_loaded: levels.length,
+          levels,
+        });
+      }
+
+      omLastRaw = {
+        text,
+        filename: `openmeteo_druckflaechen_${cfg.key.toUpperCase()}_${run_date}_${run_hour}Z_${omLatLabel(lat)}_${omLonLabel(lon)}.json`,
+      };
+      return { soundings, skipped, runLabel: `${run_date}/${run_hour}Z`, sourceLabel: 'Druckflächen · api.open-meteo.com' };
+    }
+
+    // =========================================================================
+    // Abruf-Dialog: Leaflet-Karte, Formular, Laden & Rohdaten-Download
+    // =========================================================================
+    const omDialog = document.getElementById('om-dialog');
+    const omModelSel = document.getElementById('om-model');
+    const OM_SETTINGS_KEY = 'om-viewer-settings';
+    let omMap = null, omMarker = null;
+
+    // Modell-Dropdown mit beiden Quellen-Gruppen befüllen
+    (function fillOmModels() {
+      const gMl = document.createElement('optgroup');
+      gMl.label = 'Modelllevel — OM-Server';
+      Object.entries(OM_ML_MODELS).forEach(([key, cfg]) => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = `${cfg.label} · Modelllevel (${cfg.n_levels})`;
+        gMl.appendChild(opt);
+      });
+      const gPl = document.createElement('optgroup');
+      gPl.label = 'Druckflächen — api.open-meteo.com';
+      Object.entries(OM_PL_MODELS).forEach(([key, cfg]) => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = `${cfg.label} · Druckflächen`;
+        gPl.appendChild(opt);
+      });
+      omModelSel.appendChild(gMl);
+      omModelSel.appendChild(gPl);
+    })();
+
+    function setOmLocation(lat, lon, { pan = false } = {}) {
+      lat = Math.round(lat * 10000) / 10000;
+      lon = Math.round(lon * 10000) / 10000;
+      document.getElementById('om-lat').value = lat;
+      document.getElementById('om-lon').value = lon;
+      if (omMap) {
+        if (!omMarker) {
+          omMarker = L.marker([lat, lon], { draggable: true }).addTo(omMap);
+          omMarker.on('dragend', () => {
+            const ll = omMarker.getLatLng();
+            setOmLocation(ll.lat, ll.lng);
+          });
+        } else {
+          omMarker.setLatLng([lat, lon]);
+        }
+        if (pan) omMap.setView([lat, lon], Math.max(omMap.getZoom(), 8));
+      }
+    }
+
+    function initOmMap() {
+      const lat0 = parseFloat(document.getElementById('om-lat').value);
+      const lon0 = parseFloat(document.getElementById('om-lon').value);
+      const hasLoc = !Number.isNaN(lat0) && !Number.isNaN(lon0);
+      omMap = L.map('om-map').setView(hasLoc ? [lat0, lon0] : [48.5, 11.0], hasLoc ? 9 : 5);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 17,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+      }).addTo(omMap);
+      omMap.on('click', e => setOmLocation(e.latlng.lat, e.latlng.lng));
+      if (hasLoc) setOmLocation(lat0, lon0);
+    }
+
+    function openOmDialog() {
+      omDialog.classList.remove('hidden');
+      if (!omMap) initOmMap();
+      // Leaflet kennt die Containergröße erst, wenn der Dialog sichtbar ist
+      setTimeout(() => omMap.invalidateSize(), 0);
+    }
+    function closeOmDialog() { omDialog.classList.add('hidden'); }
+
+    // Merker: Abruf wurde über "+ OM Druckflächen" gestartet -> Ergebnis als
+    // Vergleichs-Overlay setzen, statt die Anzeige auf den neuen Lauf umzuschalten
+    let omCompareIntent = false;
+
+    document.getElementById('btn-fetch').addEventListener('click', () => {
+      omCompareIntent = false;
+      openOmDialog();
+    });
+
+    // "+ OM Druckflächen": Abruf-Dialog vorausgefüllt mit Ort/Lauf/Vorhersage-
+    // stunden des aktuell angezeigten Laufs öffnen (integrierter Nachfolger des
+    // separaten om_pressure_tool.html — kein Tab-Wechsel/Drag&Drop mehr nötig)
+    const OM_ML_TO_PL = { 'ICON-D2': 'pl:icon_d2', 'ICON-EU': 'pl:icon_eu', 'ICON': 'pl:icon_global' };
     document.getElementById('btn-om-pl').addEventListener('click', () => {
       const list = STATE.soundings;
       if (!list || list.length === 0 || list[0].model === 'Radiosonde') return;
       const ref = list[0];
-      const lat = ref.target_lat ?? ref.grid_lat;
-      const lon = ref.target_lon ?? ref.grid_lon;
+
+      // Druckflächen-Modell vorwählen: passend zum angezeigten ICON-Lauf,
+      // eine bereits gewählte Druckflächen-Quelle bleibt bestehen
+      if (!omModelSel.value.startsWith('pl:')) {
+        omModelSel.value = OM_ML_TO_PL[ref.model] ?? 'pl:ecmwf_ifs025';
+      }
+      applyOmModelUi();
+
+      setOmLocation(ref.target_lat ?? ref.grid_lat, ref.target_lon ?? ref.grid_lon, { pan: true });
       const alias = STATE.locationAliases?.[STATE.currentLocationKey] ?? '';
+      if (alias) document.getElementById('om-alias').value = alias;
+
+      // Lauf und Vorhersagestunden des angezeigten Laufs übernehmen
+      const rd = ref.run_date ?? '';
+      if (/^\d{8}$/.test(rd)) {
+        document.getElementById('om-run-date').value = `${rd.slice(0, 4)}-${rd.slice(4, 6)}-${rd.slice(6, 8)}`;
+      }
+      if (ref.run_hour != null) document.getElementById('om-run-hour').value = String(Number(ref.run_hour));
       const steps = Array.from(new Set(list.map(s => s.step_h))).sort((a, b) => a - b);
-      const params = new URLSearchParams({
-        lat: lat, lon: lon,
-        run_date: ref.run_date, run_hour: ref.run_hour,
-        steps: steps.join(','),
-        ...(alias ? { alias } : {}),
-      });
-      window.open(`om_pressure_tool.html?${params}`, '_blank');
+      document.getElementById('om-steps').value = steps.join(',');
+
+      omCompareIntent = true;
+      openOmDialog();
+    });
+    document.getElementById('om-close').addEventListener('click', closeOmDialog);
+    omDialog.addEventListener('click', e => { if (e.target === omDialog) closeOmDialog(); });
+    window.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !omDialog.classList.contains('hidden')) closeOmDialog();
+    });
+
+    // Manuelle Koordinaten-Eingabe -> Marker/Karte nachziehen
+    ['om-lat', 'om-lon'].forEach(id => document.getElementById(id).addEventListener('change', () => {
+      const lat = parseFloat(document.getElementById('om-lat').value);
+      const lon = parseFloat(document.getElementById('om-lon').value);
+      if (!Number.isNaN(lat) && !Number.isNaN(lon)) setOmLocation(lat, lon, { pan: true });
+    }));
+
+    // Formular-Teile je nach Quelle umschalten (Lauf-Felder nur für Druckflächen)
+    let omPrevModelKey = null;
+    function applyOmModelUi() {
+      const key = omModelSel.value;
+      const isMl = key.startsWith('ml:');
+      document.querySelectorAll('.om-pl-only').forEach(el => { el.style.display = isMl ? 'none' : ''; });
+      // Stunden nur zurücksetzen, wenn die Quelle bzw. das ML-Modell wechselt —
+      // zwischen Druckflächen-Modellen bleiben sie erhalten, damit die vom
+      // "+ OM Druckflächen"-Knopf vorbefüllten Stunden nicht verloren gehen
+      const keepSteps = !isMl && omPrevModelKey?.startsWith('pl:');
+      if (!keepSteps) document.getElementById('om-steps').value = isMl ? OM_ML_MODELS[key].defSteps : '0:24:3';
+      omPrevModelKey = key;
+      document.getElementById('om-hint').textContent = isMl
+        ? 'Native ICON-Modelllevel vom OM-Server. Der Lauf wird automatisch bestimmt (neuester verfügbarer laut meta.json). Nach dem Laden kann die Server-Antwort unverändert als JSON gespeichert werden (Rohdaten-Knopf).'
+        : 'Druckflächen (1000–30 hPa) von der öffentlichen Open-Meteo-API. Die Vorhersagestunden zählen ab dem angegebenen Lauf (bis 92 Tage rückwirkend). Level, die das Modell nicht liefert, werden übersprungen.';
+    }
+    omModelSel.addEventListener('change', applyOmModelUi);
+
+    // Jüngster synoptischer Lauf (00/06/12/18Z), der mit ~5 h Verzug verfügbar sein sollte
+    function omDefaultPlRun() {
+      const d = new Date(Date.now() - 5 * 3600000);
+      return { dateStr: d.toISOString().slice(0, 10), hour: Math.floor(d.getUTCHours() / 6) * 6 };
+    }
+
+    function saveOmSettings(lat, lon, alias) {
+      localStorage.setItem(OM_SETTINGS_KEY, JSON.stringify({
+        lat, lon, alias,
+        model: omModelSel.value,
+        steps: document.getElementById('om-steps').value,
+      }));
+    }
+
+    // Formular initialisieren: PL-Lauf-Defaults + zuletzt benutzte Einstellungen
+    (function initOmForm() {
+      const plDef = omDefaultPlRun();
+      document.getElementById('om-run-date').value = plDef.dateStr;
+      document.getElementById('om-run-hour').value = String(plDef.hour);
+
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem(OM_SETTINGS_KEY) ?? 'null'); } catch { /* ignorieren */ }
+      if (saved?.model && (OM_ML_MODELS[saved.model] || OM_PL_MODELS[saved.model])) omModelSel.value = saved.model;
+      applyOmModelUi();
+      if (saved) {
+        if (saved.lat != null) document.getElementById('om-lat').value = saved.lat;
+        if (saved.lon != null) document.getElementById('om-lon').value = saved.lon;
+        if (saved.alias) document.getElementById('om-alias').value = saved.alias;
+        if (saved.steps) document.getElementById('om-steps').value = saved.steps;
+      }
+    })();
+
+    // Rohdaten-Download: letzte Server-Antwort byte-identisch speichern
+    document.getElementById('om-download').addEventListener('click', () => {
+      if (!omLastRaw) return;
+      const blob = new Blob([omLastRaw.text], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = omLastRaw.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+
+    // Laden-Knopf: Abruf, Umwandlung ins Viewer-Schema, Anzeige
+    document.getElementById('om-load').addEventListener('click', async () => {
+      const statusEl = document.getElementById('om-status');
+      const setStatus = (msg, isError = false) => {
+        statusEl.textContent = msg;
+        statusEl.classList.toggle('error', isError);
+      };
+
+      const lat = parseFloat(document.getElementById('om-lat').value);
+      const lon = parseFloat(document.getElementById('om-lon').value);
+      if (Number.isNaN(lat) || Number.isNaN(lon)) {
+        setStatus('Bitte einen Ort wählen (Karte anklicken oder Koordinaten eingeben).', true);
+        return;
+      }
+
+      let steps;
+      try {
+        steps = omParseSteps(document.getElementById('om-steps').value);
+      } catch (err) {
+        setStatus(`Vorhersagestunden: ${err.message}`, true);
+        return;
+      }
+
+      const alias = document.getElementById('om-alias').value.trim();
+      const key = omModelSel.value;
+      const loadBtn = document.getElementById('om-load');
+      loadBtn.disabled = true;
+
+      try {
+        const result = key.startsWith('ml:')
+          ? await omFetchModelLevels(OM_ML_MODELS[key], lat, lon, alias, steps, setStatus)
+          : await omFetchPressureLevels({ key: key.slice(3), ...OM_PL_MODELS[key] }, lat, lon, alias, steps, setStatus,
+              document.getElementById('om-run-date').value, Number(document.getElementById('om-run-hour').value));
+
+        if (result.soundings.length === 0) {
+          throw new Error(`Keine Profile erhalten${result.skipped.length ? ` (Stunden ohne Daten: +${result.skipped.join('h, +')}h)` : ''}.`
+            + ' Möglicherweise wird der aktuelle Lauf gerade erst auf den Server geladen — in ein paar Minuten erneut versuchen.');
+        }
+
+        document.getElementById('om-download').disabled = !omLastRaw;
+
+        // Vorherige Auswahl merken, bevor loadSoundings() sie neu setzt —
+        // im Vergleichsmodus soll der bisher angezeigte Lauf erhalten bleiben
+        const prevLocKey = STATE.currentLocationKey;
+        const prevRunKey = STATE.currentRunKey;
+
+        // Neue Profile zu evtl. schon geladenen dazu mergen und direkt anzeigen
+        loadSoundings(result.soundings, true);
+        const first = result.soundings[0];
+        const locKey = getLocKey(first);
+        const runKey = getRunKey(first);
+        STATE.currentLocationKey = locKey;
+        document.getElementById('loc-select').value = locKey;
+        filterByLocation();
+
+        const runSelect = document.getElementById('run-select');
+        const hasRun = k => [...runSelect.options].some(o => o.value === k);
+
+        if (omCompareIntent && locKey === prevLocKey && prevRunKey && prevRunKey !== runKey && hasRun(prevRunKey)) {
+          // Vergleichsmodus: bisherigen Lauf weiter anzeigen, neuen Lauf als Overlay
+          STATE.currentRunKey = prevRunKey;
+          runSelect.value = prevRunKey;
+          filterByRun();
+          const cmpSelect = document.getElementById('compare-run-select');
+          STATE.compareRunKey = runKey;
+          cmpSelect.value = runKey;
+          populateCompareStepSelect();
+          redraw();
+        } else if (hasRun(runKey)) {
+          // Normalfall: den frisch geladenen Lauf anzeigen
+          STATE.currentRunKey = runKey;
+          runSelect.value = runKey;
+          filterByRun();
+        }
+        omCompareIntent = false;
+
+        saveOmSettings(lat, lon, alias);
+        setStatus(`✓ ${result.soundings.length}/${steps.length} Profile geladen — ${result.sourceLabel}, Lauf ${result.runLabel}`
+          + (result.skipped.length ? ` — ohne Daten: +${result.skipped.join('h, +')}h` : ''));
+        setTimeout(closeOmDialog, 600);
+      } catch (err) {
+        console.error('OM-Abruf Fehler:', err);
+        setStatus(`Fehler: ${err.message}`, true);
+      } finally {
+        loadBtn.disabled = false;
+      }
     });
 
     // NEU: Filtert die Daten final nach Ort und dem gewählten Lauf
