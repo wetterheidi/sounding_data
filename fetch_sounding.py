@@ -77,6 +77,21 @@ MODEL_CFG = {
     }
 }
 
+# Terrain-Höhe (Copernicus DEM90) von Michaels Server -- unabhängig vom DWD-Opendata-
+# Pfad dieses Skripts, aber praktischerweise am selben Server verfügbar wie die
+# ICON-D2/ICON-EU-Modelllevel-Daten (siehe fetch_sounding_openmeteo.py).
+DEM_ELEVATION_URL = "https://open-meteo.mah.priv.at/v1/elevation"
+
+def fetch_dem90_elevation(lat: float, lon: float) -> float | None:
+    try:
+        r = requests.get(DEM_ELEVATION_URL, params={"latitude": lat, "longitude": lon}, timeout=20)
+        r.raise_for_status()
+        val = r.json().get("elevation", [None])[0]
+        return val if val is not None and not math.isnan(val) else None
+    except (requests.RequestException, KeyError, IndexError, ValueError) as e:
+        log.warning(f"  DEM90-Höhe nicht abrufbar: {e}")
+        return None
+
 def _var_filename(param: str, cfg: dict) -> str:
     """Variablenname im Dateinamen: je nach Modell groß oder klein."""
     return param.upper() if cfg["var_case"] == "upper" else param.lower()
@@ -386,6 +401,8 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
 
     log.info(f"  PS = {ps_pa / 100:.1f} hPa")
 
+    dem90_m = fetch_dem90_elevation(lat, lon)
+
     # LPI (Lightning Potential Index, Lynn & Yair 2010): natives ICON-D2-Feld,
     # bei ICON-EU/ICON global nicht als Opendata-Parameter verfügbar.
     lpi_jkg = None
@@ -485,6 +502,7 @@ def fetch_sounding(lat: float, lon: float, model: str, run: str, run_date: datet
         "grid_lat": lat, "grid_lon": lon,
         **({"location_alias": alias} if alias else {}),
         **({"hsurf_m": round(hsurf_m, 1)} if hsurf_m is not None else {}),
+        **({"dem90_m": round(dem90_m, 1)} if dem90_m is not None else {}),
         "surface_p_hPa": round(ps_pa / 100.0, 2),
         **({"lpi_jkg": round(lpi_jkg, 2)} if lpi_jkg is not None else {}),
         "n_levels_loaded": len(levels),

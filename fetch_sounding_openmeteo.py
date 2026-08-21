@@ -35,6 +35,7 @@ SERVER_DEFAULT = "open-meteo.mah.priv.at"
 SERVER_ICON_GLOBAL = "open-meteo-temp.mah.priv.at"
 BASE_URL = "https://{server}/v1/forecast"
 META_URL = "https://{server}/data/{dataset}/static/meta.json"
+ELEVATION_URL = "https://{server}/v1/elevation"
 
 MODEL_CFG = {
     "icon-d2": {"api_model": "icon_d2", "dataset": "dwd_icon_d2", "n_levels": 65, "label": "ICON-D2", "server": SERVER_DEFAULT},
@@ -126,6 +127,20 @@ def humidity_to_dewpoint(qv_gkg: float | None, rh_pct: float | None,
     return None
 
 
+def fetch_dem90_elevation(lat: float, lon: float) -> float | None:
+    """Terrain-Höhe (Copernicus DEM90) von Michaels Server, unabhängig vom Modell/Server
+    der Modelllevel-Daten -- SERVER_DEFAULT liefert diesen Endpunkt zuverlässig,
+    SERVER_ICON_GLOBAL (Behelfsserver) dagegen aktuell nur "nan" (per curl geprüft)."""
+    url = f"{ELEVATION_URL.format(server=SERVER_DEFAULT)}?{urlparse.urlencode({'latitude': lat, 'longitude': lon})}"
+    try:
+        data = _get_json(url, timeout=20)
+        val = data.get("elevation", [None])[0]
+        return val if val is not None and not math.isnan(val) else None
+    except (urlerror.URLError, KeyError, IndexError, ValueError) as e:
+        log.warning(f"  DEM90-Höhe nicht abrufbar: {e}")
+        return None
+
+
 def current_run(server: str, dataset: str) -> tuple[datetime, str]:
     """Liest den aktuell auf dem Server geladenen Modelllauf aus meta.json."""
     meta = _get_json(META_URL.format(server=server, dataset=dataset))
@@ -182,6 +197,7 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
     elev = data.get("elevation")
     grid_lat = data.get("latitude", lat)
     grid_lon = data.get("longitude", lon)
+    dem90_m = fetch_dem90_elevation(lat, lon)
 
     soundings = []
     for step in steps:
@@ -242,6 +258,7 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
             "grid_lat": grid_lat, "grid_lon": grid_lon,
             **({"location_alias": alias} if alias else {}),
             **({"hsurf_m": round(elev, 1)} if elev is not None else {}),
+            **({"dem90_m": round(dem90_m, 1)} if dem90_m is not None else {}),
             "surface_p_hPa": round(surface_p, 2) if surface_p is not None else None,
             **({"lpi_jkg": round(lpi_val, 2)} if lpi_val is not None else {}),
             "n_levels_loaded": len(levels),

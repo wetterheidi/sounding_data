@@ -857,6 +857,9 @@
             id="idx-tropo">—</span></div>
         <div class="index-row"><span class="index-name">0°C Grenze</span><span class="index-val" id="idx-iso0">—</span>
         </div>
+        <div class="index-row"><span class="index-name"><label style="cursor:pointer"><input type="checkbox"
+                id="chk-dem" style="margin-right:3px;">DEM Höhe</label></span><span class="index-val"
+            id="idx-dem">—</span></div>
         <div style="margin-top:4px;">
           <label style="cursor:pointer;font-size:10px;line-height:1.4;display:flex;gap:4px;">
             <input type="checkbox" id="chk-cloud-source-model" style="margin-top:1px;">
@@ -904,6 +907,7 @@
       showCat: false,
       showContrails: false,
       showClouds: false,
+      showDemLine: false,
       cloudSource: 'rh', // 'rh' (Standard) | 'model' (QW/QI/Cloud-Cover, mit Auto-Fallback auf RH)
       showHodograph: false,
       hodographLarge: false,
@@ -926,6 +930,7 @@
       get dryAdiabat()    { return this.isDark ? '#9a7040'              : '#bf8820'; },
       get moistAdiabat()  { return this.isDark ? '#369660'              : '#289060'; },
       get isohume()       { return this.isDark ? '#46a878'              : '#288860'; },
+      get demLine()       { return this.isDark ? 'rgba(196,164,110,0.65)' : 'rgba(120,90,40,0.55)'; },
       // Datenkurven
       get temp()          { return this.isDark ? '#e05c3a'              : '#cc2020'; },
       get dew()           { return this.isDark ? '#4ab56e'              : '#1a8840'; },
@@ -1745,6 +1750,45 @@
           ctx.fillRect(m.left, y2, proj.W, y1 - y2);
         }
         ctx.restore();
+      }
+
+      // --- DEM90-Geländehöhe (optional): dezente Referenzlinie im Diagramm ---
+      if (STATE.showDemLine && snd.dem90_m != null) {
+        const z_sfc_amsl = snd.hsurf_m != null
+          ? snd.hsurf_m
+          : 44330 * (1 - Math.pow((snd.surface_p_hPa || lvls[0].p_hPa) / 1013.25, 0.19026));
+        const z_dem_agl = snd.dem90_m - Math.max(0, z_sfc_amsl);
+        let p_dem = null;
+        if (z_dem_agl <= lvls[0].z_m) {
+          p_dem = lvls[0].p_hPa;
+        } else {
+          for (let i = 0; i < lvls.length - 1; i++) {
+            if (lvls[i].z_m <= z_dem_agl && lvls[i + 1].z_m >= z_dem_agl) {
+              const f = (z_dem_agl - lvls[i].z_m) / (lvls[i + 1].z_m - lvls[i].z_m);
+              p_dem = lvls[i].p_hPa + f * (lvls[i + 1].p_hPa - lvls[i].p_hPa);
+              break;
+            }
+          }
+        }
+        if (p_dem !== null) {
+          const y = proj.toCanvasY(p_dem);
+          if (y >= m.top && y <= m.top + proj.H) {
+            ctx.save();
+            ctx.strokeStyle = PALETTE.demLine;
+            ctx.setLineDash([7, 4]);
+            ctx.lineWidth = 1.3;
+            ctx.beginPath();
+            ctx.moveTo(m.left, y);
+            ctx.lineTo(m.left + proj.W, y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = PALETTE.demLine;
+            ctx.font = '10px IBM Plex Mono, monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(`DEM ${Math.round(snd.dem90_m)} m`, m.left + 4, y - 3);
+            ctx.restore();
+          }
+        }
       }
 
       // --- NEU: Wolkenbalken zeichnen ---
@@ -3763,6 +3807,17 @@
       }
       z_sfc_amsl = Math.max(0, z_sfc_amsl);
 
+      // --- DEM90-Geländehöhe (Copernicus DEM90, Michaels Server) in m und ft AMSL ---
+      const demEl = document.getElementById('idx-dem');
+      if (demEl) {
+        if (snd.dem90_m != null) {
+          demEl.textContent = `${Math.round(snd.dem90_m)} m / ${Math.round(snd.dem90_m * 3.28084)} ft`;
+        } else {
+          demEl.textContent = '—';
+        }
+        demEl.className = 'index-val';
+      }
+
       // --- 0°C Grenze (Freezing Level) in m und ft AMSL ---
       // --- Niederschlagsphase ---
       const precip = computePrecipPhase(lvls);
@@ -5377,6 +5432,10 @@
     });
     document.getElementById('chk-clouds').addEventListener('change', (e) => {
       STATE.showClouds = e.target.checked;
+      redraw();
+    });
+    document.getElementById('chk-dem').addEventListener('change', (e) => {
+      STATE.showDemLine = e.target.checked;
       redraw();
     });
     document.getElementById('chk-cloud-source-model').addEventListener('change', (e) => {
