@@ -4510,6 +4510,21 @@
       return { soundings: r.soundings, skipped: r.skipped, runLabel: `${r.run_date}/${r.run_hour}Z`, sourceLabel: 'Modelllevel · OM-Server' };
     }
 
+    // Tatsächlich verfügbarer Vorhersagehorizont je Modell, live aus meta.json
+    // (data_end_time - last_run_initialisation_time), statt der festen
+    // OM_ML_MODELS.defSteps-Fallbacks. Kurzzeitig gecacht, da sich der Wert
+    // erst mit dem nächsten Lauf (alle paar Stunden) ändert.
+    const omMaxStepCache = new Map();
+    const OM_MAX_STEP_TTL = 5 * 60000;
+    async function omFetchMaxStep(cfg) {
+      const cached = omMaxStepCache.get(cfg.dataset);
+      if (cached && Date.now() - cached.ts < OM_MAX_STEP_TTL) return cached.maxStep;
+      const meta = (await omGetJson(OM_ML_META(cfg.server, cfg.dataset), 15000)).data;
+      const maxStep = Math.max(1, Math.floor((meta.data_end_time - meta.last_run_initialisation_time) / 3600));
+      omMaxStepCache.set(cfg.dataset, { maxStep, ts: Date.now() });
+      return maxStep;
+    }
+
     // ---- Druckflächen von api.open-meteo.com (wie om_pressure_tool.html) ----
     async function omFetchPressureLevels(cfg, lat, lon, alias, steps, setStatus, runDateVal, runHour) {
       if (!runDateVal || Number.isNaN(runHour) || runHour < 0 || runHour > 23) {
@@ -4727,6 +4742,7 @@
 
     // Formular-Teile je nach Quelle umschalten (Lauf-Felder nur für Druckflächen)
     let omPrevModelKey = null;
+    let omMaxStepReqId = 0;
     function applyOmModelUi() {
       const key = omModelSel.value;
       const isMl = key.startsWith('ml:');
@@ -4735,7 +4751,28 @@
       // zwischen Druckflächen-Modellen bleiben sie erhalten, damit die vom
       // "+ OM Druckflächen"-Knopf vorbefüllten Stunden nicht verloren gehen
       const keepSteps = !isMl && omPrevModelKey?.startsWith('pl:');
-      if (!keepSteps) document.getElementById('om-steps').value = isMl ? OM_ML_MODELS[key].defSteps : '0:24:3';
+      if (!keepSteps) {
+        const stepsEl = document.getElementById('om-steps');
+        if (isMl) {
+          const cfg = OM_ML_MODELS[key];
+          const interval = cfg.defSteps.split(':')[2] ?? '1';
+          const fallbackValue = cfg.defSteps;
+          stepsEl.value = fallbackValue;
+          // Fallback sofort anzeigen, dann per meta.json (data_end_time) auf
+          // den tatsächlich verfügbaren Horizont aktualisieren — nur wenn das
+          // Feld inzwischen weder manuell verändert noch das Modell erneut
+          // gewechselt wurde
+          const reqId = ++omMaxStepReqId;
+          omFetchMaxStep(cfg).then(maxStep => {
+            if (reqId !== omMaxStepReqId || stepsEl.value !== fallbackValue) return;
+            stepsEl.value = `0:${maxStep}:${interval}`;
+          }).catch(err => {
+            console.warn(`Vorhersagehorizont für ${cfg.label} nicht abrufbar, bleibe bei Default (${fallbackValue}):`, err);
+          });
+        } else {
+          stepsEl.value = '0:24:3';
+        }
+      }
       omPrevModelKey = key;
       document.getElementById('om-hint').textContent = isMl
         ? 'Native ICON-Modelllevel vom OM-Server. Der Lauf wird automatisch bestimmt (neuester verfügbarer laut meta.json). Nach dem Laden kann die Server-Antwort unverändert als JSON gespeichert werden (Rohdaten-Knopf).'
