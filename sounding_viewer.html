@@ -2603,8 +2603,10 @@
             if (buoy > 0) {
               above_lfc = true;
               cape += buoy;
-              // Nullstelle der Tv-Differenz zum nächsten Level interpolieren
-              // statt EL auf das aktuelle Modell-Level zu runden
+              // Nur bei echtem Vorzeichenwechsel zum nächsten Level als EL werten
+              // (linear interpoliert). Ist das Paket am oberen Rand der Sondierung
+              // noch positiv aufgetrieben, liegt das reale EL oberhalb der Daten ->
+              // nicht fälschlich aufs letzte Level setzen.
               const next = lvls[i + 1];
               if (next) {
                 let Tp_next_K;
@@ -2619,11 +2621,9 @@
                 const Tv_pcl_next_K = Tp_next_K * (1 + 0.608 * w_pcl_next);
                 const diff = Tv_pcl_K - Tv_env_K;
                 const diff_next = Tv_pcl_next_K - Tv_env_next_K;
-                el_p = (diff_next <= 0)
-                  ? l.p_hPa + (diff / (diff - diff_next)) * (next.p_hPa - l.p_hPa)
-                  : l.p_hPa;
-              } else {
-                el_p = l.p_hPa;
+                if (diff_next <= 0) {
+                  el_p = l.p_hPa + (diff / (diff - diff_next)) * (next.p_hPa - l.p_hPa);
+                }
               }
             }
           } else {
@@ -3333,15 +3333,16 @@
           const Tp_K = MET.moist_adiabat_T(T_ccl_K, p_ccl, lvls[i].p_hPa);
           const diff = (Tp_K - 273.15) - lvls[i].T_C;
           if (diff > 0) {
+            // Nur bei echtem Vorzeichenwechsel zum nächsten Level als EL werten.
+            // Ist das Paket am oberen Rand der Sondierung noch positiv aufgetrieben,
+            // liegt das reale EL oberhalb der Daten -> nicht fälschlich aufs letzte Level setzen.
             const next = lvls[i + 1];
             if (next) {
               const Tp_next_K = MET.moist_adiabat_T(T_ccl_K, p_ccl, next.p_hPa);
               const diff_next = (Tp_next_K - 273.15) - next.T_C;
-              el_ccl_p = (diff_next <= 0)
-                ? lvls[i].p_hPa + (diff / (diff - diff_next)) * (next.p_hPa - lvls[i].p_hPa)
-                : lvls[i].p_hPa;
-            } else {
-              el_ccl_p = lvls[i].p_hPa;
+              if (diff_next <= 0) {
+                el_ccl_p = lvls[i].p_hPa + (diff / (diff - diff_next)) * (next.p_hPa - lvls[i].p_hPa);
+              }
             }
           }
         }
