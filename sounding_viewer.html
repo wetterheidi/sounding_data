@@ -1994,9 +1994,7 @@
         if (STATE.showCapeCcl && STATE.parcelData.ccl_p) {
           const pd = STATE.parcelData;
           const ccl_p = pd.ccl_p;
-          const T_ccl_K = lvls.reduce((best, l) =>
-            Math.abs(l.p_hPa - ccl_p) < Math.abs(best.p_hPa - ccl_p) ? l : best
-          ).T_C + 273.15;
+          const T_ccl_K = pd.T_ccl + 273.15;
 
           // CCL-Parcel-Pfad berechnen
           const cclPath = lvls.map(l => {
@@ -2009,15 +2007,7 @@
             return { p: l.p_hPa, T_C: Tp_K - 273.15 };
           });
 
-          // EL für CCL-Parcel finden
-          let ccl_el = null;
-          for (let i = 0; i < lvls.length; i++) {
-            if (lvls[i].p_hPa > ccl_p) continue;
-            const cp = cclPath.find(p => Math.abs(p.p - lvls[i].p_hPa) < 0.5);
-            if (cp && cp.T_C > lvls[i].T_C) ccl_el = lvls[i].p_hPa;
-          }
-
-          drawCapeArea(cclPath, ccl_p, ccl_el, 'rgba(180, 120, 255, 0.20)', '#c090ff');
+          drawCapeArea(cclPath, ccl_p, pd.el_ccl_p, 'rgba(180, 120, 255, 0.20)', '#c090ff');
         }
 
         ctx.restore(); // Ende Diagrammpapier-Clip
@@ -2613,7 +2603,28 @@
             if (buoy > 0) {
               above_lfc = true;
               cape += buoy;
-              el_p = l.p_hPa;
+              // Nullstelle der Tv-Differenz zum nächsten Level interpolieren
+              // statt EL auf das aktuelle Modell-Level zu runden
+              const next = lvls[i + 1];
+              if (next) {
+                let Tp_next_K;
+                if (next.p_hPa >= p_LCL) {
+                  Tp_next_K = MET.dry_adiabat_T(potTemp, 1000, next.p_hPa);
+                } else {
+                  Tp_next_K = MET.moist_adiabat_T(T_LCL_K, p_LCL, next.p_hPa);
+                }
+                const w_env_next = (next.Td_C != null) ? MET.mixing_ratio(next.Td_C, next.p_hPa) : 0;
+                const w_pcl_next = MET.mixing_ratio(Tp_next_K - 273.15, next.p_hPa);
+                const Tv_env_next_K = (next.T_C + 273.15) * (1 + 0.608 * w_env_next);
+                const Tv_pcl_next_K = Tp_next_K * (1 + 0.608 * w_pcl_next);
+                const diff = Tv_pcl_K - Tv_env_K;
+                const diff_next = Tv_pcl_next_K - Tv_env_next_K;
+                el_p = (diff_next <= 0)
+                  ? l.p_hPa + (diff / (diff - diff_next)) * (next.p_hPa - l.p_hPa)
+                  : l.p_hPa;
+              } else {
+                el_p = l.p_hPa;
+              }
             }
           } else {
             const dz = l.z_m - prev.z_m;
@@ -3313,20 +3324,33 @@
         }
       }
 
-      // EL für CCL-Parcel berechnen (letztes Level mit positiver Auftriebskraft)
+      // EL für CCL-Parcel berechnen (letzter Nulldurchgang der Auftriebskraft, linear interpoliert)
       let el_ccl_p = null;
       if (p_ccl !== null && T_ccl !== null) {
         const T_ccl_K = T_ccl + 273.15;
         for (let i = 0; i < lvls.length; i++) {
           if (lvls[i].p_hPa > p_ccl) continue;
           const Tp_K = MET.moist_adiabat_T(T_ccl_K, p_ccl, lvls[i].p_hPa);
-          if (Tp_K - 273.15 > lvls[i].T_C) el_ccl_p = lvls[i].p_hPa;
+          const diff = (Tp_K - 273.15) - lvls[i].T_C;
+          if (diff > 0) {
+            const next = lvls[i + 1];
+            if (next) {
+              const Tp_next_K = MET.moist_adiabat_T(T_ccl_K, p_ccl, next.p_hPa);
+              const diff_next = (Tp_next_K - 273.15) - next.T_C;
+              el_ccl_p = (diff_next <= 0)
+                ? lvls[i].p_hPa + (diff / (diff - diff_next)) * (next.p_hPa - lvls[i].p_hPa)
+                : lvls[i].p_hPa;
+            } else {
+              el_ccl_p = lvls[i].p_hPa;
+            }
+          }
         }
       }
 
       // parcelData um CCL-Daten ergänzen
       if (parcelData) {
         parcelData.ccl_p = p_ccl;
+        parcelData.T_ccl = T_ccl;
         parcelData.cape_ccl = cape_ccl;
         parcelData.el_ccl_p = el_ccl_p;
       }
