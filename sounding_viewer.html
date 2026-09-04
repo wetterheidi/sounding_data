@@ -862,7 +862,7 @@
             id="idx-dem">—</span></div>
         <div style="margin-top:4px;">
           <label style="cursor:pointer;font-size:10px;line-height:1.4;display:flex;gap:4px;">
-            <input type="checkbox" id="chk-cloud-source-model" style="margin-top:1px;">
+            <input type="checkbox" id="chk-cloud-source-model" checked style="margin-top:1px;">
             <span>Wolken: Modell-Wasser/-Eis (QW/QI/Cover) statt RH-Heuristik</span>
           </label>
           <div id="cloud-source-note" style="display:none;font-size:10px;color:var(--text2);margin-top:2px;">
@@ -908,7 +908,7 @@
       showContrails: false,
       showClouds: false,
       showDemLine: false,
-      cloudSource: 'rh', // 'rh' (Standard) | 'model' (QW/QI/Cloud-Cover, mit Auto-Fallback auf RH)
+      cloudSource: 'model', // 'model' (Standard, QW/QI/Cloud-Cover, mit Auto-Fallback auf RH) | 'rh'
       showHodograph: false,
       hodographLarge: false,
       parcelData: null,

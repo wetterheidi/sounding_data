@@ -886,7 +886,7 @@
             id="idx-dem">—</span></div>
         <div style="margin-top:4px;">
           <label style="cursor:pointer;font-size:10px;line-height:1.4;display:flex;gap:4px;">
-            <input type="checkbox" id="chk-cloud-source-model" style="margin-top:1px;">
+            <input type="checkbox" id="chk-cloud-source-model" checked style="margin-top:1px;">
             <span>Wolken: Modell-Wasser/-Eis (QW/QI/Cover) statt RH-Heuristik</span>
           </label>
           <div id="cloud-source-note" style="display:none;font-size:10px;color:var(--text2);margin-top:2px;">
@@ -932,7 +932,7 @@
       showContrails: false,
       showClouds: false,
       showDemLine: false,
-      cloudSource: 'rh', // 'rh' (Standard) | 'model' (QW/QI/Cloud-Cover, mit Auto-Fallback auf RH)
+      cloudSource: 'model', // 'model' (Standard, QW/QI/Cloud-Cover, mit Auto-Fallback auf RH) | 'rh'
       showHodograph: false,
       hodographLarge: false,
       parcelData: null,
@@ -2018,9 +2018,7 @@
         if (STATE.showCapeCcl && STATE.parcelData.ccl_p) {
           const pd = STATE.parcelData;
           const ccl_p = pd.ccl_p;
-          const T_ccl_K = lvls.reduce((best, l) =>
-            Math.abs(l.p_hPa - ccl_p) < Math.abs(best.p_hPa - ccl_p) ? l : best
-          ).T_C + 273.15;
+          const T_ccl_K = pd.T_ccl + 273.15;
 
           // CCL-Parcel-Pfad berechnen
           const cclPath = lvls.map(l => {
@@ -2033,15 +2031,7 @@
             return { p: l.p_hPa, T_C: Tp_K - 273.15 };
           });
 
-          // EL für CCL-Parcel finden
-          let ccl_el = null;
-          for (let i = 0; i < lvls.length; i++) {
-            if (lvls[i].p_hPa > ccl_p) continue;
-            const cp = cclPath.find(p => Math.abs(p.p - lvls[i].p_hPa) < 0.5);
-            if (cp && cp.T_C > lvls[i].T_C) ccl_el = lvls[i].p_hPa;
-          }
-
-          drawCapeArea(cclPath, ccl_p, ccl_el, 'rgba(180, 120, 255, 0.20)', '#c090ff');
+          drawCapeArea(cclPath, ccl_p, pd.el_ccl_p, 'rgba(180, 120, 255, 0.20)', '#c090ff');
         }
 
         ctx.restore(); // Ende Diagrammpapier-Clip
