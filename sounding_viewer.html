@@ -2596,7 +2596,11 @@
           const Tv_env_K = (l.T_C + 273.15) * (1 + 0.608 * w_env);
           const Tv_pcl_K = Tp_K * (1 + 0.608 * w_pcl);
 
-          if (lfc_p !== null && l.p_hPa <= lfc_p) {
+          // el_p === null: Aufstieg noch nicht am EL angekommen. Sobald die erste
+          // (unterste) Nullstelle oberhalb der LFC gefunden ist, endet der Aufstieg
+          // dort begrifflich - eine weiter oben erneut positiv auftriebige, entkoppelte
+          // Schicht zählt nicht mehr mit (weder zu CAPE noch verschiebt sie das EL).
+          if (lfc_p !== null && l.p_hPa <= lfc_p && el_p === null) {
             const z_lower = (prev.p_hPa > lfc_p && z_lfc !== null) ? z_lfc : prev.z_m;
             const dz = l.z_m - z_lower;
             const buoy = 9.81 * (Tv_pcl_K - Tv_env_K) / Tv_env_K * dz;
@@ -2626,11 +2630,12 @@
                 }
               }
             }
-          } else {
+          } else if (lfc_p === null || l.p_hPa > lfc_p) {
             const dz = l.z_m - prev.z_m;
             const buoy = 9.81 * (Tv_pcl_K - Tv_env_K) / Tv_env_K * dz;
             if (buoy < 0) cin += buoy;
           }
+          // sonst (oberhalb des bereits gefundenen EL): kein weiterer Beitrag
         }
       }
       return { path: parcel, cape, cin, p_LCL, lfc_p, el_p };
@@ -3306,7 +3311,12 @@
         }
       }
 
+      // CAPE(CCL) und EL(CCL) in einem Durchlauf: Integration und Suche enden an der
+      // ersten (untersten) Nullstelle der Auftriebskraft oberhalb der CCL. Eine weiter
+      // oben erneut positiv auftriebige, entkoppelte Schicht zählt nicht mehr mit
+      // (weder zu CAPE(CCL) noch verschiebt sie das EL(CCL)).
       let cape_ccl = 0;
+      let el_ccl_p = null;
       if (p_ccl !== null && T_ccl !== null) {
         const T_ccl_K = T_ccl + 273.15;
         for (let i = 1; i < lvls.length; i++) {
@@ -3320,29 +3330,23 @@
           const z_lower = (lvls[i - 1].p_hPa > p_ccl && z_ccl !== null) ? z_ccl : lvls[i - 1].z_m;
           const dz = l.z_m - z_lower;
           const buoy = 9.81 * (Tv_pcl_K - Tv_env_K) / Tv_env_K * dz;
-          if (buoy > 0) cape_ccl += buoy;
-        }
-      }
+          if (buoy <= 0) continue;
+          cape_ccl += buoy;
 
-      // EL für CCL-Parcel berechnen (letzter Nulldurchgang der Auftriebskraft, linear interpoliert)
-      let el_ccl_p = null;
-      if (p_ccl !== null && T_ccl !== null) {
-        const T_ccl_K = T_ccl + 273.15;
-        for (let i = 0; i < lvls.length; i++) {
-          if (lvls[i].p_hPa > p_ccl) continue;
-          const Tp_K = MET.moist_adiabat_T(T_ccl_K, p_ccl, lvls[i].p_hPa);
-          const diff = (Tp_K - 273.15) - lvls[i].T_C;
-          if (diff > 0) {
-            // Nur bei echtem Vorzeichenwechsel zum nächsten Level als EL werten.
-            // Ist das Paket am oberen Rand der Sondierung noch positiv aufgetrieben,
-            // liegt das reale EL oberhalb der Daten -> nicht fälschlich aufs letzte Level setzen.
-            const next = lvls[i + 1];
-            if (next) {
-              const Tp_next_K = MET.moist_adiabat_T(T_ccl_K, p_ccl, next.p_hPa);
-              const diff_next = (Tp_next_K - 273.15) - next.T_C;
-              if (diff_next <= 0) {
-                el_ccl_p = lvls[i].p_hPa + (diff / (diff - diff_next)) * (next.p_hPa - lvls[i].p_hPa);
-              }
+          // Nur bei echtem Vorzeichenwechsel zum nächsten Level als EL werten
+          // (linear interpoliert); dann sofort abbrechen.
+          const next = lvls[i + 1];
+          if (next) {
+            const Tp_next_K = MET.moist_adiabat_T(T_ccl_K, p_ccl, next.p_hPa);
+            const w_env_next = (next.Td_C != null) ? MET.mixing_ratio(next.Td_C, next.p_hPa) : 0;
+            const w_pcl_next = MET.mixing_ratio(Tp_next_K - 273.15, next.p_hPa);
+            const Tv_env_next_K = (next.T_C + 273.15) * (1 + 0.608 * w_env_next);
+            const Tv_pcl_next_K = Tp_next_K * (1 + 0.608 * w_pcl_next);
+            const diff_next = Tv_pcl_next_K - Tv_env_next_K;
+            if (diff_next <= 0) {
+              const diff = Tv_pcl_K - Tv_env_K;
+              el_ccl_p = l.p_hPa + (diff / (diff - diff_next)) * (next.p_hPa - l.p_hPa);
+              break;
             }
           }
         }
