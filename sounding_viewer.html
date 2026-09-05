@@ -2638,6 +2638,10 @@
           // sonst (oberhalb des bereits gefundenen EL): kein weiterer Beitrag
         }
       }
+      // Ohne LFC ist "CIN" undefiniert (keine Hemmschicht bis zu einem Freisetzungsniveau,
+      // weil es keins gibt) - sonst würde hier fälschlich über die gesamte Sondierungstiefe
+      // (bis in die Stratosphäre) negative Auftriebskraft aufsummiert werden.
+      if (lfc_p === null) cin = null;
       return { path: parcel, cape, cin, p_LCL, lfc_p, el_p };
     }
 
