@@ -6008,22 +6008,25 @@
 
         document.getElementById('om-download').disabled = !omLastRaw;
 
-        // Bleibt der Ort derselbe und liegt schon eine Kurve im Diagramm, wird
-        // der frische Lauf als zusätzliche Vergleichskurve dazugelegt statt die
-        // Ansicht auf ihn umzuschalten — genau der Fall "ICON-D2 Modelllevel
-        // gegen dieselben Druckflächen legen". Bei neuem Ort wird er Hauptkurve.
+        // Liegt schon eine Kurve im Diagramm, wird der frische Lauf als
+        // zusätzliche Vergleichskurve dazugelegt — UNABHÄNGIG vom Ort, denn
+        // genau das ist der Zweck des Panels: alles mit allem vergleichen,
+        // auch über Orte hinweg (z.B. Modellpunkt gegen entfernte Messstation).
+        // Frühere Fassung verlangte zusätzlich exakt dieselben Koordinaten wie
+        // die aktuelle Hauptkurve — sonst wurde der komplette Kurven-Stack
+        // weggeworfen. Das war der Bug: schon eine minimale Abweichung bei den
+        // eingegebenen Koordinaten (oder ein bewusst anderer Ort) hat alles
+        // vorher Geladene gelöscht.
         const first = result.soundings[0];
-        const locKey = getLocKey(first);
         const newSeriesId = seriesIdOf(first);
         const replace = document.getElementById('chk-replace').checked;
-        const asComparison = !replace && (locKey === STATE.currentLocationKey) && !!mainCurve();
+        const keepStack = !replace && !!mainCurve();
 
-        STATE.currentLocationKey = locKey;
-        if (!asComparison) STATE.curves = [];
+        if (!keepStack) STATE.currentLocationKey = getLocKey(first);
 
-        loadSoundings(result.soundings, !replace, asComparison ? null : newSeriesId);
+        loadSoundings(result.soundings, !replace, keepStack ? null : newSeriesId);
 
-        if (asComparison && !STATE.curves.some(c => c.seriesId === newSeriesId)) {
+        if (keepStack && !STATE.curves.some(c => c.seriesId === newSeriesId)) {
           addCurve(newSeriesId);
           renderDataPanel();
           redraw();
