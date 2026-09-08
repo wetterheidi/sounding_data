@@ -841,6 +841,24 @@
 
     /* Vordefinierte Orte (DWD Opendata) */
     #dwd-pane .om-hint { margin-bottom: 8px; }
+
+    /* Vergleichskurve aus bereits Geladenem hinzufügen — unabhängig vom
+       gerade aktiven Quellen-Reiter sichtbar, deshalb außerhalb der
+       .src-only-Bereiche platziert. */
+    #cmp-add { border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+    #cmp-loc-select {
+      width: 100%;
+      background: var(--bg3);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 6px 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      cursor: pointer;
+      margin-bottom: 6px;
+    }
+    #cmp-picker { max-height: 140px; overflow-y: auto; }
   </style>
 </head>
 
@@ -888,6 +906,19 @@
         <button class="src-tab" data-src="pl">Druckflächen</button>
         <button class="src-tab" data-src="obs">Messung</button>
         <button class="src-tab" data-src="file">Datei</button>
+      </div>
+
+      <!-- Vergleichskurve aus bereits geladenen Daten dazulegen — unabhängig
+           vom gerade gewählten Reiter, denn "was schon da ist" hat nichts mit
+           "was als Nächstes abgerufen wird" zu tun. Ort per Dropdown wählen
+           (wie im Panel oben links), Entfernung nur als kleiner Zusatz in
+           Klammern statt als Sortierprinzip einer langen Liste. -->
+      <div id="cmp-add">
+        <div class="panel-section">
+          <h4>Vergleichskurve aus Geladenem hinzufügen</h4>
+          <select id="cmp-loc-select"></select>
+          <div id="cmp-picker"></div>
+        </div>
       </div>
 
       <!-- Karte: für alle ortsbezogenen Quellen -->
@@ -938,15 +969,10 @@
 
       <!-- DWD Opendata: die serverseitig vorberechneten Profile der festen Orte.
            "Aktuelle Daten holen" lädt immer ALLES auf einmal (alle Orte, alle
-           Läufe); die Liste darunter zeigt daraus direkt die bereits geladenen
-           Opendata-Läufe zum Dazulegen — vorher fand man die nur im linken
-           Datenpanel, nicht hier im Ladedialog selbst. -->
+           Läufe); zum gezielten Dazulegen eines bereits geladenen Laufs dient
+           der Ort-Dropdown oben (#cmp-add), nicht dieser Reiter. -->
       <div class="src-only dwd" id="dwd-pane">
         <div class="om-hint">Holt alle vorberechneten Profile aller vordefinierten Orte auf einmal.</div>
-        <div class="panel-section">
-          <h4>Geladene Läufe zum Dazulegen</h4>
-          <div id="dwd-picker"></div>
-        </div>
       </div>
 
       <!-- Datei -->
@@ -4942,10 +4968,10 @@
       const avail = seriesForCurrentLocation().filter(x => !used.has(x.series.id));
       renderSeriesPicker(seriesList, avail, 'Alles Geladene liegt im Diagramm.');
 
-      // DWD-Opendata-Reiter des Ladedialogs zieht dieselbe Auswahl nach — sonst
-      // fände man einen bereits geladenen zweiten Opendata-Lauf nur hier im
-      // Panel, aber nicht dort, wo man beim Laden zuerst danach sucht.
-      renderDwdPicker();
+      // Der Ort-Dropdown im Ladedialog zieht dieselbe Auswahl nach — sonst
+      // fände man einen bereits geladenen zweiten Lauf nur hier im Panel,
+      // aber nicht dort, wo man beim Laden zuerst danach sucht.
+      renderComparePicker();
     }
 
     // Gemeinsame Zeilen-Darstellung für "noch nicht gezeigte Serie, per ＋
@@ -4978,15 +5004,63 @@
       }
     }
 
-    function renderDwdPicker() {
-      const container = document.getElementById('dwd-picker');
-      if (!container) return;
-      const used = new Set(STATE.curves.map(c => c.seriesId));
-      const entries = seriesForCurrentLocation().filter(x => x.series.kind === 'dwd' && !used.has(x.series.id));
-      renderSeriesPicker(container, entries, STATE.series.size === 0
-        ? 'Noch nichts geladen — zuerst „Aktuelle Daten holen“ klicken.'
-        : 'Kein weiterer Opendata-Lauf verfügbar (oder schon im Diagramm).');
+    // Ort-Dropdown im Ladedialog: listet alle Orte, an denen schon Daten
+    // liegen, mit Namen statt Distanz als primärem Auswahlmerkmal (Distanz
+    // steht nur noch klein in Klammern dabei). Darunter die an diesem Ort
+    // verfügbaren Läufe — quellenübergreifend, nicht nur DWD Opendata, damit
+    // sich JEDE Kombination aus geladenen Daten so finden lässt.
+    let cmpLocSelected = null;  // gemerkte Dropdown-Wahl, übersteht ein Re-Render
+
+    function loadedLocationOptions() {
+      const seen = new Map();
+      for (const s of STATE.series.values()) {
+        if (seen.has(s.locKey)) continue;
+        const distKm = s.locKey === STATE.currentLocationKey ? 0 : sndDistanceFromCurrentLoc(s);
+        seen.set(s.locKey, { locKey: s.locKey, label: getLocLabel(s.locKey), distKm });
+      }
+      return [...seen.values()].sort((a, b) => (a.distKm ?? Infinity) - (b.distKm ?? Infinity));
     }
+
+    function renderComparePicker() {
+      const locSel = document.getElementById('cmp-loc-select');
+      const listEl = document.getElementById('cmp-picker');
+      if (!locSel || !listEl) return;
+
+      const locs = loadedLocationOptions();
+      if (locs.length === 0) {
+        locSel.innerHTML = '';
+        const opt = document.createElement('option');
+        opt.value = ''; opt.textContent = 'Noch nichts geladen';
+        locSel.appendChild(opt);
+        renderSeriesPicker(listEl, [], 'Zuerst oben Daten laden.');
+        return;
+      }
+
+      const wanted = cmpLocSelected ?? STATE.currentLocationKey;
+      locSel.innerHTML = '';
+      locs.forEach(l => {
+        const opt = document.createElement('option');
+        opt.value = l.locKey;
+        opt.textContent = l.label + (l.distKm ? ` (${formatDist(l.distKm).replace('· ', '')})` : '');
+        locSel.appendChild(opt);
+      });
+      const chosen = locs.some(l => l.locKey === wanted) ? wanted : locs[0].locKey;
+      locSel.value = chosen;
+      cmpLocSelected = chosen;
+
+      const used = new Set(STATE.curves.map(c => c.seriesId));
+      const entries = [...STATE.series.values()]
+        .filter(s => s.locKey === chosen && !used.has(s.id))
+        .sort((a, b) => String(b.run_date ?? '').localeCompare(String(a.run_date ?? ''))
+                      || String(b.run_hour ?? '').localeCompare(String(a.run_hour ?? '')))
+        .map(s => ({ series: s, sameLoc: true, distKm: null }));  // Distanz steht schon im Dropdown, nicht pro Zeile wiederholen
+      renderSeriesPicker(listEl, entries, 'Alle Läufe an diesem Ort liegen schon im Diagramm.');
+    }
+
+    document.getElementById('cmp-loc-select').addEventListener('change', e => {
+      cmpLocSelected = e.target.value;
+      renderComparePicker();
+    });
 
     // Entfernung einer Serie zum aktuell gewählten Ort (null, wenn unbekannt)
     function sndDistanceFromCurrentLoc(series) {
@@ -5518,7 +5592,7 @@
         setTimeout(() => omMap.invalidateSize(), 0);
       }
       if (src === 'obs') refreshObsStations();
-      if (src === 'dwd') renderDwdPicker();
+      renderComparePicker();  // unabhängig vom Reiter, zeigt immer bereits Geladenes
     }
 
     document.querySelectorAll('.src-tab').forEach(btn =>
