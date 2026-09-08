@@ -276,6 +276,210 @@
     }
 
     /* ------------------------------------------------------------------ */
+    /* Datenpanel: Ort + Kurvenliste (Spiegel der Indizes-Sidebar rechts)   */
+    /* ------------------------------------------------------------------ */
+    #data-panel {
+      width: 268px;
+      min-width: 268px;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden;
+    }
+    html.panel-collapsed #data-panel { display: none; }
+
+    #data-panel .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #data-panel .panel-head h3 {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text3);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0;
+    }
+    #panel-collapse {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text2);
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      padding: 2px 7px;
+    }
+    #panel-collapse:hover { color: var(--text); border-color: var(--text3); }
+
+    #data-panel > #loc-select {
+      width: 100%;
+      background: var(--bg3);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 5px 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    #panel-scroll {
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .panel-section h4 {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--text3);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin: 0 0 6px;
+    }
+
+    /* Eine Kurve im Diagramm */
+    .curve-row {
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 6px 7px;
+      margin-bottom: 6px;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .curve-row.is-main { border-color: var(--accent); }
+    .curve-row .curve-title {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text);
+      line-height: 1.25;
+    }
+    .curve-swatch {
+      flex: 0 0 auto;
+      width: 14px;
+      height: 0;
+      border-top-width: 3px;
+      border-top-style: solid;
+      margin-top: 5px;
+    }
+    .curve-row .curve-sub {
+      font-size: 9.5px;
+      color: var(--text3);
+      font-family: var(--mono);
+      padding-left: 20px;
+    }
+    .curve-ctl {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-left: 20px;
+      flex-wrap: wrap;
+    }
+    /* Schiebt ⧉ ⭳ ✕ als geschlossene Gruppe an den rechten Rand, damit sie
+       nicht einzeln umbrechen */
+    .curve-ctl .ctl-spacer { flex: 1 1 auto; }
+    .curve-ctl .ctl-btns { display: flex; gap: 2px; flex: 0 0 auto; }
+    .curve-ctl label {
+      font-size: 9.5px;
+      color: var(--text2);
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      cursor: pointer;
+    }
+    .curve-ctl select {
+      background: var(--bg3);
+      color: var(--text2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 9.5px;
+      padding: 2px 3px;
+      max-width: 128px;
+      cursor: pointer;
+    }
+    .curve-btn {
+      background: none;
+      border: none;
+      color: var(--text3);
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 1;
+      padding: 1px 3px;
+    }
+    .curve-btn:hover { color: var(--text); }
+    .curve-btn.danger:hover { color: #e05c3a; }
+    .curve-btn.txt {
+      font-family: var(--mono);
+      font-size: 8.5px;
+      letter-spacing: 0.05em;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 2px 4px;
+    }
+    .curve-btn.txt:hover { border-color: var(--text3); }
+    .curve-btn:disabled { opacity: 0.35; cursor: default; }
+
+    /* Verfügbare, aber nicht gezeigte Serien */
+    .series-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 2px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text2);
+      border-bottom: 1px solid var(--border);
+    }
+    .series-row:last-child { border-bottom: none; }
+    .series-row .series-info { flex: 1; min-width: 0; line-height: 1.3; }
+    .series-row .series-dist { color: var(--text3); font-size: 9px; }
+    .series-row button {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 1;
+      padding: 1px 6px;
+    }
+    .series-row button:hover { border-color: var(--accent); }
+
+    .panel-check {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 9.5px;
+      color: var(--text2);
+      cursor: pointer;
+      margin-top: 2px;
+    }
+    .panel-warn {
+      font-size: 9.5px;
+      color: #d08b3a;
+      line-height: 1.35;
+      margin-top: 5px;
+    }
+    .panel-empty {
+      font-size: 10px;
+      color: var(--text3);
+      font-style: italic;
+      padding: 2px 0;
+    }
+
+    /* ------------------------------------------------------------------ */
     /* TlogP Canvas                                                         */
     /* ------------------------------------------------------------------ */
     #chart-wrap {
@@ -325,6 +529,14 @@
         max-width: 100%;
         border-left: none;
         border-top: 1px solid var(--border);
+      }
+
+      #data-panel {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
       }
 
       #main {
@@ -573,7 +785,62 @@
     }
     #om-status.error { color: #ff8a80; }
 
-    #om-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+    #om-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    #replace-wrap {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--text2);
+      cursor: pointer;
+    }
+
+    /* Quellenleiste im Ladedialog */
+    #src-tabs {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+    .src-tab {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text2);
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 5px 9px;
+    }
+    .src-tab:hover { color: var(--text); }
+    .src-tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    /* Nur für bestimmte Quellen sichtbare Felder: die aktive Quelle steht als
+       Klasse auf #om-panel, die Felder tragen ihre Quellen als Klassen. */
+    .src-only { display: none; }
+    #om-panel.src-dwd  .src-only.dwd,
+    #om-panel.src-ml   .src-only.ml,
+    #om-panel.src-pl   .src-only.pl,
+    #om-panel.src-obs  .src-only.obs,
+    #om-panel.src-file .src-only.file { display: block; }
+    #om-panel.src-ml  .om-field.src-only.ml,
+    #om-panel.src-pl  .om-field.src-only.pl,
+    #om-panel.src-obs .om-field.src-only.obs { display: flex; }
+    #om-panel.src-ml  #om-map.src-only,
+    #om-panel.src-pl  #om-map.src-only,
+    #om-panel.src-obs #om-map.src-only { display: block; }
+    /* Grid-Container ohne sichtbare Felder würden sonst Lücken reißen */
+    #om-panel.src-dwd .om-grid,
+    #om-panel.src-file .om-grid { display: none; }
+    #om-panel.src-obs .om-grid.src-only.obs { display: grid; }
+
+    /* Vordefinierte Orte (DWD Opendata) */
+    #dwd-pane .om-hint { margin-bottom: 8px; }
   </style>
 </head>
 
@@ -585,31 +852,8 @@
   <header>
     <h1>T<span>log</span>P<span style="color:var(--text2);font-weight:300"> Sounding Viewer</span></h1>
     <div class="meta-chips" id="meta-chips">
-      <select class="chip" id="loc-select" style="color: var(--text); outline: none; cursor: pointer;">
-        <option value="">Kein Ort geladen</option>
-      </select>
-
-      <select class="chip" id="run-select"
-        style="color: var(--text); outline: none; cursor: pointer; background: var(--bg3);">
-        <option value="">Kein Lauf</option>
-      </select>
-
-      <select class="chip" id="compare-run-select"
-        title="Zweiten Lauf zum Vergleich überlagern (z.B. OM vs. opendata, oder den gleichen Lauf für einen Zeitvergleich)"
-        style="color: var(--text); outline: none; cursor: pointer; background: var(--bg3);">
-        <option value="">Vergleich: Aus</option>
-      </select>
-
-      <select class="chip" id="compare-step-select"
-        title="Zeitpunkt im Vergleichslauf festlegen (automatisch = folgt der Zeitnavigation)"
-        style="color: var(--text); outline: none; cursor: pointer; background: var(--bg3); display: none;">
-      </select>
-
-      <button class="chip" id="btn-om-pl"
-        title="Druckflächen zum Vergleich laden: öffnet den Abruf-Dialog vorausgefüllt mit Ort, Lauf und Vorhersagestunden des aktuell angezeigten Laufs"
-        style="cursor: pointer; display: none;">
-        + OM Druckflächen
-      </button>
+      <button class="chip" id="btn-panel-toggle"
+        title="Datenpanel ein-/ausklappen" style="cursor:pointer;">☰ Daten</button>
 
       <span class="chip accent" id="chip-time">Keine Daten</span>
     </div>
@@ -617,74 +861,113 @@
       <button class="btn" id="btn-theme" title="Tag-/Nachtmodus wechseln"
         style="font-size:15px;padding:4px 9px;min-width:34px;">☀</button>
 
-      <button class="btn" id="btn-cloud" style="color: var(--accent); border-color: var(--accent);">
-        ☁️ Aktuelle Daten laden
-      </button>
-
-      <button class="btn" id="btn-fetch" style="color: var(--accent); border-color: var(--accent);">
-        📍 Ort wählen
-      </button>
-
-      <button class="btn" id="btn-export" style="color: #4ab56e; border-color: #4ab56e;">
+      <button class="btn" id="btn-export" style="color: #4ab56e; border-color: #4ab56e;"
+        title="Angezeigtes Hauptprofil als TXT speichern (jede Kurve im Datenpanel hat zusätzlich ihren eigenen Knopf)">
         TXT Export ⭳
       </button>
 
-      <button class="btn primary" onclick="document.getElementById('file-input').click()">
-        JSON laden ↑
-      </button>
-      <input type="file" id="file-input" accept=".json" multiple style="display:none">
+      <button class="btn primary" id="btn-fetch">＋ Daten laden</button>
+      <input type="file" id="file-input" accept=".json,.txt" multiple style="display:none">
     </div>
   </header>
 
   <!-- ====================================================================
-     OM-ABRUF-DIALOG (Ortsauswahl per Karte, Live-Daten von Open-Meteo)
+     LADEDIALOG — ein Einstieg für alle Quellen
+     (vorher drei getrennte Wege: ☁️-Knopf, 📍-Dialog, Datei-Dialog)
      ==================================================================== -->
   <div id="om-dialog" class="hidden">
     <div id="om-panel">
       <div id="om-panel-head">
-        <h2>Ort wählen &amp; Daten laden</h2>
+        <h2>Daten laden</h2>
         <button id="om-close" title="Schließen (Esc)">✕</button>
       </div>
 
-      <div id="om-map"></div>
+      <div id="src-tabs">
+        <button class="src-tab" data-src="dwd">DWD Opendata</button>
+        <button class="src-tab" data-src="ml">Modelllevel</button>
+        <button class="src-tab" data-src="pl">Druckflächen</button>
+        <button class="src-tab" data-src="obs">Messung</button>
+        <button class="src-tab" data-src="file">Datei</button>
+      </div>
+
+      <!-- Karte: für alle ortsbezogenen Quellen -->
+      <div id="om-map" class="src-only ml pl obs"></div>
 
       <div class="om-grid">
-        <div class="om-field">
+        <div class="om-field src-only ml pl obs">
           <label for="om-lat">Breitengrad</label>
           <input type="number" id="om-lat" step="0.0001" min="-90" max="90" placeholder="z.B. 47.981">
         </div>
-        <div class="om-field">
+        <div class="om-field src-only ml pl obs">
           <label for="om-lon">Längengrad</label>
           <input type="number" id="om-lon" step="0.0001" min="-180" max="180" placeholder="z.B. 11.235">
         </div>
-        <div class="om-field">
+        <div class="om-field src-only ml pl">
           <label for="om-alias">Alias (optional)</label>
           <input type="text" id="om-alias" placeholder="z.B. Startplatz">
         </div>
-        <div class="om-field">
-          <label for="om-model">Modell / Datenquelle</label>
+        <div class="om-field src-only ml pl">
+          <label for="om-model">Modell</label>
           <select id="om-model"></select>
         </div>
-        <div class="om-field">
+        <div class="om-field src-only ml pl">
           <label for="om-steps">Vorhersagestunden (+h ab Lauf)</label>
           <input type="text" id="om-steps" placeholder="z.B. 0:24:1 oder 0,6,12">
         </div>
-        <div class="om-field om-pl-only">
+        <div class="om-field src-only pl">
           <label for="om-run-date">Lauf-Datum (UTC)</label>
           <input type="date" id="om-run-date">
         </div>
-        <div class="om-field om-pl-only">
+        <div class="om-field src-only pl">
           <label for="om-run-hour">Lauf-Stunde (UTC)</label>
           <input type="number" id="om-run-hour" min="0" max="23" step="1">
         </div>
+      </div>
+
+      <!-- Messung: Stationen aus der Karte, dann Aufstiegstermin -->
+      <div class="om-grid src-only obs">
+        <div class="om-field">
+          <label for="obs-station">Station (Marker auf der Karte anklicken)</label>
+          <select id="obs-station"></select>
+        </div>
+        <div class="om-field">
+          <label for="obs-time">Aufstieg (UTC)</label>
+          <select id="obs-time"></select>
+        </div>
+      </div>
+
+      <!-- DWD Opendata: die serverseitig vorberechneten Profile der festen Orte -->
+      <div class="src-only dwd" id="dwd-pane">
+        <div class="om-hint">Holt alle vom Server vorberechneten Profile der vordefinierten Orte
+          (ICON-D2 / ICON-EU / ICON aus <code>opendata.dwd.de</code>). Die Ortsliste wird
+          in der Admin-Oberfläche gepflegt.</div>
+        <div id="dwd-info" class="om-hint"></div>
+      </div>
+
+      <!-- Datei -->
+      <div class="src-only file" id="file-pane">
+        <button class="btn" id="btn-pick-file">Datei(en) auswählen …</button>
+        <div class="om-hint">JSON aus <code>fetch_sounding.py</code> bzw. dem Rohdaten-Knopf,
+          oder Radiosonden-ASCII (Windsond). Dateien lassen sich auch überall auf die Seite ziehen.</div>
+      </div>
+
+      <div class="src-only ml pl" id="prefill-wrap">
+        <button class="btn" id="btn-prefill"
+          title="Ort, Lauf und Vorhersagestunden der aktuell angezeigten Hauptkurve übernehmen — für einen Vergleichsabruf derselben Situation aus einer anderen Quelle">
+          ↧ Vom angezeigten Lauf übernehmen
+        </button>
       </div>
 
       <div class="om-hint" id="om-hint"></div>
       <div id="om-status"></div>
 
       <div id="om-actions">
+        <label id="replace-wrap" title="Aus: neue Profile kommen zum Bestand dazu. An: alles bisher Geladene wird ersetzt.">
+          <input type="checkbox" id="chk-replace"> Bestand ersetzen
+        </label>
+        <span style="flex:1"></span>
         <button class="btn" id="om-download" disabled
-          title="Letzte Server-Antwort unverändert als JSON-Datei speichern (Modelllevel-Rohdaten, wie sie der OM-Server liefert)">
+          title="Letzte Server-Antwort unverändert als JSON-Datei speichern (Rohdaten, wie sie der Server liefert)">
           Rohdaten (JSON) ⭳
         </button>
         <button class="btn primary" id="om-load">Daten laden</button>
@@ -709,6 +992,39 @@
      HAUPTBEREICH
      ==================================================================== -->
   <div id="main">
+
+    <!-- ==================================================================
+       DATENPANEL: Ort, Kurven im Diagramm, verfügbare Serien
+       ================================================================== -->
+    <div id="data-panel">
+      <div class="panel-head">
+        <h3>Daten</h3>
+        <button id="panel-collapse" title="Panel einklappen">‹</button>
+      </div>
+
+      <select id="loc-select" title="Ort wechseln">
+        <option value="">Kein Ort geladen</option>
+      </select>
+
+      <div id="panel-scroll">
+        <div class="panel-section">
+          <h4>Im Diagramm</h4>
+          <div id="curve-list"></div>
+          <label class="panel-check" title="Zeichnet zusätzlich den Taupunkt jeder Vergleichskurve — verdoppelt die Linienzahl">
+            <input type="checkbox" id="chk-compare-dew"> Taupunkt der Vergleiche zeigen
+          </label>
+          <div id="curve-warn" class="panel-warn" hidden></div>
+        </div>
+
+        <div class="panel-section">
+          <h4>Geladen, nicht gezeigt</h4>
+          <div id="series-list"></div>
+        </div>
+      </div>
+
+      <button class="btn primary" id="btn-add-data">＋ Daten laden</button>
+    </div>
+
     <div id="chart-wrap">
       <canvas id="sounding-canvas"></canvas>
 
@@ -722,8 +1038,8 @@
           <circle cx="38" cy="24" r="3" fill="currentColor" />
         </svg>
         <p>Kein Profil geladen.<br>
-          JSON-Datei von <code>fetch_sounding.py</code> laden<br>
-          oder per Drag &amp; Drop hierher ziehen.</p>
+          Oben rechts <b>＋ Daten laden</b> wählen<br>
+          oder eine Datei hierher ziehen.</p>
       </div>
     </div>
 
@@ -895,10 +1211,15 @@
       soundings: [],           // Gefilterte Profile (nur der aktuell gewählte Ort)
       currentLocationKey: '',  // NEU: Welcher Ort ist gerade im Dropdown aktiv?
       locationAliases: {},     // Koordinaten-Key → Alias (aus location_alias-Feld der JSON-Daten)
+      series: new Map(),       // seriesId → Serie (Quelle+Modell+Lauf), aus buildSeriesIndex()
+      // Kurven = was tatsächlich gezeichnet wird. Genau eine hat isMain (durchgezogen,
+      // steuert Indizes/Parcel/Hodograph/Cursor), beliebig viele weitere sind
+      // gestrichelte Vergleichskurven. Eine Serie darf mehrfach vorkommen —
+      // so entsteht der Zeitvergleich derselben Station.
+      // { id, seriesId, isMain, visible, stepMode:'auto'|'pinned', stepKey, colorIdx }
+      curves: [],
+      showCompareDew: false,   // Taupunkt der Vergleichskurven mitzeichnen
       currentIdx: 0,
-      currentRunKey: '',
-      compareRunKey: '',      // NEU: zweiter Lauf (z.B. OM), dessen Temp-Kurve überlagert wird
-      compareStepKey: '',     // NEU: gepinnter Zeitpunkt im Vergleichslauf ('' = automatisch, folgt der Zeitnavigation)
       animTimer: null,
       animPlaying: false,
       mouseHover: null,
@@ -937,6 +1258,21 @@
       get dewArea()       { return this.isDark ? 'rgba(74,181,110,0.13)': 'rgba(26,140,64,0.10)'; },
       get compareTemp()   { return this.isDark ? '#c77dff'              : '#7b2fbf'; },
       get compareDew()    { return this.isDark ? '#5ad0c8'              : '#0e8a82'; },
+      // Vergleichskurven: sechs in beiden Modi unterscheidbare Farbpaare
+      // (Index 0 ist das bisherige violett/türkis-Paar, damit gewohnte
+      // Ein-Kurven-Vergleiche unverändert aussehen).
+      // Reihenfolge bewusst so, dass Rot-/Orangetöne erst spät kommen — sie
+      // wären neben der roten Hauptkurve (temp) kaum auseinanderzuhalten.
+      get overlayTemp()   {
+        return this.isDark
+          ? ['#c77dff', '#4dc4ff', '#ff7ba8', '#9ee04a', '#ffd54a', '#f0a03c']
+          : ['#7b2fbf', '#0a6fb0', '#c02060', '#3d7a10', '#8a6a00', '#b05a00'];
+      },
+      get overlayDew()    {
+        return this.isDark
+          ? ['#5ad0c8', '#7fb0d8', '#d89ab8', '#7fc490', '#c0b070', '#d0c060']
+          : ['#0e8a82', '#33608a', '#8a4a68', '#2a7a4a', '#6a5a20', '#7a6a00'];
+      },
       // Achsen & Beschriftungen
       get axisLabel()     { return this.isDark ? '#8898b8'              : '#5a6e88'; },
       get titleText()     { return this.isDark ? '#606882'              : '#8898ae'; },
@@ -1699,6 +2035,11 @@
       if (snd.model === 'Radiosonde') {
         return `Radiosonde  ${snd.valid_time ? snd.valid_time.replace('T', '  ').replace('Z', ' UTC') : ''}`;
       }
+      // Gemessene Aufstiege haben keinen Lauf und keine Vorhersagestunde
+      if (snd.step_h == null) {
+        const who = snd.location_alias ?? snd.model;
+        return `${who}  ${snd.valid_time ? snd.valid_time.replace('T', '  ').replace('Z', ' UTC') : ''}`;
+      }
       if (snd.valid_time) {
         const hhmm = snd.valid_time.slice(11, 16);
         const dateStr = snd.valid_time.slice(0, 10);
@@ -1707,7 +2048,8 @@
       return `${snd.model}${srcTag} ${snd.run_date} ${snd.run_hour}Z +${String(snd.step_h).padStart(3, '0')}h`;
     }
 
-    function drawSounding(snd, compareSnd) {
+    // overlays: [{ snd, color, dewColor, label }] — beliebig viele Vergleichskurven
+    function drawSounding(snd, overlays) {
       if (!snd || !snd.levels || snd.levels.length === 0) return;
 
       const m = proj.margin;
@@ -1882,28 +2224,38 @@
       });
       ctx.stroke();
 
-      // --- Vergleichs-Temperatur & -Taupunkt (gestrichelt, z.B. OM vs. opendata) ---
-      if (compareSnd && compareSnd.levels && compareSnd.levels.length > 0) {
-        const cmpLvls = compareSnd.levels.filter(l => l.p_hPa <= proj.p_bot && l.p_hPa >= proj.p_top);
+      // --- Vergleichskurven (gestrichelt, je eine eigene Farbe) ---
+      // Beliebig viele Overlays: Modelllevel vs. Druckflächen vs. Messung, oder
+      // dieselbe Serie zu zwei Zeitpunkten. Der Taupunkt bleibt per Default aus,
+      // weil er die Linienzahl verdoppelt (Schalter im Datenpanel).
+      if (overlays && overlays.length > 0) {
         ctx.save();
         ctx.setLineDash([6, 4]);
         ctx.lineWidth = 2.0;
 
-        ctx.strokeStyle = PALETTE.compareDew;
-        ctx.beginPath();
-        cmpLvls.filter(l => l.Td_C != null).forEach((l, i) => {
-          const c = proj.toCanvas(l.Td_C, l.p_hPa);
-          i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
-        });
-        ctx.stroke();
+        for (const ov of overlays) {
+          if (!ov.snd || !ov.snd.levels || ov.snd.levels.length === 0) continue;
+          const cmpLvls = ov.snd.levels.filter(l => l.p_hPa <= proj.p_bot && l.p_hPa >= proj.p_top);
+          if (cmpLvls.length === 0) continue;
 
-        ctx.strokeStyle = PALETTE.compareTemp;
-        ctx.beginPath();
-        cmpLvls.forEach((l, i) => {
-          const c = proj.toCanvas(l.T_C, l.p_hPa);
-          i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
-        });
-        ctx.stroke();
+          if (STATE.showCompareDew) {
+            ctx.strokeStyle = ov.dewColor;
+            ctx.beginPath();
+            cmpLvls.filter(l => l.Td_C != null).forEach((l, i) => {
+              const c = proj.toCanvas(l.Td_C, l.p_hPa);
+              i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
+            });
+            ctx.stroke();
+          }
+
+          ctx.strokeStyle = ov.color;
+          ctx.beginPath();
+          cmpLvls.filter(l => l.T_C != null).forEach((l, i) => {
+            const c = proj.toCanvas(l.T_C, l.p_hPa);
+            i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
+          });
+          ctx.stroke();
+        }
 
         ctx.restore();
       }
@@ -2197,10 +2549,17 @@
       ctx.fillText(runStr, m.left + 6, m.top + 14);
       ctx.fillText(locStr, m.left + 6, m.top + 26);
 
-      // --- Vergleichs-Beschriftung (gestrichelte Linie ↔ Vergleichslauf) ---
-      if (compareSnd) {
-        ctx.fillStyle = PALETTE.compareTemp;
-        ctx.fillText(`- - -  ${formatSoundingTitle(compareSnd)}`, m.left + 6, m.top + 38);
+      // --- Legende der Vergleichskurven ---
+      // Bleibt bewusst auf dem Canvas (nicht nur im Datenpanel), damit
+      // Screenshots und Ausdrucke die Zuordnung Farbe ↔ Lauf behalten.
+      if (overlays && overlays.length > 0) {
+        let y = m.top + 38;
+        for (const ov of overlays) {
+          if (!ov.snd) continue;
+          ctx.fillStyle = ov.color;
+          ctx.fillText(`- - -  ${formatSoundingTitle(ov.snd)}`, m.left + 6, y);
+          y += 12;
+        }
       }
     }
 
@@ -2421,7 +2780,7 @@
       if (STATE.soundings.length > 0) {
         const snd = STATE.soundings[STATE.currentIdx];
         computeAndDisplayIndices(snd);
-        drawSounding(snd, getCompareSounding(snd));
+        drawSounding(snd, visibleOverlays());
       }
       drawInteractiveLines(); // HIER zeichnen wir die neuen Maus-Linien!
       drawHodograph();
@@ -4084,6 +4443,11 @@
     // Hilfsfunktion: Erzeugt einen sauberen Text (Key) aus den Koordinaten eines Profils
     function getLocKey(snd) {
       if (snd.model === 'Radiosonde') return snd.location_alias ?? 'Radiosonde';
+      // Messstationen über ihre WMO-Nummer identifizieren, nicht über die
+      // Koordinaten: Windy meldet die tatsächliche Startposition, die zwischen
+      // zwei Meldeformaten desselben Aufstiegs um einige Meter abweicht — über
+      // Koordinaten zerfiele eine Station sonst in mehrere Orte.
+      if (snd.kind === 'obs' && snd.station_id != null) return `Station ${snd.station_id}`;
       const lat = snd.target_lat ?? snd.grid_lat;
       const lon = snd.target_lon ?? snd.grid_lon;
       const latS = lat >= 0 ? `${lat}°N` : `${-lat}°S`;
@@ -4106,67 +4470,127 @@
       return `${snd.model} ${snd.run_date} ${snd.run_hour}Z${tag}`;
     }
 
-    // Filtert den großen Datentopf nach dem aktuell ausgewählten Ort und füllt das Lauf-Dropdown
-    function filterByLocation() {
-      if (!STATE.currentLocationKey) return;
+    // =========================================================================
+    // Serien- und Kurvenschicht
+    //
+    // Zwischen "Ort" und "Zeitpunkt" fehlte eine Ebene. Ohne sie steckte die
+    // Quelle nur als Textsuffix ([OM]/[PL]) im Lauf-Key, und Messungen landeten
+    // wegen getLocKey() zwangsläufig in einem eigenen Orts-Topf — Messung gegen
+    // Modell zu legen war dadurch strukturell unmöglich.
+    //
+    //   Ort  →  Serie (Quelle + Modell + Lauf)  →  Kurve (Serie + Zeitpunkt)
+    //
+    // Eine Serie darf mehrfach als Kurve auftreten; damit ist der Zeitvergleich
+    // derselben Station kein Sonderfall mehr, sondern schlicht zwei Kurven mit
+    // unterschiedlichem Zeit-Pin.
+    // =========================================================================
 
-      // 1. Alle Profile des gewählten Ortes holen
-      const locSoundings = STATE.allSoundings.filter(snd => getLocKey(snd) === STATE.currentLocationKey);
+    const KIND_LABEL = {
+      'dwd':   'DWD Opendata',
+      'om-ml': 'Modelllevel',
+      'om-pl': 'Druckflächen',
+      'obs':   'Messung',
+      'datei': 'Datei',
+    };
 
-      // 2. Alle verfügbaren Läufe für diesen Ort finden
-      const runSet = new Set();
-      locSoundings.forEach(snd => runSet.add(getRunKey(snd)));
+    // Quellenart eines Profils. Wird beim Laden gesetzt; bereits gespeicherte
+    // JSON-Dateien haben das Feld nicht, deshalb aus model/source rekonstruierbar.
+    function getKind(snd) {
+      if (snd.kind) return snd.kind;
+      if (snd.model === 'Messung') return 'obs';
+      if (snd.model === 'Radiosonde') return 'datei';
+      if (snd.source === 'open-meteo-dev') return 'om-ml';
+      if (snd.source === 'open-meteo-pl') return 'om-pl';
+      return 'dwd';
+    }
 
-      // 3. Läufe absteigend sortieren (der NEUESTE Lauf steht ganz oben / an Index 0!)
-      const runs = Array.from(runSet).sort((a, b) => b.localeCompare(a));
+    // Koordinaten eines Profils (Zielpunkt bevorzugt, sonst Gitterpunkt)
+    function sndLatLon(snd) {
+      const lat = snd.target_lat ?? snd.grid_lat;
+      const lon = snd.target_lon ?? snd.grid_lon;
+      return (lat == null || lon == null) ? null : { lat, lon };
+    }
 
-      // 4. Lauf-Dropdown befüllen
-      const runSelect = document.getElementById('run-select');
-      runSelect.innerHTML = '';
-      runs.forEach(r => {
-        const opt = document.createElement('option');
-        opt.value = r;
-        opt.textContent = r;
-        runSelect.appendChild(opt);
-      });
+    // Großkreisentfernung in km. Wird gebraucht, um geladene Profile nach Nähe
+    // zum aktuellen Ort anzubieten, statt sie wie bisher auf exakt denselben
+    // Koordinaten-Key zu beschränken — erst das macht Messstation gegen
+    // Modellpunkt vergleichbar. Ohne Koordinaten (alte Sonden-Dateien): null.
+    function sndDistanceKm(a, b) {
+      const p = sndLatLon(a), q = sndLatLon(b);
+      if (!p || !q) return null;
+      const R = 6371, rad = Math.PI / 180;
+      const dLat = (q.lat - p.lat) * rad;
+      const dLon = (q.lon - p.lon) * rad;
+      const h = Math.sin(dLat / 2) ** 2
+        + Math.cos(p.lat * rad) * Math.cos(q.lat * rad) * Math.sin(dLon / 2) ** 2;
+      return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+    }
 
-      // 5. Automatisch den neuesten Lauf auswählen!
-      if (runs.length > 0) {
-        STATE.currentRunKey = runs[0];
-        runSelect.value = STATE.currentRunKey;
-      } else {
-        STATE.currentRunKey = '';
+    // Eindeutiger Schlüssel einer Serie: Quelle + Modell + Lauf + Ort.
+    // Bewusst inklusive kind, damit derselbe ICON-D2-Lauf aus Modelllevel- und
+    // Druckflächen-Quelle zwei getrennte Serien bleibt (das ist ein Vergleich,
+    // den die Nutzerin regelmäßig fährt).
+    function seriesIdOf(snd) {
+      return [getKind(snd), snd.model, snd.run_date ?? '', snd.run_hour ?? '', getLocKey(snd)].join('|');
+    }
+
+    // Anzeigetext einer Serie: Kopfzeile (was) und Unterzeile (woher)
+    function seriesLabels(snd) {
+      const kind = getKind(snd);
+      if (kind === 'obs' || kind === 'datei') {
+        return { title: snd.location_alias ?? snd.model, sub: KIND_LABEL[kind] };
       }
-
-      // 5b. Vergleichs-Dropdown mit denselben Läufen befüllen (NEU: opendata vs. OM vergleichen)
-      const compareSelect = document.getElementById('compare-run-select');
-      compareSelect.innerHTML = '';
-      const offOpt = document.createElement('option');
-      offOpt.value = '';
-      offOpt.textContent = 'Vergleich: Aus';
-      compareSelect.appendChild(offOpt);
-      runs.forEach(r => {
-        const opt = document.createElement('option');
-        opt.value = r;
-        opt.textContent = r;
-        compareSelect.appendChild(opt);
-      });
-      STATE.compareRunKey = '';
-      compareSelect.value = '';
-      populateCompareStepSelect();
-
-      // 6. Jetzt nach Ort UND Lauf filtern
-      filterByRun();
+      const rd = String(snd.run_date ?? '');
+      const dateStr = /^\d{8}$/.test(rd) ? `${rd.slice(6, 8)}.${rd.slice(4, 6)}.` : rd;
+      return {
+        title: `${snd.model}  ${dateStr} ${snd.run_hour}Z`,
+        sub: KIND_LABEL[kind],
+      };
     }
 
-    // Eindeutiger Schlüssel für ein Profil INNERHALB eines Laufs (Vorhersagestunde bzw. valid_time)
+    // Baut aus dem flachen Datentopf den Serienindex auf.
+    // Die Profile jeder Serie sind nach Zeit sortiert (Vorhersagestunde bzw.
+    // valid_time), damit Zeit-Dropdowns und Zeitleiste dieselbe Reihenfolge sehen.
+    function buildSeriesIndex() {
+      const map = new Map();
+      for (const snd of STATE.allSoundings) {
+        const id = seriesIdOf(snd);
+        let s = map.get(id);
+        if (!s) {
+          const { title, sub } = seriesLabels(snd);
+          s = {
+            id,
+            kind: getKind(snd),
+            model: snd.model,
+            run_date: snd.run_date ?? null,
+            run_hour: snd.run_hour ?? null,
+            locKey: getLocKey(snd),
+            latlon: sndLatLon(snd),
+            title,
+            sub,
+            soundings: [],
+          };
+          map.set(id, s);
+        }
+        s.soundings.push(snd);
+      }
+      for (const s of map.values()) {
+        s.soundings.sort((a, b) => (a.step_h != null && b.step_h != null)
+          ? a.step_h - b.step_h
+          : (a.valid_time ?? '').localeCompare(b.valid_time ?? ''));
+      }
+      STATE.series = map;
+      return map;
+    }
+
+    // Eindeutiger Schlüssel für ein Profil INNERHALB einer Serie (Vorhersagestunde bzw. valid_time)
     function getCompareStepKeyFor(s) {
-      return (s.model !== 'Radiosonde' && s.step_h != null) ? `step:${s.step_h}` : `time:${s.valid_time}`;
+      return (s.step_h != null) ? `step:${s.step_h}` : `time:${s.valid_time}`;
     }
 
-    // Anzeige-Label für den Zeitpunkt-Dropdown des Vergleichslaufs
+    // Anzeige-Label für einen Zeitpunkt im Zeit-Dropdown einer Kurve
     function formatCompareStepLabel(s) {
-      if (s.model === 'Radiosonde') {
+      if (s.step_h == null) {
         return s.valid_time ? s.valid_time.replace('T', '  ').replace('Z', ' UTC') : '—';
       }
       if (s.valid_time) {
@@ -4177,89 +4601,395 @@
       return `+${String(s.step_h).padStart(3, '0')}h`;
     }
 
-    // Befüllt/versteckt den Zeitpunkt-Dropdown für den aktuell gewählten Vergleichslauf.
-    // 'Zeitpunkt: automatisch' (Wert '') lässt den Vergleich der Zeitnavigation folgen (bisheriges Verhalten).
-    // Ist der Vergleichslauf identisch mit dem aktuellen Lauf, wäre "automatisch" ein No-Op
-    // (gleicher Zeitpunkt überlagert sich selbst) — daher wird dann direkt ein anderer Zeitschritt vorausgewählt.
-    function populateCompareStepSelect() {
-      const stepSelect = document.getElementById('compare-step-select');
-      stepSelect.innerHTML = '';
+    // =========================================================================
+    // Kurvenverwaltung
+    // =========================================================================
 
-      if (!STATE.compareRunKey) {
-        STATE.compareStepKey = '';
-        stepSelect.style.display = 'none';
-        return;
+    let curveSeq = 0;
+
+    function mainCurve() { return STATE.curves.find(c => c.isMain) ?? null; }
+
+    // Kleinster noch freier Farbindex, damit gelöschte Farben wiederverwendet werden
+    function nextColorIdx() {
+      const used = new Set(STATE.curves.filter(c => !c.isMain).map(c => c.colorIdx));
+      for (let i = 0; i < 24; i++) if (!used.has(i)) return i;
+      return 0;
+    }
+
+    function addCurve(seriesId, { isMain = false, stepMode = 'auto', stepKey = '' } = {}) {
+      if (!STATE.series.has(seriesId)) return null;
+      if (isMain) STATE.curves.forEach(c => { c.isMain = false; });
+      const curve = {
+        id: `c${++curveSeq}`,
+        seriesId,
+        isMain,
+        visible: true,
+        stepMode,
+        stepKey,
+        colorIdx: isMain ? -1 : nextColorIdx(),
+      };
+      STATE.curves.push(curve);
+      return curve;
+    }
+
+    function removeCurve(curveId) {
+      const i = STATE.curves.findIndex(c => c.id === curveId);
+      if (i < 0) return;
+      const wasMain = STATE.curves[i].isMain;
+      STATE.curves.splice(i, 1);
+      // Ohne Hauptkurve gäbe es keine Zeitleiste und keine Indizes — daher rückt
+      // die erste verbliebene Kurve nach.
+      if (wasMain && STATE.curves.length > 0) setMainCurve(STATE.curves[0].id);
+    }
+
+    // Hauptkurve wechseln: sie bestimmt Zeitleiste, Indizes, Parcel, Hodograph
+    // und die Cursorwerte — also alles, was auf genau ein Profil schaut.
+    function setMainCurve(curveId) {
+      const c = STATE.curves.find(x => x.id === curveId);
+      if (!c) return;
+      const prev = mainCurve();
+      // Zeitpunkt der bisherigen Hauptkurve merken, damit der Wechsel nicht
+      // ungewollt auf +000h zurückspringt
+      const prevSnd = prev ? curveSounding(prev) : null;
+      // War die beförderte Kurve auf einen Zeitpunkt festgenagelt, gewinnt dieser:
+      // sonst würde sie beim Befördern auf die Zeit der alten Hauptkurve springen
+      // und bei gleicher Serie exakt unter ihr liegen.
+      const ownSnd = (c.stepMode === 'pinned' && c !== prev) ? curveSounding(c) : null;
+
+      STATE.curves.forEach(x => { x.isMain = false; });
+      c.isMain = true;
+      if (c.colorIdx < 0) c.colorIdx = 0;
+      // Die Hauptkurve folgt immer der Zeitleiste; ein Zeit-Pin wäre sinnlos.
+      // Sie wird außerdem immer gezeichnet — ein ausgeschaltetes "zeigen" wäre
+      // ein toter Schalter, weil das Hauptprofil die Indizes trägt.
+      c.stepMode = 'auto';
+      c.stepKey = '';
+      c.visible = true;
+
+      if (prev && prev !== c) {
+        prev.colorIdx = nextColorIdx();
+        // Stammen alte und neue Hauptkurve aus derselben Serie, würde die alte
+        // als "auto"-Overlay exakt unter der neuen liegen. Deshalb auf den
+        // Zeitpunkt festnageln, den sie gerade gezeigt hat.
+        if (prev.seriesId === c.seriesId && prevSnd) {
+          prev.stepMode = 'pinned';
+          prev.stepKey = getCompareStepKeyFor(prevSnd);
+        }
       }
 
-      const autoOpt = document.createElement('option');
-      autoOpt.value = '';
-      autoOpt.textContent = 'Zeitpunkt: automatisch';
-      stepSelect.appendChild(autoOpt);
+      const s = STATE.series.get(c.seriesId);
+      STATE.soundings = s ? s.soundings : [];
 
-      const candidates = STATE.allSoundings.filter(s =>
-        getLocKey(s) === STATE.currentLocationKey && getRunKey(s) === STATE.compareRunKey
-      );
-      candidates.sort((a, b) =>
-        (a.model !== 'Radiosonde' && a.step_h != null)
-          ? a.step_h - b.step_h
-          : (a.valid_time ?? '').localeCompare(b.valid_time ?? '')
-      );
-      candidates.forEach(s => {
-        const opt = document.createElement('option');
-        opt.value = getCompareStepKeyFor(s);
-        opt.textContent = formatCompareStepLabel(s);
-        stepSelect.appendChild(opt);
+      let idx = 0;
+      const anchor = ownSnd ?? prevSnd;
+      if (anchor) {
+        const match = matchSoundingInList(STATE.soundings, anchor);
+        if (match >= 0) idx = match;
+      }
+      STATE.currentIdx = Math.min(idx, Math.max(0, STATE.soundings.length - 1));
+      updateTimeslider();
+      jumpTo(STATE.currentIdx);
+    }
+
+    // Index des zum Referenzprofil passenden Eintrags: gleiche Vorhersagestunde,
+    // sonst nächstgelegene valid_time. -1 wenn nichts passt.
+    function matchSoundingInList(list, ref) {
+      if (!list || list.length === 0 || !ref) return -1;
+      if (ref.step_h != null) {
+        const i = list.findIndex(s => s.step_h === ref.step_h);
+        if (i >= 0) return i;
+      }
+      const t = Date.parse(ref.valid_time ?? '');
+      if (Number.isNaN(t)) return -1;
+      let best = -1, bestDist = Infinity;
+      list.forEach((s, i) => {
+        const d = Math.abs(Date.parse(s.valid_time ?? '') - t);
+        if (!Number.isNaN(d) && d < bestDist) { bestDist = d; best = i; }
       });
-
-      if (STATE.compareRunKey === STATE.currentRunKey) {
-        const current = STATE.soundings[STATE.currentIdx] ?? null;
-        const currentKey = current ? getCompareStepKeyFor(current) : '';
-        const idx = candidates.findIndex(s => getCompareStepKeyFor(s) === currentKey);
-        const next = candidates[idx + 1] ?? candidates[idx - 1] ?? null;
-        STATE.compareStepKey = next ? getCompareStepKeyFor(next) : '';
-      } else {
-        STATE.compareStepKey = '';
-      }
-
-      stepSelect.value = STATE.compareStepKey;
-      stepSelect.style.display = '';
+      return best;
     }
 
-    // Hilfsfunktion: Findet zum aktuellen Profil das passende Profil aus dem Vergleichslauf
-    // (gepinnter Zeitpunkt, sonst gleiche Vorhersagestunde bzw. nächstgelegene valid_time)
-    function getCompareSounding(snd) {
-      if (!snd || !STATE.compareRunKey) return null;
-      const candidates = STATE.allSoundings.filter(s =>
-        getLocKey(s) === STATE.currentLocationKey && getRunKey(s) === STATE.compareRunKey
-      );
-      if (candidates.length === 0) return null;
+    // Das Profil, das eine Kurve gerade zeigt.
+    // 'pinned' → fester Zeitpunkt; 'auto' → folgt dem Zeitpunkt der Hauptkurve
+    // (gleiche Vorhersagestunde, sonst nächstgelegene valid_time — identisch zur
+    // bisherigen getCompareSounding-Logik).
+    function curveSounding(curve) {
+      const s = STATE.series.get(curve.seriesId);
+      if (!s || s.soundings.length === 0) return null;
 
-      if (STATE.compareStepKey) {
-        const pinned = candidates.find(s => getCompareStepKeyFor(s) === STATE.compareStepKey);
-        if (pinned) return pinned;
+      if (curve.stepMode === 'pinned') {
+        return s.soundings.find(x => getCompareStepKeyFor(x) === curve.stepKey) ?? null;
       }
+      if (curve.isMain) return s.soundings[STATE.currentIdx] ?? s.soundings[0] ?? null;
 
-      if (snd.model !== 'Radiosonde' && snd.step_h != null) {
-        return candidates.find(s => s.step_h === snd.step_h) ?? null;
-      }
-      const targetMs = Date.parse(snd.valid_time ?? '');
-      return candidates.reduce((best, s) => {
-        const dist = Math.abs(Date.parse(s.valid_time ?? '') - targetMs);
-        const bestDist = best ? Math.abs(Date.parse(best.valid_time ?? '') - targetMs) : Infinity;
-        return dist < bestDist ? s : best;
-      }, null);
+      const ref = STATE.soundings[STATE.currentIdx] ?? null;
+      if (!ref) return s.soundings[0];
+      const i = matchSoundingInList(s.soundings, ref);
+      return i >= 0 ? s.soundings[i] : null;
     }
 
-    document.getElementById('compare-run-select').addEventListener('change', e => {
-      STATE.compareRunKey = e.target.value;
-      populateCompareStepSelect();
+    // Die gestrichelten Vergleichskurven für den Zeichencode
+    function visibleOverlays() {
+      const tempCols = PALETTE.overlayTemp, dewCols = PALETTE.overlayDew;
+      return STATE.curves
+        .filter(c => !c.isMain && c.visible)
+        .map(c => ({
+          curve: c,
+          snd: curveSounding(c),
+          color: tempCols[c.colorIdx % tempCols.length],
+          dewColor: dewCols[c.colorIdx % dewCols.length],
+        }))
+        .filter(o => o.snd);
+    }
+
+    // Serien, die zum aktuellen Ort passen bzw. in dessen Nähe liegen.
+    // Bewusst NICHT auf denselben Koordinaten-Key beschränkt: sonst wäre eine
+    // Messstation nie gegen einen Modellpunkt zu legen. Stattdessen nach
+    // Entfernung sortiert und mit Distanz beschriftet — die Nutzerin entscheidet.
+    function seriesForCurrentLocation() {
+      const ref = STATE.allSoundings.find(s => getLocKey(s) === STATE.currentLocationKey) ?? null;
+      const out = [];
+      for (const s of STATE.series.values()) {
+        const sameLoc = s.locKey === STATE.currentLocationKey;
+        const dist = (!sameLoc && ref) ? sndDistanceKm(ref, s.soundings[0]) : (sameLoc ? 0 : null);
+        out.push({ series: s, sameLoc, distKm: dist });
+      }
+      out.sort((a, b) => {
+        if (a.sameLoc !== b.sameLoc) return a.sameLoc ? -1 : 1;
+        const da = a.distKm ?? Infinity, db = b.distKm ?? Infinity;
+        if (da !== db) return da - db;
+        // innerhalb gleicher Entfernung: neuester Lauf zuerst
+        return String(b.series.run_date ?? '').localeCompare(String(a.series.run_date ?? ''))
+            || String(b.series.run_hour ?? '').localeCompare(String(a.series.run_hour ?? ''));
+      });
+      return out;
+    }
+
+    // Nach jedem Laden: Kurven auf noch existierende Serien eindampfen und, wenn
+    // nötig, eine neue Hauptkurve bestimmen (neueste Serie am aktuellen Ort).
+    function syncCurves({ preferSeriesId = null } = {}) {
+      STATE.curves = STATE.curves.filter(c => STATE.series.has(c.seriesId));
+
+      let main = mainCurve();
+      if (preferSeriesId && STATE.series.has(preferSeriesId)) {
+        const existing = STATE.curves.find(c => c.seriesId === preferSeriesId);
+        if (existing) { setMainCurve(existing.id); main = existing; }
+        else { main = addCurve(preferSeriesId, { isMain: true }); }
+      }
+      if (!main) {
+        const cand = seriesForCurrentLocation()[0];
+        if (cand) main = addCurve(cand.series.id, { isMain: true });
+      }
+      if (main) setMainCurve(main.id);
+      renderDataPanel();
+    }
+
+    // =========================================================================
+    // Datenpanel
+    // =========================================================================
+
+    // Kurzform für die Entfernungsangabe an fremden Serien
+    function formatDist(km) {
+      if (km == null) return '';
+      return km < 1 ? '· <1 km' : `· ${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
+    }
+
+    function el(tag, cls, text) {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text != null) n.textContent = text;   // bewusst textContent: Stations-/Aliasnamen kommen aus Fremddaten
+      return n;
+    }
+
+    function renderDataPanel() {
+      const curveList = document.getElementById('curve-list');
+      const seriesList = document.getElementById('series-list');
+      if (!curveList || !seriesList) return;
+
+      const tempCols = PALETTE.overlayTemp;
+      curveList.innerHTML = '';
+
+      if (STATE.curves.length === 0) {
+        curveList.appendChild(el('div', 'panel-empty', 'Keine Kurve gewählt.'));
+      }
+
+      for (const c of STATE.curves) {
+        const s = STATE.series.get(c.seriesId);
+        if (!s) continue;
+        const snd = curveSounding(c);
+
+        const row = el('div', 'curve-row' + (c.isMain ? ' is-main' : ''));
+
+        // Titelzeile mit Farbmarker
+        const titleWrap = el('div', 'curve-title');
+        const swatch = el('span', 'curve-swatch');
+        swatch.style.borderTopColor = c.isMain ? PALETTE.temp : tempCols[c.colorIdx % tempCols.length];
+        if (!c.isMain) swatch.style.borderTopStyle = 'dashed';
+        titleWrap.appendChild(swatch);
+        titleWrap.appendChild(el('span', null, s.title));
+        row.appendChild(titleWrap);
+
+        const distTxt = s.locKey === STATE.currentLocationKey ? '' : ` ${formatDist(sndDistanceFromCurrentLoc(s))}`;
+        row.appendChild(el('div', 'curve-sub', s.sub + distTxt));
+
+        // Bedienzeile
+        const ctl = el('div', 'curve-ctl');
+
+        const mainLbl = el('label', null);
+        const mainRadio = document.createElement('input');
+        mainRadio.type = 'radio';
+        mainRadio.name = 'main-curve';
+        mainRadio.checked = c.isMain;
+        mainRadio.title = 'Hauptkurve: steuert Zeitleiste, Indizes, CAPE und Hodograph';
+        mainRadio.addEventListener('change', () => { setMainCurve(c.id); renderDataPanel(); });
+        mainLbl.appendChild(mainRadio);
+        mainLbl.appendChild(document.createTextNode('Haupt'));
+        ctl.appendChild(mainLbl);
+
+        if (!c.isMain) {
+          const visLbl = el('label', null);
+          const visChk = document.createElement('input');
+          visChk.type = 'checkbox';
+          visChk.checked = c.visible;
+          visChk.title = 'Im Diagramm zeigen';
+          visChk.addEventListener('change', () => { c.visible = visChk.checked; renderDataPanel(); redraw(); });
+          visLbl.appendChild(visChk);
+          visLbl.appendChild(document.createTextNode('zeigen'));
+          ctl.appendChild(visLbl);
+        }
+
+        // Zeitwahl: die Hauptkurve folgt immer der Zeitleiste
+        if (c.isMain) {
+          ctl.appendChild(el('span', null, 'folgt der Zeitleiste'));
+        } else {
+          const sel = document.createElement('select');
+          sel.title = 'Zeitpunkt dieser Kurve';
+          const auto = document.createElement('option');
+          auto.value = '';
+          auto.textContent = 'Zeit: automatisch';
+          sel.appendChild(auto);
+          for (const x of s.soundings) {
+            const o = document.createElement('option');
+            o.value = getCompareStepKeyFor(x);
+            o.textContent = formatCompareStepLabel(x);
+            sel.appendChild(o);
+          }
+          sel.value = c.stepMode === 'pinned' ? c.stepKey : '';
+          sel.addEventListener('change', () => {
+            if (sel.value) { c.stepMode = 'pinned'; c.stepKey = sel.value; }
+            else { c.stepMode = 'auto'; c.stepKey = ''; }
+            renderDataPanel();
+            redraw();
+          });
+          ctl.appendChild(sel);
+        }
+
+        ctl.appendChild(el('span', 'ctl-spacer'));
+        const btns = el('div', 'ctl-btns');
+
+        // Duplizieren: derselbe Lauf ein zweites Mal, für den Zeitvergleich
+        const dup = el('button', 'curve-btn', '⧉');
+        dup.title = 'Kurve duplizieren (z.B. derselbe Lauf zu einem anderen Zeitpunkt)';
+        dup.addEventListener('click', () => {
+          const copy = addCurve(c.seriesId);
+          if (copy && snd) {
+            // Auf den nächsten Zeitpunkt vorpinnen — sonst läge die Kopie exakt
+            // unter dem Original und man sähe keinen Unterschied.
+            const i = s.soundings.indexOf(snd);
+            const next = s.soundings[i + 1] ?? s.soundings[i - 1] ?? null;
+            if (next) { copy.stepMode = 'pinned'; copy.stepKey = getCompareStepKeyFor(next); }
+          }
+          renderDataPanel();
+          redraw();
+        });
+        btns.appendChild(dup);
+
+        const dlTxt = el('button', 'curve-btn txt', 'TXT');
+        dlTxt.title = 'Dieses Profil als Textdatei speichern';
+        dlTxt.addEventListener('click', () => exportSoundingToAscii(snd));
+        dlTxt.disabled = !snd;
+        btns.appendChild(dlTxt);
+
+        const dlJson = el('button', 'curve-btn txt', 'JSON');
+        dlJson.title = 'Alle Zeitschritte dieser Serie als JSON speichern (wieder ladbar)';
+        dlJson.addEventListener('click', () => exportSeriesToJson(s));
+        btns.appendChild(dlJson);
+
+        const rm = el('button', 'curve-btn danger', '✕');
+        rm.title = 'Kurve entfernen';
+        rm.addEventListener('click', () => { removeCurve(c.id); renderDataPanel(); redraw(); });
+        btns.appendChild(rm);
+
+        ctl.appendChild(btns);
+        row.appendChild(ctl);
+        curveList.appendChild(row);
+      }
+
+      // Hinweis statt Sperre: ab zu vielen Kurven wird das Skew-T unlesbar
+      const warn = document.getElementById('curve-warn');
+      const nVis = STATE.curves.filter(c => !c.isMain && c.visible).length;
+      warn.hidden = nVis <= 4;
+      warn.textContent = nVis > 4
+        ? `${nVis} Vergleichskurven — das Diagramm wird schnell unübersichtlich.` : '';
+
+      // --- Serien, die noch keine Kurve haben ---
+      seriesList.innerHTML = '';
+      const used = new Set(STATE.curves.map(c => c.seriesId));
+      const avail = seriesForCurrentLocation().filter(x => !used.has(x.series.id));
+
+      if (avail.length === 0) {
+        seriesList.appendChild(el('div', 'panel-empty', 'Alles Geladene liegt im Diagramm.'));
+      }
+      for (const { series: s, sameLoc, distKm } of avail) {
+        const row = el('div', 'series-row');
+        const info = el('div', 'series-info');
+        info.appendChild(el('div', null, s.title));
+        const sub = el('div', 'series-dist', s.sub + (sameLoc ? '' : `  ${formatDist(distKm)}`));
+        info.appendChild(sub);
+        row.appendChild(info);
+
+        const add = el('button', null, '＋');
+        add.title = sameLoc
+          ? 'Als Vergleichskurve ins Diagramm legen'
+          : 'Aus der Nachbarschaft ins Diagramm legen';
+        add.addEventListener('click', () => {
+          addCurve(s.id);
+          renderDataPanel();
+          redraw();
+        });
+        row.appendChild(add);
+        seriesList.appendChild(row);
+      }
+    }
+
+    // Entfernung einer Serie zum aktuell gewählten Ort (null, wenn unbekannt)
+    function sndDistanceFromCurrentLoc(series) {
+      const ref = STATE.allSoundings.find(s => getLocKey(s) === STATE.currentLocationKey);
+      return ref ? sndDistanceKm(ref, series.soundings[0]) : null;
+    }
+
+    document.getElementById('chk-compare-dew').addEventListener('change', e => {
+      STATE.showCompareDew = e.target.checked;
       redraw();
     });
 
-    document.getElementById('compare-step-select').addEventListener('change', e => {
-      STATE.compareStepKey = e.target.value;
-      redraw();
+    // Panel ein-/ausklappen (Zustand über Sitzungen hinweg merken)
+    const PANEL_KEY = 'tlogp-panel-collapsed';
+    function setPanelCollapsed(collapsed) {
+      document.documentElement.classList.toggle('panel-collapsed', collapsed);
+      try { localStorage.setItem(PANEL_KEY, collapsed ? '1' : '0'); } catch { /* ignorieren */ }
+      // Das Diagramm muss nach der Breitenänderung neu vermessen werden
+      requestAnimationFrame(() => { resizeCanvas(); redraw(); });
+    }
+    document.getElementById('panel-collapse').addEventListener('click', () => setPanelCollapsed(true));
+    document.getElementById('btn-panel-toggle').addEventListener('click', () => {
+      setPanelCollapsed(!document.documentElement.classList.contains('panel-collapsed'));
     });
+    try {
+      if (localStorage.getItem(PANEL_KEY) === '1') document.documentElement.classList.add('panel-collapsed');
+    } catch { /* ignorieren */ }
+
+    document.getElementById('btn-add-data').addEventListener('click', () => openOmDialog());
 
     // =========================================================================
     // Live-Abruf von Open-Meteo (Portierung aus om/index.html)
@@ -4657,27 +5387,28 @@
     const OM_SETTINGS_KEY = 'om-viewer-settings';
     let omMap = null, omMarker = null;
 
-    // Modell-Dropdown mit beiden Quellen-Gruppen befüllen
-    (function fillOmModels() {
-      const gMl = document.createElement('optgroup');
-      gMl.label = 'Modelllevel — OM-Server';
-      Object.entries(OM_ML_MODELS).forEach(([key, cfg]) => {
+    // Statuszeile des Ladedialogs — von allen Quellen gemeinsam genutzt
+    function setStatus(msg, isError = false) {
+      const statusEl = document.getElementById('om-status');
+      statusEl.textContent = msg;
+      statusEl.classList.toggle('error', isError);
+    }
+
+    // Modell-Dropdown je nach Quellen-Reiter befüllen. Vorher standen Modelllevel
+    // und Druckflächen als zwei optgroups in EINEM Dropdown — seit die Quelle
+    // ein eigener Reiter ist, zeigt das Dropdown nur noch die passenden Modelle.
+    function fillOmModels(src) {
+      const models = src === 'pl' ? OM_PL_MODELS : OM_ML_MODELS;
+      const prev = omModelSel.value;
+      omModelSel.innerHTML = '';
+      Object.entries(models).forEach(([key, cfg]) => {
         const opt = document.createElement('option');
         opt.value = key;
-        opt.textContent = `${cfg.label} · Modelllevel (${cfg.n_levels})`;
-        gMl.appendChild(opt);
+        opt.textContent = src === 'pl' ? cfg.label : `${cfg.label} · ${cfg.n_levels} Level`;
+        omModelSel.appendChild(opt);
       });
-      const gPl = document.createElement('optgroup');
-      gPl.label = 'Druckflächen — api.open-meteo.com';
-      Object.entries(OM_PL_MODELS).forEach(([key, cfg]) => {
-        const opt = document.createElement('option');
-        opt.value = key;
-        opt.textContent = `${cfg.label} · Druckflächen`;
-        gPl.appendChild(opt);
-      });
-      omModelSel.appendChild(gMl);
-      omModelSel.appendChild(gPl);
-    })();
+      if ([...omModelSel.options].some(o => o.value === prev)) omModelSel.value = prev;
+    }
 
     function setOmLocation(lat, lon, { pan = false } = {}) {
       lat = Math.round(lat * 10000) / 10000;
@@ -4711,44 +5442,98 @@
       if (hasLoc) setOmLocation(lat0, lon0);
     }
 
-    function openOmDialog() {
+    // =========================================================================
+    // Quellenreiter im Ladedialog
+    // =========================================================================
+    const SRC_KEYS = ['dwd', 'ml', 'pl', 'obs', 'file'];
+    const SRC_HINT = {
+      dwd:  '',
+      ml:   'Native ICON-Modelllevel vom OM-Server. Der Lauf wird automatisch bestimmt (neuester verfügbarer laut meta.json). Nach dem Laden kann die Server-Antwort unverändert als JSON gespeichert werden (Rohdaten-Knopf).',
+      pl:   'Druckflächen (1000–30 hPa) von der öffentlichen Open-Meteo-API. Die Vorhersagestunden zählen ab dem angegebenen Lauf (bis 92 Tage rückwirkend). Level, die das Modell nicht liefert, werden übersprungen.',
+      obs:  'Tatsächlich gemessene Radiosonden-Aufstiege. Die Karte markiert Stationen, die zuletzt wirklich gestartet sind; pro Station lässt sich der Aufstiegstermin wählen.',
+      file: '',
+    };
+    const SRC_LOAD_LABEL = { dwd: 'Aktuelle Daten holen', ml: 'Daten laden', pl: 'Daten laden', obs: 'Aufstieg laden', file: 'Datei wählen' };
+
+    let currentSrc = 'ml';
+    const omPanelEl = document.getElementById('om-panel');
+
+    function setSource(src) {
+      if (!SRC_KEYS.includes(src)) return;
+      currentSrc = src;
+      SRC_KEYS.forEach(k => omPanelEl.classList.toggle(`src-${k}`, k === src));
+      document.querySelectorAll('.src-tab').forEach(b =>
+        b.classList.toggle('active', b.dataset.src === src));
+
+      if (src === 'ml' || src === 'pl') {
+        fillOmModels(src);
+        applyOmModelUi();
+      } else {
+        document.getElementById('om-hint').textContent = SRC_HINT[src];
+      }
+      document.getElementById('om-load').textContent = SRC_LOAD_LABEL[src];
+      // Rohdaten gibt es nur für Quellen, die tatsächlich einen Server befragen
+      document.getElementById('om-download').style.display = (src === 'dwd' || src === 'file') ? 'none' : '';
+      setStatus('');
+
+      if (['ml', 'pl', 'obs'].includes(src) && omMap) {
+        setTimeout(() => omMap.invalidateSize(), 0);
+      }
+      if (src === 'obs') refreshObsStations();
+    }
+
+    document.querySelectorAll('.src-tab').forEach(btn =>
+      btn.addEventListener('click', () => setSource(btn.dataset.src)));
+
+    function openOmDialog(src = null) {
       omDialog.classList.remove('hidden');
       if (!omMap) initOmMap();
+      if (src) setSource(src); else setSource(currentSrc);
       // Leaflet kennt die Containergröße erst, wenn der Dialog sichtbar ist
       setTimeout(() => omMap.invalidateSize(), 0);
     }
     function closeOmDialog() { omDialog.classList.add('hidden'); }
 
-    // Merker: Abruf wurde über "+ OM Druckflächen" gestartet -> Ergebnis als
-    // Vergleichs-Overlay setzen, statt die Anzeige auf den neuen Lauf umzuschalten
-    let omCompareIntent = false;
+    document.getElementById('btn-fetch').addEventListener('click', () => openOmDialog());
+    document.getElementById('btn-pick-file').addEventListener('click',
+      () => document.getElementById('file-input').click());
 
-    document.getElementById('btn-fetch').addEventListener('click', () => {
-      omCompareIntent = false;
-      openOmDialog();
+    document.getElementById('btn-prefill').addEventListener('click', () => {
+      const ok = prefillDialogFromMain({ toPressureLevels: currentSrc === 'pl' });
+      setStatus(ok
+        ? 'Ort, Lauf und Vorhersagestunden vom angezeigten Lauf übernommen.'
+        : 'Die angezeigte Hauptkurve hat keinen Modelllauf (Messung oder Datei) — nichts zu übernehmen.', !ok);
     });
 
-    // "+ OM Druckflächen": Abruf-Dialog vorausgefüllt mit Ort/Lauf/Vorhersage-
-    // stunden des aktuell angezeigten Laufs öffnen (integrierter Nachfolger des
-    // separaten om_pressure_tool.html — kein Tab-Wechsel/Drag&Drop mehr nötig)
+    // Dialog mit Ort/Lauf/Vorhersagestunden der aktuellen Hauptkurve vorbelegen.
+    // War früher der Knopf "+ OM Druckflächen"; seit dem Kurvenumbau ruft der
+    // Ladedialog das selbst auf, damit ein Vergleichsabruf nicht erst von Hand
+    // nachgetippt werden muss.
     const OM_ML_TO_PL = { 'ICON-D2': 'pl:icon_d2', 'ICON-EU': 'pl:icon_eu', 'ICON': 'pl:icon_global' };
-    document.getElementById('btn-om-pl').addEventListener('click', () => {
+    function prefillDialogFromMain({ toPressureLevels = false } = {}) {
       const list = STATE.soundings;
-      if (!list || list.length === 0 || list[0].model === 'Radiosonde') return;
+      if (!list || list.length === 0) return false;
       const ref = list[0];
+      if (ref.step_h == null) return false;   // Messung/Datei hat keinen Lauf
 
-      // Druckflächen-Modell vorwählen: passend zum angezeigten ICON-Lauf,
-      // eine bereits gewählte Druckflächen-Quelle bleibt bestehen
-      if (!omModelSel.value.startsWith('pl:')) {
-        omModelSel.value = OM_ML_TO_PL[ref.model] ?? 'pl:ecmwf_ifs025';
+      // Passendes Druckflächen-Modell zum angezeigten Lauf vorwählen. Bewusst
+      // ohne "nur wenn noch nichts gewählt": der Reiter setzt das Feld bereits
+      // auf einen pl:-Wert, eine solche Bedingung liefe also immer ins Leere
+      // und man bekäme statt ICON-D2 das erste Modell der Liste.
+      if (toPressureLevels) {
+        const want = OM_ML_TO_PL[ref.model];
+        if (want && [...omModelSel.options].some(o => o.value === want)) {
+          omModelSel.value = want;
+          applyOmModelUi();
+        }
       }
-      applyOmModelUi();
 
-      setOmLocation(ref.target_lat ?? ref.grid_lat, ref.target_lon ?? ref.grid_lon, { pan: true });
+      const lat = ref.target_lat ?? ref.grid_lat;
+      const lon = ref.target_lon ?? ref.grid_lon;
+      if (lat != null && lon != null) setOmLocation(lat, lon, { pan: true });
       const alias = STATE.locationAliases?.[STATE.currentLocationKey] ?? '';
       if (alias) document.getElementById('om-alias').value = alias;
 
-      // Lauf und Vorhersagestunden des angezeigten Laufs übernehmen
       const rd = ref.run_date ?? '';
       if (/^\d{8}$/.test(rd)) {
         document.getElementById('om-run-date').value = `${rd.slice(0, 4)}-${rd.slice(4, 6)}-${rd.slice(6, 8)}`;
@@ -4756,10 +5541,323 @@
       if (ref.run_hour != null) document.getElementById('om-run-hour').value = String(Number(ref.run_hour));
       const steps = Array.from(new Set(list.map(s => s.step_h))).sort((a, b) => a - b);
       document.getElementById('om-steps').value = steps.join(',');
+      return true;
+    }
 
-      omCompareIntent = true;
-      openOmDialog();
+    // =========================================================================
+    // Gemessene Radiosonden-Aufstiege (Windy)
+    //
+    // Michaels MCP-Server (radiosonde-mcp-server) läuft über stdio und ist aus
+    // dem Browser nicht ansprechbar. Er ist aber nur ein dünner Wrapper um drei
+    // öffentliche Windy-Endpunkte, und die senden CORS-Header — der Viewer holt
+    // sie deshalb direkt, wie schon api.open-meteo.com. Kein Proxy nötig.
+    //
+    //   tiles → welche Stationen sind zuletzt wirklich gestartet (Marker)
+    //   obs   → Stationsinfo + Liste der Aufstiegstermine (~14 Tage)
+    //   dl    → das Profil selbst (GeoJSON), format aus der Terminliste
+    // =========================================================================
+    const WINDY_TILES = 'https://node.windy.com/pois/v2/radiosonde';
+    const WINDY_OBS   = 'https://node.windy.com/obs/measurement/v2/radiosonde';
+    const WINDY_DL    = 'https://dl.windy.com/obs/measurement/v2/radiosonde';
+    const WINDY_TILE_Z = 6;   // Zoomstufe, auf der Windy die Stationen ausliefert
+
+    let obsStations = [];          // [{id, lat, lon, time, format}]
+    let obsMarkers = [];           // Leaflet-Marker dazu
+    let obsDetail = null;          // {info, history} der gewählten Station
+    let obsLayer = null;
+
+    // Slippy-Map-Umkehrung: Windy liefert Kachelnummer + Pixel-Offset in der Kachel
+    function tilePixelToLatLon(tx, ty, px, py, z) {
+      const n = 2 ** z;
+      const x = tx + px / 256, y = ty + py / 256;
+      const lon = x / n * 360 - 180;
+      const latRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n)));
+      return { lat: latRad * 180 / Math.PI, lon };
+    }
+
+    function lonLatToTile(lat, lon, z) {
+      const n = 2 ** z;
+      const x = Math.floor((lon + 180) / 360 * n);
+      const latRad = lat * Math.PI / 180;
+      const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
+      return { x, y };
+    }
+
+    // Stationen für den sichtbaren Kartenausschnitt holen.
+    // Windys Kachel-API liefert bewusst NUR Stationen mit einem Aufstieg in den
+    // letzten ~24–48 h — genau die, die die Nutzerin markiert sehen will.
+    async function fetchObsStationsForBounds(bounds) {
+      const nw = lonLatToTile(bounds.getNorth(), bounds.getWest(), WINDY_TILE_Z);
+      const se = lonLatToTile(bounds.getSouth(), bounds.getEast(), WINDY_TILE_Z);
+      const tiles = [];
+      for (let x = nw.x; x <= se.x; x++) {
+        for (let y = nw.y; y <= se.y; y++) tiles.push({ x, y });
+      }
+      // Sicherung gegen weit herausgezoomte Karten
+      if (tiles.length > 12) throw new Error('Kartenausschnitt zu groß — bitte näher heranzoomen.');
+
+      const seen = new Map();
+      const results = await Promise.all(tiles.map(t =>
+        fetch(`${WINDY_TILES}/tiles/${WINDY_TILE_Z}/${t.x}/${t.y}?pr=0&sc=0&token2=pending`)
+          .then(r => r.ok ? r.json() : null)
+          .then(d => ({ t, d }))
+          .catch(() => ({ t, d: null }))
+      ));
+
+      for (const { t, d } of results) {
+        if (!d || !Array.isArray(d.id)) continue;
+        d.id.forEach((id, i) => {
+          if (seen.has(id)) return;
+          const { lat, lon } = tilePixelToLatLon(t.x, t.y, d.tileX[i], d.tileY[i], WINDY_TILE_Z);
+          seen.set(id, { id, lat, lon, time: d.time?.[i] ?? null, format: d.format?.[i] ?? null });
+        });
+      }
+      return [...seen.values()];
+    }
+
+    // Stationsinfo + Aufstiegsliste (~56 Termine über 14 Tage)
+    async function fetchObsDetail(stationId) {
+      const r = await fetch(`${WINDY_OBS}/${stationId}/1/1?pr=0&sc=0&token2=pending`);
+      if (!r.ok) throw new Error(`Station ${stationId}: HTTP ${r.status}`);
+      const d = await r.json();
+      return { info: d.info ?? null, history: Array.isArray(d.history) ? d.history : [] };
+    }
+
+    // Windy-GeoJSON → Viewer-Level-Schema.
+    // gpheight ist AMSL, z_m im Viewer aber AGL → Differenz zur Stationshöhe.
+    function windyGeoJsonToSounding(gj, rawText) {
+      const p = gj.properties ?? {};
+      const elev = p.elevation ?? 0;
+      const levels = [];
+
+      for (const f of (gj.features ?? [])) {
+        const q = f.properties ?? {};
+        if (q.pressure == null || q.temp == null) continue;   // letztes Feature ist leer
+        let wspd_kn = null, wdir_deg = null;
+        if (q.wind_u != null && q.wind_v != null) {
+          wspd_kn = Math.hypot(q.wind_u, q.wind_v) / 0.514444;
+          wdir_deg = (270 - Math.atan2(q.wind_v, q.wind_u) * 180 / Math.PI + 360) % 360;
+        }
+        levels.push({
+          p_hPa: omRound(q.pressure, 1),
+          z_m: q.gpheight != null ? omRound(q.gpheight - elev, 0) : null,
+          T_C: omRound(q.temp - 273.15, 1),
+          Td_C: q.dewpoint != null ? omRound(q.dewpoint - 273.15, 1) : null,
+          wspd_kn: omRound(wspd_kn, 1),
+          wdir_deg: wdir_deg != null ? Math.round(wdir_deg) : null,
+        });
+      }
+      // Von unten nach oben, wie bei allen anderen Quellen
+      levels.sort((a, b) => b.p_hPa - a.p_hPa);
+      if (levels.length < 2) throw new Error('Aufstieg enthält zu wenige verwertbare Level.');
+
+      const raw = levels.length;
+      const dec = decimateByHeight(levels);
+
+      const vt = p.syn_timestamp != null ? new Date(p.syn_timestamp * 1000).toISOString().replace(/:\d\d\.\d+Z$/, 'Z') : null;
+      return {
+        model: 'Messung',
+        kind: 'obs',
+        source: 'windy',
+        station_id: p.station_id ?? null,
+        valid_time: vt,
+        location_alias: p.station_name ?? `Station ${p.station_id ?? '?'}`,
+        // Auf ~100 m gerundet (kosmetisch — die Ortsidentität hängt an der
+        // Stations-ID, siehe getLocKey)
+        target_lat: omRound(p.lat, 3),
+        target_lon: omRound(p.lon, 3),
+        hsurf_m: elev,
+        surface_p_hPa: dec.levels[0]?.p_hPa ?? null,
+        repfmt: p.repfmt ?? null,
+        n_levels_loaded: dec.levels.length,
+        n_levels_raw: raw,
+        decimated: dec.decimated,
+        levels: dec.levels,
+        _rawText: rawText,
+      };
+    }
+
+    async function fetchObsSounding(stationId, timeMs, format) {
+      const url = `${WINDY_DL}/${stationId}/download?time=${timeMs}&format=${format}`;
+      const r = await fetch(url);
+      const text = await r.text();
+      if (!r.ok) throw new Error(`Aufstieg nicht abrufbar (HTTP ${r.status}).`);
+      let gj;
+      try { gj = JSON.parse(text); } catch { throw new Error('Antwort war kein gültiges JSON.'); }
+      return windyGeoJsonToSounding(gj, text);
+    }
+
+    // Windy meldet denselben Aufstieg in zwei Formaten:
+    //   fm94 = BUFR, hochaufgelöst, Wind auf allen Leveln
+    //   fm35 = klassisches TEMP, nur Haupt-/markante Flächen, Wind lückenhaft
+    const OBS_FORMAT_LABEL = {
+      fm94: 'BUFR · hochaufgelöst, Wind komplett',
+      fm35: 'TEMP · Standardflächen, Wind lückenhaft',
+    };
+
+    // Vorauswahl: schlicht der neueste Termin.
+    // Bewusst KEINE Bevorzugung von fm94: die BUFR-Meldung wird oft schon
+    // während des Aufstiegs abgesetzt und endet dann weit unten (bei München
+    // z.B. bei 500 hPa, während die TEMP-Meldung derselben Sonde bis 100 hPa
+    // reicht). Ein automatisch bevorzugtes fm94 würde also stillschweigend ein
+    // abgeschnittenes Profil laden — die Formatwahl bleibt deshalb bei der
+    // Nutzerin, die Beschriftung nennt den Unterschied.
+    function pickBestAscent(history) {
+      if (!history || history.length === 0) return null;
+      return history.reduce((a, b) => (b.time > a.time ? b : a));
+    }
+
+    // --- Karte: Stationsmarker ---
+    function obsTimeLabel(ms) {
+      if (ms == null) return '—';
+      const d = new Date(ms);
+      const p = n => String(n).padStart(2, '0');
+      return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}. ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} UTC`;
+    }
+
+    function clearObsMarkers() {
+      obsMarkers.forEach(m => obsLayer.removeLayer(m));
+      obsMarkers = [];
+    }
+
+    async function refreshObsStations() {
+      if (!omMap) return;
+      if (!obsLayer) obsLayer = L.layerGroup().addTo(omMap);
+      setStatus('Suche Stationen mit aktuellem Aufstieg …');
+      try {
+        obsStations = await fetchObsStationsForBounds(omMap.getBounds());
+        clearObsMarkers();
+        for (const st of obsStations) {
+          const m = L.circleMarker([st.lat, st.lon], {
+            radius: 6, weight: 2, color: '#4dc4ff', fillColor: '#4dc4ff', fillOpacity: 0.5,
+          }).addTo(obsLayer);
+          m.bindTooltip(`Station ${st.id} · zuletzt ${obsTimeLabel(st.time)}`);
+          m.on('click', () => selectObsStation(st.id));
+          obsMarkers.push(m);
+        }
+        fillObsStationSelect();
+        setStatus(obsStations.length
+          ? `${obsStations.length} Station(en) mit Aufstieg im Ausschnitt — Marker anklicken.`
+          : 'Keine Station mit aktuellem Aufstieg in diesem Ausschnitt. Karte verschieben oder herauszoomen.');
+      } catch (err) {
+        setStatus(`Stationssuche: ${err.message}`, true);
+      }
+    }
+
+    function fillObsStationSelect() {
+      const sel = document.getElementById('obs-station');
+      const prev = sel.value;
+      sel.innerHTML = '';
+      if (obsStations.length === 0) {
+        const o = document.createElement('option');
+        o.value = ''; o.textContent = '— keine Station im Ausschnitt —';
+        sel.appendChild(o);
+        return;
+      }
+      for (const st of obsStations) {
+        const o = document.createElement('option');
+        o.value = st.id;
+        o.textContent = `${st.id} · zuletzt ${obsTimeLabel(st.time)}`;
+        sel.appendChild(o);
+      }
+      if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+    }
+
+    // Station gewählt → Name/Höhe holen und die Terminliste füllen
+    async function selectObsStation(stationId) {
+      document.getElementById('obs-station').value = stationId;
+      setStatus(`Lade Aufstiegstermine für Station ${stationId} …`);
+      try {
+        obsDetail = await fetchObsDetail(stationId);
+        const sel = document.getElementById('obs-time');
+        sel.innerHTML = '';
+        for (const a of obsDetail.history) {
+          const o = document.createElement('option');
+          o.value = `${a.time}|${a.format}`;
+          o.textContent = `${obsTimeLabel(a.time)}  ·  ${OBS_FORMAT_LABEL[a.format] ?? a.format}`;
+          sel.appendChild(o);
+        }
+        // Derselbe Aufstieg wird oft in zwei Formaten gemeldet. fm94 (BUFR) führt
+        // Wind auf allen Leveln, fm35 (TEMP) nur auf den Standardflächen — für
+        // Hodograph, Windtabelle und CAT ist fm94 daher klar die bessere Wahl.
+        const best = pickBestAscent(obsDetail.history);
+        if (best) sel.value = `${best.time}|${best.format}`;
+        // Stationsnamen im Dropdown nachtragen, sobald bekannt
+        if (obsDetail.info?.name) {
+          const opt = [...document.getElementById('obs-station').options].find(o => o.value === String(stationId));
+          if (opt) opt.textContent = `${stationId} · ${obsDetail.info.name}`;
+        }
+        const n = obsDetail.history.length;
+        setStatus(n
+          ? `${obsDetail.info?.name ?? 'Station ' + stationId} · ${n} Aufstiege verfügbar — Termin wählen und laden.`
+          : 'Für diese Station sind keine Aufstiege hinterlegt.');
+      } catch (err) {
+        setStatus(`Station ${stationId}: ${err.message}`, true);
+      }
+    }
+
+    document.getElementById('obs-station').addEventListener('change', e => {
+      if (e.target.value) selectObsStation(e.target.value);
     });
+
+    // Aufstieg laden und als Kurve einhängen
+    async function loadSelectedObsSounding() {
+      const stationId = document.getElementById('obs-station').value;
+      const pick = document.getElementById('obs-time').value;
+      if (!stationId || !pick) {
+        setStatus('Bitte erst eine Station und einen Aufstiegstermin wählen.', true);
+        return;
+      }
+      const [timeMs, format] = pick.split('|');
+      const loadBtn = document.getElementById('om-load');
+      loadBtn.disabled = true;
+      try {
+        setStatus('Lade Aufstieg …');
+        const snd = await fetchObsSounding(stationId, timeMs, format);
+
+        omLastRaw = {
+          text: snd._rawText,
+          filename: `radiosonde_${stationId}_${new Date(Number(timeMs)).toISOString().slice(0, 13).replace(/[-T]/g, '')}Z_${format}.json`,
+        };
+        delete snd._rawText;
+        document.getElementById('om-download').disabled = false;
+
+        const locKey = getLocKey(snd);
+        const newSeriesId = seriesIdOf(snd);
+        const replace = document.getElementById('chk-replace').checked;
+        // Messungen liegen fast nie exakt auf dem Modellpunkt. Der Ort wechselt
+        // deshalb nur, wenn es noch gar nichts zu vergleichen gibt — sonst bleibt
+        // der Modellort stehen und der Aufstieg kommt als Vergleichskurve dazu.
+        const keepLoc = !replace && !!mainCurve();
+
+        if (!keepLoc) { STATE.curves = []; STATE.currentLocationKey = locKey; }
+        loadSoundings([snd], !replace, keepLoc ? null : newSeriesId);
+        if (keepLoc && !STATE.curves.some(c => c.seriesId === newSeriesId)) {
+          addCurve(newSeriesId);
+          renderDataPanel();
+          redraw();
+        }
+
+        const dist = keepLoc ? sndDistanceFromCurrentLoc(STATE.series.get(newSeriesId)) : null;
+        const topP = snd.levels[snd.levels.length - 1]?.p_hPa;
+        // BUFR-Meldungen werden oft schon während des Aufstiegs abgesetzt und
+        // enden dann weit unterhalb der üblichen ~100 hPa — das darf nicht
+        // stillschweigend als vollständiges Profil durchgehen.
+        const truncated = topP != null && topP > 300;
+        setStatus(`✓ ${snd.location_alias} · ${snd.n_levels_loaded} Level`
+          + (snd.decimated ? ` (aus ${snd.n_levels_raw} dezimiert)` : '')
+          + (dist != null ? ` · ${formatDist(dist).replace('· ', '')} vom gewählten Ort` : '')
+          + (truncated ? `\n⚠ Aufstieg endet bereits bei ${Math.round(topP)} hPa — vermutlich eine noch laufende Meldung. Ein anderes Format/Termin reicht evtl. höher.` : ''),
+          false);
+        setTimeout(closeOmDialog, truncated ? 2600 : 900);
+      } catch (err) {
+        console.error('Messdaten-Abruf Fehler:', err);
+        setStatus(`Fehler: ${err.message}`, true);
+      } finally {
+        loadBtn.disabled = false;
+      }
+    }
+
     document.getElementById('om-close').addEventListener('click', closeOmDialog);
     omDialog.addEventListener('click', e => { if (e.target === omDialog) closeOmDialog(); });
     window.addEventListener('keydown', e => {
@@ -4778,11 +5876,13 @@
     let omMaxStepReqId = 0;
     function applyOmModelUi() {
       const key = omModelSel.value;
+      if (!key) return;
       const isMl = key.startsWith('ml:');
-      document.querySelectorAll('.om-pl-only').forEach(el => { el.style.display = isMl ? 'none' : ''; });
+      // Lauf-Datum/-Stunde nur bei Druckflächen: die Sichtbarkeit steuert jetzt
+      // der Quellen-Reiter über die .src-only-Klassen, hier bleibt nur die Logik.
       // Stunden nur zurücksetzen, wenn die Quelle bzw. das ML-Modell wechselt —
-      // zwischen Druckflächen-Modellen bleiben sie erhalten, damit die vom
-      // "+ OM Druckflächen"-Knopf vorbefüllten Stunden nicht verloren gehen
+      // zwischen Druckflächen-Modellen bleiben sie erhalten, damit vorbefüllte
+      // Stunden (prefillDialogFromMain) nicht verloren gehen
       const keepSteps = !isMl && omPrevModelKey?.startsWith('pl:');
       if (!keepSteps) {
         const stepsEl = document.getElementById('om-steps');
@@ -4807,9 +5907,7 @@
         }
       }
       omPrevModelKey = key;
-      document.getElementById('om-hint').textContent = isMl
-        ? 'Native ICON-Modelllevel vom OM-Server. Der Lauf wird automatisch bestimmt (neuester verfügbarer laut meta.json). Nach dem Laden kann die Server-Antwort unverändert als JSON gespeichert werden (Rohdaten-Knopf).'
-        : 'Druckflächen (1000–30 hPa) von der öffentlichen Open-Meteo-API. Die Vorhersagestunden zählen ab dem angegebenen Lauf (bis 92 Tage rückwirkend). Level, die das Modell nicht liefert, werden übersprungen.';
+      document.getElementById('om-hint').textContent = isMl ? SRC_HINT.ml : SRC_HINT.pl;
     }
     omModelSel.addEventListener('change', applyOmModelUi);
 
@@ -4858,14 +5956,15 @@
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     });
 
-    // Laden-Knopf: Abruf, Umwandlung ins Viewer-Schema, Anzeige
+    // Laden-Knopf: je nach Quellen-Reiter der passende Abruf
     document.getElementById('om-load').addEventListener('click', async () => {
-      const statusEl = document.getElementById('om-status');
-      const setStatus = (msg, isError = false) => {
-        statusEl.textContent = msg;
-        statusEl.classList.toggle('error', isError);
-      };
+      if (currentSrc === 'file') { document.getElementById('file-input').click(); return; }
+      if (currentSrc === 'dwd')  { await fetchFromCloud(); return; }
+      if (currentSrc === 'obs')  { await loadSelectedObsSounding(); return; }
+      await omLoadFromApi();
+    });
 
+    async function omLoadFromApi() {
       const lat = parseFloat(document.getElementById('om-lat').value);
       const lon = parseFloat(document.getElementById('om-lon').value);
       if (Number.isNaN(lat) || Number.isNaN(lon)) {
@@ -4899,40 +5998,26 @@
 
         document.getElementById('om-download').disabled = !omLastRaw;
 
-        // Vorherige Auswahl merken, bevor loadSoundings() sie neu setzt —
-        // im Vergleichsmodus soll der bisher angezeigte Lauf erhalten bleiben
-        const prevLocKey = STATE.currentLocationKey;
-        const prevRunKey = STATE.currentRunKey;
-
-        // Neue Profile zu evtl. schon geladenen dazu mergen und direkt anzeigen
-        loadSoundings(result.soundings, true);
+        // Bleibt der Ort derselbe und liegt schon eine Kurve im Diagramm, wird
+        // der frische Lauf als zusätzliche Vergleichskurve dazugelegt statt die
+        // Ansicht auf ihn umzuschalten — genau der Fall "ICON-D2 Modelllevel
+        // gegen dieselben Druckflächen legen". Bei neuem Ort wird er Hauptkurve.
         const first = result.soundings[0];
         const locKey = getLocKey(first);
-        const runKey = getRunKey(first);
+        const newSeriesId = seriesIdOf(first);
+        const replace = document.getElementById('chk-replace').checked;
+        const asComparison = !replace && (locKey === STATE.currentLocationKey) && !!mainCurve();
+
         STATE.currentLocationKey = locKey;
-        document.getElementById('loc-select').value = locKey;
-        filterByLocation();
+        if (!asComparison) STATE.curves = [];
 
-        const runSelect = document.getElementById('run-select');
-        const hasRun = k => [...runSelect.options].some(o => o.value === k);
+        loadSoundings(result.soundings, !replace, asComparison ? null : newSeriesId);
 
-        if (omCompareIntent && locKey === prevLocKey && prevRunKey && prevRunKey !== runKey && hasRun(prevRunKey)) {
-          // Vergleichsmodus: bisherigen Lauf weiter anzeigen, neuen Lauf als Overlay
-          STATE.currentRunKey = prevRunKey;
-          runSelect.value = prevRunKey;
-          filterByRun();
-          const cmpSelect = document.getElementById('compare-run-select');
-          STATE.compareRunKey = runKey;
-          cmpSelect.value = runKey;
-          populateCompareStepSelect();
+        if (asComparison && !STATE.curves.some(c => c.seriesId === newSeriesId)) {
+          addCurve(newSeriesId);
+          renderDataPanel();
           redraw();
-        } else if (hasRun(runKey)) {
-          // Normalfall: den frisch geladenen Lauf anzeigen
-          STATE.currentRunKey = runKey;
-          runSelect.value = runKey;
-          filterByRun();
         }
-        omCompareIntent = false;
 
         saveOmSettings(lat, lon, alias);
         setStatus(`✓ ${result.soundings.length}/${steps.length} Profile geladen — ${result.sourceLabel}, Lauf ${result.runLabel}`
@@ -4944,41 +6029,7 @@
       } finally {
         loadBtn.disabled = false;
       }
-    });
-
-    // NEU: Filtert die Daten final nach Ort und dem gewählten Lauf
-    function filterByRun() {
-      if (!STATE.currentLocationKey || !STATE.currentRunKey) return;
-
-      // 1. Nur Profile für den aktiven Ort UND den aktiven Lauf behalten
-      const filtered = STATE.allSoundings.filter(snd =>
-        getLocKey(snd) === STATE.currentLocationKey &&
-        getRunKey(snd) === STATE.currentRunKey
-      );
-
-      // 2. Nach Vorhersagestunde (Modell) bzw. valid_time (Radiosonde) sortieren
-      STATE.soundings = filtered.sort((a, b) =>
-        a.model === 'Radiosonde'
-          ? (a.valid_time ?? '').localeCompare(b.valid_time ?? '')
-          : a.step_h - b.step_h
-      );
-
-      // 3. Zeitleiste auf 0 setzen und Bild neu zeichnen
-      STATE.currentIdx = 0;
-      updateTimeslider();
-      jumpTo(0);
-
-      // 4. "+ OM Druckflächen"-Knopf nur anzeigen, wenn der Lauf echte Modell-
-      // Vorhersagestunden hat (Radiosonde hat keinen run_date/run_hour/step_h)
-      const omBtn = document.getElementById('btn-om-pl');
-      omBtn.style.display = (STATE.soundings.length > 0 && STATE.soundings[0].model !== 'Radiosonde') ? '' : 'none';
     }
-
-    // Event-Listener für das neue Dropdown
-    document.getElementById('run-select').addEventListener('change', e => {
-      STATE.currentRunKey = e.target.value;
-      filterByRun();
-    });
 
     // Eindeutiger Schlüssel für ein Profil, um beim Mergen (NEU: manuelle Dateien
     // zu Cloud-Daten dazuladen) Duplikate/Updates desselben Profils zu erkennen.
@@ -4994,7 +6045,10 @@
     // erstellten Vergleichslauf (z.B. OM-Druckflächen) einfach dazuziehen kann,
     // ohne die Modelllevel-Daten vorher per scp lokal holen zu müssen.
     // merge=false (Cloud-Refresh): voller Ersatz wie bisher.
-    function loadSoundings(files_or_data, merge = false) {
+    // preferSeriesId: Serie, die nach dem Laden zur Hauptkurve werden soll
+    // (leer = neueste Serie am aktuellen Ort). Wird gesetzt, wenn frisch
+    // abgerufene Daten direkt angezeigt werden sollen.
+    function loadSoundings(files_or_data, merge = false, preferSeriesId = null) {
       if (merge) {
         const newKeys = new Set(files_or_data.map(soundingIdentityKey));
         STATE.allSoundings = STATE.allSoundings.filter(s => !newKeys.has(soundingIdentityKey(s))).concat(files_or_data);
@@ -5008,6 +6062,11 @@
       STATE.allSoundings.forEach(snd => {
         if (snd.location_alias) STATE.locationAliases[getLocKey(snd)] = snd.location_alias;
       });
+
+      // 0b. Quellenart einmal festschreiben und den Serienindex neu aufbauen.
+      // Beides muss vor jedem Befüllen der Dropdowns passieren.
+      STATE.allSoundings.forEach(snd => { snd.kind = getKind(snd); });
+      buildSeriesIndex();
 
       // 1. Alle einzigartigen Orte in den Daten finden
       const locSet = new Set();
@@ -5033,14 +6092,41 @@
       select.value = STATE.currentLocationKey;
 
       document.getElementById('empty-state').classList.add('hidden');
-      filterByLocation();
+      syncCurves({ preferSeriesId });
     }
 
-    // Wenn der Nutzer im Dropdown einen anderen Ort anklickt -> Ansicht aktualisieren!
+    // Ortswechsel: Kurven des alten Ortes verwerfen und am neuen Ort neu aufbauen.
+    // (Kurven aus der Nachbarschaft holt man bewusst per Hand aus der unteren
+    // Panel-Liste zurück — sonst schleppte ein Ortswechsel stillschweigend
+    // Profile mit, die gar nicht mehr zum gewählten Ort gehören.)
     document.getElementById('loc-select').addEventListener('change', e => {
       STATE.currentLocationKey = e.target.value;
-      filterByLocation();
+      STATE.curves = [];
+      syncCurves();
     });
+
+    // Dünnt hochaufgelöste Profile auf 50-m-Bins aus (mittl. Abstand < 20 m).
+    // Genutzt von der Windsond-ASCII-Datei und von Windys fm94-Aufstiegen, die
+    // beide mehrere tausend Level liefern können — ungedünnt wird das Zeichnen
+    // träge, ohne dass man im Skew-T mehr sähe.
+    function decimateByHeight(raw, BIN = 50) {
+      const withZ = raw.filter(l => l.z_m != null);
+      if (withZ.length < 2) return { levels: raw, decimated: false };
+      const meanDz = (withZ[withZ.length - 1].z_m - withZ[0].z_m) / (withZ.length - 1);
+      if (!(Math.abs(meanDz) < 20)) return { levels: raw, decimated: false };
+
+      const binMap = new Map();
+      for (const l of withZ) {
+        const bin = Math.round(l.z_m / BIN) * BIN;
+        const cur = binMap.get(bin);
+        // Pro Bin das Level, das dem Bin-Mittelpunkt am nächsten liegt
+        if (!cur || Math.abs(l.z_m - bin) < Math.abs(cur.z_m - bin)) binMap.set(bin, l);
+      }
+      return {
+        levels: Array.from(binMap.values()).sort((a, b) => a.z_m - b.z_m),
+        decimated: true,
+      };
+    }
 
     // -------------------------------------------------------------------------
     // Radiosonden-ASCII-Parser (Windsond HEIDIS-Format)
@@ -5080,24 +6166,7 @@
       }
       if (raw.length < 2) return null;
 
-      // Automatische Dezimierung bei Hochauflösung (mittl. Abstand < 20 m → auf 50 m-Bins)
-      const meanDz = (raw[raw.length - 1].z_m - raw[0].z_m) / (raw.length - 1);
-      let levels = raw;
-      let decimated = false;
-      if (meanDz < 20) {
-        const BIN = 50;
-        const binMap = new Map();
-        for (const l of raw) {
-          const bin = Math.round(l.z_m / BIN) * BIN;
-          if (!binMap.has(bin)) binMap.set(bin, l); // erstes Level im Bin (nächstes zum Mittelpunkt)
-          else {
-            const cur = binMap.get(bin);
-            if (Math.abs(l.z_m - bin) < Math.abs(cur.z_m - bin)) binMap.set(bin, l);
-          }
-        }
-        levels = Array.from(binMap.values()).sort((a, b) => a.z_m - b.z_m);
-        decimated = true;
-      }
+      const { levels, decimated } = decimateByHeight(raw);
 
       return {
         model: 'Radiosonde',
@@ -5141,7 +6210,10 @@
           const info = dec.map(s => `${s.location_alias}: ${s.n_levels_raw} → ${s.n_levels_loaded} Level`).join(', ');
           console.info(`Radiosonde dezimiert (50 m-Bins): ${info}`);
         }
-        loadSoundings(all, true);
+        const replace = document.getElementById('chk-replace')?.checked ?? false;
+        if (replace) STATE.curves = [];
+        loadSoundings(all, !replace);
+        closeOmDialog();
       }).catch(err => alert('Fehler: ' + err));
     }
 
@@ -5357,20 +6429,11 @@
 
     async function fetchFromCloud() {
       const indexUrl = `${DATA_BASE}/index.json`;
-
-      const emptyStateText = document.querySelector('#empty-state p');
-      const originalText = emptyStateText.innerHTML;
-
-      // Sichtbares Feedback am Button selbst, da #empty-state nach dem ersten
-      // erfolgreichen Laden dauerhaft ausgeblendet ist (.hidden) und ein Klick
-      // sonst spurlos bliebe.
-      const cloudBtn = document.getElementById('btn-cloud');
-      const originalBtnHtml = cloudBtn.innerHTML;
-      cloudBtn.disabled = true;
-      cloudBtn.innerHTML = '⏳ Lade...';
+      const loadBtn = document.getElementById('om-load');
+      loadBtn.disabled = true;
 
       try {
-        emptyStateText.innerHTML = 'Suche aktuelle Daten...<br><span style="color:var(--accent)">Bitte warten</span>';
+        setStatus('Suche aktuelle Daten …');
 
         // 1. Index laden
         const idxResponse = await fetch(indexUrl);
@@ -5380,8 +6443,7 @@
         if (!Array.isArray(fileNames) || fileNames.length === 0)
           throw new Error('Keine Sounding-Dateien im Index gefunden.');
 
-        emptyStateText.innerHTML = `Lade ${fileNames.length} Profile herunter...<br><span style="color:var(--accent)">Bitte warten</span>`;
-        cloudBtn.innerHTML = `⏳ Lade ${fileNames.length} Profile...`;
+        setStatus(`Lade ${fileNames.length} Profile …`);
 
         // 2. Alle Dateien parallel laden
         const fetchPromises = fileNames.map(name =>
@@ -5393,36 +6455,30 @@
 
         const allData = await Promise.all(fetchPromises);
 
-        // 3. Verschachtelungen auflösen und in den Viewer laden
+        // 3. Verschachtelungen auflösen und in den Viewer laden.
+        // Standard ist Dazuladen — ein voller Ersatz würde sonst die gerade
+        // zusammengestellten Vergleichskurven wegwerfen.
         const flatData = allData.flatMap(r => Array.isArray(r) ? r : [r]);
-        loadSoundings(flatData);
+        const replace = document.getElementById('chk-replace').checked;
+        if (replace) STATE.curves = [];
+        loadSoundings(flatData, !replace);
 
-        cloudBtn.innerHTML = '✓ Aktualisiert';
-        setTimeout(() => { cloudBtn.innerHTML = originalBtnHtml; }, 2000);
-
+        setStatus(`✓ ${flatData.length} Profile aus ${fileNames.length} Dateien geladen.`);
+        setTimeout(closeOmDialog, 700);
       } catch (error) {
         console.error('Cloud-Download Fehler:', error);
-        emptyStateText.innerHTML = `Download fehlgeschlagen:<br><i>${error.message}</i><br><br>Lokale Datei laden.`;
-        setTimeout(() => {
-          if (STATE.soundings.length === 0) emptyStateText.innerHTML = originalText;
-        }, 5000);
-
-        cloudBtn.innerHTML = '✗ Fehlgeschlagen';
-        cloudBtn.title = error.message;
-        setTimeout(() => { cloudBtn.innerHTML = originalBtnHtml; cloudBtn.title = ''; }, 3000);
+        setStatus(`Fehler: ${error.message}`, true);
       } finally {
-        cloudBtn.disabled = false;
+        loadBtn.disabled = false;
       }
     }
-
-    // Button-Klick mit der Cloud-Funktion verknüpfen
-    document.getElementById('btn-cloud').addEventListener('click', fetchFromCloud);
 
     // =========================================================================
     // ASCII Export
     // =========================================================================
-    function exportCurrentToAscii() {
-      const snd = STATE.soundings[STATE.currentIdx];
+    // Exportiert ein beliebiges Profil — jede Kurvenzeile im Datenpanel hat
+    // ihren eigenen ⭳, nicht nur das gerade angezeigte Hauptprofil.
+    function exportSoundingToAscii(snd) {
       if (!snd || !snd.levels || snd.levels.length === 0) {
         alert('Keine Daten zum Exportieren vorhanden.');
         return;
@@ -5481,8 +6537,37 @@
       URL.revokeObjectURL(url);
     }
 
+    // Exportiert alle Zeitschritte einer Serie als JSON — dasselbe Format, das
+    // der Datei-Reiter wieder einliest, damit ein Vergleich später erneut
+    // aufgebaut werden kann, ohne die Quelle noch einmal abzufragen.
+    function exportSeriesToJson(series) {
+      if (!series || series.soundings.length === 0) {
+        alert('Keine Daten zum Exportieren vorhanden.');
+        return;
+      }
+      // Interne Hilfsfelder nicht mitschreiben
+      const data = series.soundings.map(({ _rawText, ...rest }) => rest);
+      const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+
+      const first = series.soundings[0];
+      const safe = s => String(s ?? '').replace(/[^\w.-]+/g, '_');
+      const when = first.run_date
+        ? `${first.run_date}_${String(first.run_hour).padStart(2, '0')}Z`
+        : safe((first.valid_time ?? '').replace(/[-:]/g, '').slice(0, 13));
+      const name = `sounding_${safe(first.model)}_${when}_${safe(series.locKey)}.json`;
+
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+
     // Button mit der Funktion verknüpfen
-    document.getElementById('btn-export').addEventListener('click', exportCurrentToAscii);
+    document.getElementById('btn-export').addEventListener('click',
+      () => exportSoundingToAscii(STATE.soundings[STATE.currentIdx]));
 
     document.getElementById('chk-cape-lfc').addEventListener('change', (e) => {
       STATE.showCapeLfc = e.target.checked;
