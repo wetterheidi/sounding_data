@@ -936,12 +936,17 @@
         </div>
       </div>
 
-      <!-- DWD Opendata: die serverseitig vorberechneten Profile der festen Orte -->
+      <!-- DWD Opendata: die serverseitig vorberechneten Profile der festen Orte.
+           "Aktuelle Daten holen" lädt immer ALLES auf einmal (alle Orte, alle
+           Läufe); die Liste darunter zeigt daraus direkt die bereits geladenen
+           Opendata-Läufe zum Dazulegen — vorher fand man die nur im linken
+           Datenpanel, nicht hier im Ladedialog selbst. -->
       <div class="src-only dwd" id="dwd-pane">
-        <div class="om-hint">Holt alle vom Server vorberechneten Profile der vordefinierten Orte
-          (ICON-D2 / ICON-EU / ICON aus <code>opendata.dwd.de</code>). Die Ortsliste wird
-          in der Admin-Oberfläche gepflegt.</div>
-        <div id="dwd-info" class="om-hint"></div>
+        <div class="om-hint">Holt alle vorberechneten Profile aller vordefinierten Orte auf einmal.</div>
+        <div class="panel-section">
+          <h4>Geladene Läufe zum Dazulegen</h4>
+          <div id="dwd-picker"></div>
+        </div>
       </div>
 
       <!-- Datei -->
@@ -4933,14 +4938,25 @@
         ? `${nVis} Vergleichskurven — das Diagramm wird schnell unübersichtlich.` : '';
 
       // --- Serien, die noch keine Kurve haben ---
-      seriesList.innerHTML = '';
       const used = new Set(STATE.curves.map(c => c.seriesId));
       const avail = seriesForCurrentLocation().filter(x => !used.has(x.series.id));
+      renderSeriesPicker(seriesList, avail, 'Alles Geladene liegt im Diagramm.');
 
-      if (avail.length === 0) {
-        seriesList.appendChild(el('div', 'panel-empty', 'Alles Geladene liegt im Diagramm.'));
+      // DWD-Opendata-Reiter des Ladedialogs zieht dieselbe Auswahl nach — sonst
+      // fände man einen bereits geladenen zweiten Opendata-Lauf nur hier im
+      // Panel, aber nicht dort, wo man beim Laden zuerst danach sucht.
+      renderDwdPicker();
+    }
+
+    // Gemeinsame Zeilen-Darstellung für "noch nicht gezeigte Serie, per ＋
+    // dazulegen" — genutzt vom Panel UND vom DWD-Opendata-Reiter im Ladedialog.
+    function renderSeriesPicker(container, entries, emptyText) {
+      container.innerHTML = '';
+      if (entries.length === 0) {
+        container.appendChild(el('div', 'panel-empty', emptyText));
+        return;
       }
-      for (const { series: s, sameLoc, distKm } of avail) {
+      for (const { series: s, sameLoc, distKm } of entries) {
         const row = el('div', 'series-row');
         const info = el('div', 'series-info');
         info.appendChild(el('div', null, s.title));
@@ -4958,8 +4974,18 @@
           redraw();
         });
         row.appendChild(add);
-        seriesList.appendChild(row);
+        container.appendChild(row);
       }
+    }
+
+    function renderDwdPicker() {
+      const container = document.getElementById('dwd-picker');
+      if (!container) return;
+      const used = new Set(STATE.curves.map(c => c.seriesId));
+      const entries = seriesForCurrentLocation().filter(x => x.series.kind === 'dwd' && !used.has(x.series.id));
+      renderSeriesPicker(container, entries, STATE.series.size === 0
+        ? 'Noch nichts geladen — zuerst „Aktuelle Daten holen“ klicken.'
+        : 'Kein weiterer Opendata-Lauf verfügbar (oder schon im Diagramm).');
     }
 
     // Entfernung einer Serie zum aktuell gewählten Ort (null, wenn unbekannt)
@@ -5492,6 +5518,7 @@
         setTimeout(() => omMap.invalidateSize(), 0);
       }
       if (src === 'obs') refreshObsStations();
+      if (src === 'dwd') renderDwdPicker();
     }
 
     document.querySelectorAll('.src-tab').forEach(btn =>
@@ -5969,7 +5996,7 @@
     // Laden-Knopf: je nach Quellen-Reiter der passende Abruf
     document.getElementById('om-load').addEventListener('click', async () => {
       if (currentSrc === 'file') { document.getElementById('file-input').click(); return; }
-      if (currentSrc === 'dwd')  { await fetchFromCloud(true); return; }
+      if (currentSrc === 'dwd')  { await fetchFromCloud(); return; }
       if (currentSrc === 'obs')  { await loadSelectedObsSounding(); return; }
       await omLoadFromApi();
     });
@@ -6446,7 +6473,11 @@
     // ohne Dialog auf; ihn unconditional zu schließen würde einen Dialog, den
     // die Nutzerin kurz nach dem Laden der Seite öffnet, unter der Hand wieder
     // zuklappen.
-    async function fetchFromCloud(fromDialog = false) {
+    // Schließt den Dialog NICHT automatisch: direkt nach dem Laden zeigt der
+    // Reiter die geladenen Läufe zum Dazuwählen (Bug-Report: zwei Opendata-
+    // Läufe waren bislang nicht vergleichbar, weil man dafür ins linke Panel
+    // wechseln musste) — ein Auto-Close würde genau das wieder verstellen.
+    async function fetchFromCloud() {
       const indexUrl = `${DATA_BASE}/index.json`;
       const loadBtn = document.getElementById('om-load');
       loadBtn.disabled = true;
@@ -6482,8 +6513,7 @@
         if (replace) STATE.curves = [];
         loadSoundings(flatData, !replace);
 
-        setStatus(`✓ ${flatData.length} Profile aus ${fileNames.length} Dateien geladen.`);
-        if (fromDialog) setTimeout(closeOmDialog, 700);
+        setStatus(`✓ ${flatData.length} Profile aus ${fileNames.length} Dateien geladen. Unten einen Lauf zum Vergleich dazuwählen, oder schließen.`);
       } catch (error) {
         console.error('Cloud-Download Fehler:', error);
         setStatus(`Fehler: ${error.message}`, true);
