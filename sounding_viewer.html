@@ -1011,7 +1011,7 @@
           <h4>Im Diagramm</h4>
           <div id="curve-list"></div>
           <label class="panel-check" title="Zeichnet zusätzlich den Taupunkt jeder Vergleichskurve — verdoppelt die Linienzahl">
-            <input type="checkbox" id="chk-compare-dew"> Taupunkt der Vergleiche zeigen
+            <input type="checkbox" id="chk-compare-dew" checked> Taupunkt der Vergleiche zeigen
           </label>
           <div id="curve-warn" class="panel-warn" hidden></div>
         </div>
@@ -1218,7 +1218,7 @@
       // so entsteht der Zeitvergleich derselben Station.
       // { id, seriesId, isMain, visible, stepMode:'auto'|'pinned', stepKey, colorIdx }
       curves: [],
-      showCompareDew: false,   // Taupunkt der Vergleichskurven mitzeichnen
+      showCompareDew: true,    // Taupunkt der Vergleichskurven mitzeichnen
       currentIdx: 0,
       animTimer: null,
       animPlaying: false,
@@ -5440,6 +5440,18 @@
       }).addTo(omMap);
       omMap.on('click', e => setOmLocation(e.latlng.lat, e.latlng.lng));
       if (hasLoc) setOmLocation(lat0, lon0);
+
+      // Stationssuche folgt der Karte: ohne das würde "näher heranzoomen" bei
+      // einem zu großen Ausschnitt ins Leere laufen — man müsste den Dialog
+      // schließen und neu öffnen, damit sich überhaupt etwas tut. 'moveend'
+      // deckt in Leaflet sowohl Pan- als auch Zoom-Gesten ab; debounced, damit
+      // während des Ziehens nicht bei jedem Zwischenschritt gesucht wird.
+      let obsSearchTimer = null;
+      omMap.on('moveend', () => {
+        if (currentSrc !== 'obs' || omDialog.classList.contains('hidden')) return;
+        clearTimeout(obsSearchTimer);
+        obsSearchTimer = setTimeout(refreshObsStations, 400);
+      });
     }
 
     // =========================================================================
@@ -5687,13 +5699,9 @@
       return windyGeoJsonToSounding(gj, text);
     }
 
-    // Windy meldet denselben Aufstieg in zwei Formaten:
-    //   fm94 = BUFR, hochaufgelöst, Wind auf allen Leveln
-    //   fm35 = klassisches TEMP, nur Haupt-/markante Flächen, Wind lückenhaft
-    const OBS_FORMAT_LABEL = {
-      fm94: 'BUFR · hochaufgelöst, Wind komplett',
-      fm35: 'TEMP · Standardflächen, Wind lückenhaft',
-    };
+    // Windy meldet denselben Aufstieg oft in zwei Formaten (BUFR/TEMP) —
+    // Fachbegriff genügt, Zielgruppe kennt den Unterschied.
+    const OBS_FORMAT_LABEL = { fm94: 'BUFR FM94', fm35: 'TEMP FM35' };
 
     // Vorauswahl: schlicht der neueste Termin.
     // Bewusst KEINE Bevorzugung von fm94: die BUFR-Meldung wird oft schon
@@ -5728,8 +5736,10 @@
         obsStations = await fetchObsStationsForBounds(omMap.getBounds());
         clearObsMarkers();
         for (const st of obsStations) {
+          // Kräftiges Rot mit weißem Halo statt des vorherigen Hellblau — das
+          // ging auf der hellen OSM-Karte (Straßen, Wasserflächen) leicht unter.
           const m = L.circleMarker([st.lat, st.lon], {
-            radius: 6, weight: 2, color: '#4dc4ff', fillColor: '#4dc4ff', fillOpacity: 0.5,
+            radius: 8, weight: 3, color: '#fff', fillColor: '#e6194b', fillOpacity: 0.95,
           }).addTo(obsLayer);
           m.bindTooltip(`Station ${st.id} · zuletzt ${obsTimeLabel(st.time)}`);
           m.on('click', () => selectObsStation(st.id));
@@ -5959,7 +5969,7 @@
     // Laden-Knopf: je nach Quellen-Reiter der passende Abruf
     document.getElementById('om-load').addEventListener('click', async () => {
       if (currentSrc === 'file') { document.getElementById('file-input').click(); return; }
-      if (currentSrc === 'dwd')  { await fetchFromCloud(); return; }
+      if (currentSrc === 'dwd')  { await fetchFromCloud(true); return; }
       if (currentSrc === 'obs')  { await loadSelectedObsSounding(); return; }
       await omLoadFromApi();
     });
@@ -6427,7 +6437,13 @@
     const DATA_BASE = '/data';
     // const DATA_BASE = 'https://raw.githubusercontent.com/wetterheidi/sounding_data/main/data';
 
-    async function fetchFromCloud() {
+    // fromDialog: nur true, wenn der Aufruf vom Ladedialog kam (Reiter "DWD
+    // Opendata" → Laden-Knopf) — nur dann darf am Ende der Dialog geschlossen
+    // werden. Der automatische Startladevorgang unten ruft dieselbe Funktion
+    // ohne Dialog auf; ihn unconditional zu schließen würde einen Dialog, den
+    // die Nutzerin kurz nach dem Laden der Seite öffnet, unter der Hand wieder
+    // zuklappen.
+    async function fetchFromCloud(fromDialog = false) {
       const indexUrl = `${DATA_BASE}/index.json`;
       const loadBtn = document.getElementById('om-load');
       loadBtn.disabled = true;
@@ -6464,7 +6480,7 @@
         loadSoundings(flatData, !replace);
 
         setStatus(`✓ ${flatData.length} Profile aus ${fileNames.length} Dateien geladen.`);
-        setTimeout(closeOmDialog, 700);
+        if (fromDialog) setTimeout(closeOmDialog, 700);
       } catch (error) {
         console.error('Cloud-Download Fehler:', error);
         setStatus(`Fehler: ${error.message}`, true);
