@@ -316,18 +316,6 @@
     }
     #panel-collapse:hover { color: var(--text); border-color: var(--text3); }
 
-    #data-panel > #loc-select {
-      width: 100%;
-      background: var(--bg3);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 5px;
-      padding: 5px 6px;
-      font-family: var(--mono);
-      font-size: 11px;
-      cursor: pointer;
-    }
-
     #panel-scroll {
       overflow-y: auto;
       flex: 1;
@@ -1025,7 +1013,9 @@
   <div id="main">
 
     <!-- ==================================================================
-       DATENPANEL: Ort, Kurven im Diagramm, verfügbare Serien
+       DATENPANEL: Kurven im Diagramm, verfügbare Serien
+       (Die Ortsauswahl sitzt ausschließlich im Ladedialog, #cmp-loc-select —
+       kein zweites, hier abweichend funktionierendes Dropdown mehr.)
        ================================================================== -->
     <div id="data-panel">
       <div class="panel-head">
@@ -1033,14 +1023,10 @@
         <button id="panel-collapse" title="Panel einklappen">‹</button>
       </div>
 
-      <select id="loc-select" title="Ort wechseln">
-        <option value="">Kein Ort geladen</option>
-      </select>
-
       <div id="panel-scroll">
         <div class="panel-section">
           <h4>Im Diagramm</h4>
-          <div id="curve-list"></div>
+          <div id="curve-list"><div class="panel-empty">Keine Kurve gewählt.</div></div>
           <label class="panel-check" title="Zeichnet zusätzlich den Taupunkt jeder Vergleichskurve — verdoppelt die Linienzahl">
             <input type="checkbox" id="chk-compare-dew" checked> Taupunkt der Vergleiche zeigen
           </label>
@@ -1049,7 +1035,7 @@
 
         <div class="panel-section">
           <h4>Geladen, nicht gezeigt</h4>
-          <div id="series-list"></div>
+          <div id="series-list"><div class="panel-empty">Noch nichts geladen.</div></div>
         </div>
       </div>
 
@@ -4710,6 +4696,11 @@
 
       const s = STATE.series.get(c.seriesId);
       STATE.soundings = s ? s.soundings : [];
+      // "Aktueller Ort" ist kein separat gewählter Zustand mehr (das Dropdown
+      // dafür ist weg) — er folgt einfach immer der Hauptkurve. Sonst bliebe
+      // er nach einem Wechsel der Hauptkurve (◉ im Panel) auf dem alten Ort
+      // hängen und die Distanzangaben/Ort-Auswahl im Ladedialog wären falsch.
+      if (s) STATE.currentLocationKey = s.locKey;
 
       let idx = 0;
       const anchor = ownSnd ?? prevSnd;
@@ -6182,42 +6173,22 @@
       STATE.allSoundings.forEach(snd => { snd.kind = getKind(snd); });
       buildSeriesIndex();
 
-      // 1. Alle einzigartigen Orte in den Daten finden
-      const locSet = new Set();
-      STATE.allSoundings.forEach(snd => locSet.add(getLocKey(snd)));
-      const locations = Array.from(locSet).sort();
-
-      // 2. Dropdown-Menü mit diesen Orten befüllen
-      const select = document.getElementById('loc-select');
-      select.innerHTML = '';
-      locations.forEach(loc => {
-        const opt = document.createElement('option');
-        opt.value = loc;
-        opt.textContent = getLocLabel(loc);
-        select.appendChild(opt);
-      });
-
-      // 3. Ort als Standard setzen (beim Mergen: bisherigen Ort behalten, falls noch
-      // vorhanden, damit ein dazugezogener Vergleichslauf nicht aus der Ansicht springt)
-      // und Filter anwenden
+      // 1. Alle einzigartigen Orte in den Daten finden — dient nur noch als
+      // deterministischer Startwert für syncCurves()' Auswahl der Hauptkurve
+      // auf einem leeren Stack (z.B. erster Bulk-Ladevorgang: alphabetisch
+      // erster Ort statt eines von der Dateireihenfolge abhängigen Zufalls).
+      // Ein eigenes Dropdown dafür gibt es nicht mehr — "aktueller Ort" ist
+      // kein separat gewählter Zustand, er folgt der Hauptkurve (siehe
+      // setMainCurve). Der Ladedialog hat seinen eigenen, unabhängigen
+      // Ort-Picker (#cmp-loc-select).
+      const locations = Array.from(new Set(STATE.allSoundings.map(getLocKey))).sort();
       if (!merge || !STATE.currentLocationKey || !locations.includes(STATE.currentLocationKey)) {
         STATE.currentLocationKey = locations[0];
       }
-      select.value = STATE.currentLocationKey;
 
       document.getElementById('empty-state').classList.add('hidden');
       syncCurves({ preferSeriesId });
     }
-
-    // Ortswechsel: Kurven des alten Ortes verwerfen und am neuen Ort neu aufbauen.
-    // (Kurven aus der Nachbarschaft holt man bewusst per Hand aus der unteren
-    // Panel-Liste zurück — sonst schleppte ein Ortswechsel stillschweigend
-    // Profile mit, die gar nicht mehr zum gewählten Ort gehören.)
-    document.getElementById('loc-select').addEventListener('change', e => {
-      STATE.currentLocationKey = e.target.value;
-      STATE.curves = [];
-      syncCurves();
-    });
 
     // Dünnt hochaufgelöste Profile auf 50-m-Bins aus (mittl. Abstand < 20 m).
     // Genutzt von der Windsond-ASCII-Datei und von Windys fm94-Aufstiegen, die
@@ -6756,9 +6727,9 @@
       resizeCanvas();
     });
 
-    //Daten beim Start automatisch aus der Cloud laden (optional, kann auch über Button getriggert werden)
-    fetchFromCloud();
-
+    // Bewusst KEIN automatischer Ladevorgang beim Start mehr — der Viewer
+    // bleibt leer (siehe #empty-state), bis über "＋ Daten laden" bewusst
+    // eine Quelle gewählt wird.
     init();
   </script>
 </body>
