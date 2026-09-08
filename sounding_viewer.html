@@ -830,12 +830,12 @@
     /* Vordefinierte Orte (DWD Opendata) */
     #dwd-pane .om-hint { margin-bottom: 8px; }
 
-    /* Vergleichskurve aus bereits Geladenem hinzufügen — unabhängig vom
-       gerade aktiven Quellen-Reiter sichtbar, deshalb außerhalb der
-       .src-only-Bereiche platziert. */
+    /* Vergleichskurve aus bereits Geladenem hinzufügen — nur bei DWD Opendata */
     #cmp-add { border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+    .cmp-loc-row { display: flex; gap: 8px; margin-bottom: 6px; }
     #cmp-loc-select {
-      width: 100%;
+      flex: 1;
+      min-width: 0;
       background: var(--bg3);
       color: var(--text);
       border: 1px solid var(--border);
@@ -844,9 +844,13 @@
       font-family: var(--mono);
       font-size: 11px;
       cursor: pointer;
-      margin-bottom: 6px;
     }
     #cmp-picker { max-height: 140px; overflow-y: auto; }
+
+    /* Ortsbezogener "schon geladen"-Picker bei Modelllevel/Druckflächen */
+    #loc-runs-wrap { border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+    #loc-runs-picker { max-height: 140px; overflow-y: auto; }
+    #mlpl-load-row { text-align: right; }
   </style>
 </head>
 
@@ -896,15 +900,18 @@
         <button class="src-tab" data-src="file">Datei</button>
       </div>
 
-      <!-- Vergleichskurve aus bereits geladenen Daten dazulegen — unabhängig
-           vom gerade gewählten Reiter, denn "was schon da ist" hat nichts mit
-           "was als Nächstes abgerufen wird" zu tun. Ort per Dropdown wählen
-           (wie im Panel oben links), Entfernung nur als kleiner Zusatz in
-           Klammern statt als Sortierprinzip einer langen Liste. -->
-      <div id="cmp-add">
+      <!-- Vergleichskurve aus bereits geladenen Daten dazulegen — nur bei DWD
+           Opendata, wo ein Abruf grundsätzlich ALLE Orte auf einmal bringt und
+           die eigentliche Auswahl daher erst hier über den Ort-Dropdown
+           passiert. Bei den anderen Quellen übernimmt das der ortsbezogene
+           Picker weiter unten (#loc-runs-picker), der an Karte/Koordinaten hängt. -->
+      <div id="cmp-add" class="src-only dwd">
         <div class="panel-section">
           <h4>Vergleichskurve aus Geladenem hinzufügen</h4>
-          <select id="cmp-loc-select"></select>
+          <div class="cmp-loc-row">
+            <select id="cmp-loc-select"></select>
+            <span id="dwd-load-slot"></span>
+          </div>
           <div id="cmp-picker"></div>
         </div>
       </div>
@@ -943,6 +950,20 @@
         </div>
       </div>
 
+      <!-- Bereits geladene Läufe genau an dem Ort, der oben per Karte/Koordinaten
+           gewählt ist — ersetzt für Modelllevel/Druckflächen den globalen
+           Ort-Picker (der bleibt DWD-only), damit ein zwischengespeicherter
+           Lauf wiederverwendet statt versehentlich erneut abgerufen wird. -->
+      <div class="src-only ml pl" id="loc-runs-wrap">
+        <div class="panel-section">
+          <h4>Bereits geladen an diesem Ort</h4>
+          <div id="loc-runs-picker"></div>
+        </div>
+      </div>
+      <div class="src-only ml pl" id="mlpl-load-row">
+        <span id="mlpl-load-slot"><button class="btn primary" id="om-load">Daten laden</button></span>
+      </div>
+
       <!-- Messung: Stationen aus der Karte, dann Aufstiegstermin -->
       <div class="om-grid src-only obs">
         <div class="om-field">
@@ -953,12 +974,14 @@
           <label for="obs-time">Aufstieg (UTC)</label>
           <select id="obs-time"></select>
         </div>
+        <div class="om-field">
+          <label>&nbsp;</label>
+          <span id="obs-load-slot"></span>
+        </div>
       </div>
 
       <!-- DWD Opendata: die serverseitig vorberechneten Profile der festen Orte.
-           "Aktuelle Daten holen" lädt immer ALLES auf einmal (alle Orte, alle
-           Läufe); zum gezielten Dazulegen eines bereits geladenen Laufs dient
-           der Ort-Dropdown oben (#cmp-add), nicht dieser Reiter. -->
+           Der Lade-Knopf sitzt oben neben dem Ort-Dropdown (#dwd-load-slot). -->
       <div class="src-only dwd" id="dwd-pane">
         <div class="om-hint">Holt alle vorberechneten Profile aller vordefinierten Orte auf einmal.</div>
       </div>
@@ -989,7 +1012,7 @@
           title="Letzte Server-Antwort unverändert als JSON-Datei speichern (Rohdaten, wie sie der Server liefert)">
           Rohdaten (JSON) ⭳
         </button>
-        <button class="btn primary" id="om-load">Daten laden</button>
+        <button class="btn primary" id="om-done" title="Dialog schließen — bereits geladene Kurven bleiben im Diagramm">Daten laden</button>
       </div>
     </div>
   </div>
@@ -1013,9 +1036,9 @@
   <div id="main">
 
     <!-- ==================================================================
-       DATENPANEL: Kurven im Diagramm, verfügbare Serien
-       (Die Ortsauswahl sitzt ausschließlich im Ladedialog, #cmp-loc-select —
-       kein zweites, hier abweichend funktionierendes Dropdown mehr.)
+       DATENPANEL: nur noch die Kurven im Diagramm. Alle Auswahl (welcher Ort,
+       welcher Lauf dazukommt) passiert ausschließlich im Ladedialog — eine
+       Quelle der Wahrheit, statt derselben Auswahl an zwei Stellen.
        ================================================================== -->
     <div id="data-panel">
       <div class="panel-head">
@@ -1031,11 +1054,6 @@
             <input type="checkbox" id="chk-compare-dew" checked> Taupunkt der Vergleiche zeigen
           </label>
           <div id="curve-warn" class="panel-warn" hidden></div>
-        </div>
-
-        <div class="panel-section">
-          <h4>Geladen, nicht gezeigt</h4>
-          <div id="series-list"><div class="panel-empty">Noch nichts geladen.</div></div>
         </div>
       </div>
 
@@ -4825,8 +4843,7 @@
 
     function renderDataPanel() {
       const curveList = document.getElementById('curve-list');
-      const seriesList = document.getElementById('series-list');
-      if (!curveList || !seriesList) return;
+      if (!curveList) return;
 
       const tempCols = PALETTE.overlayTemp;
       curveList.innerHTML = '';
@@ -4954,15 +4971,11 @@
       warn.textContent = nVis > 4
         ? `${nVis} Vergleichskurven — das Diagramm wird schnell unübersichtlich.` : '';
 
-      // --- Serien, die noch keine Kurve haben ---
-      const used = new Set(STATE.curves.map(c => c.seriesId));
-      const avail = seriesForCurrentLocation().filter(x => !used.has(x.series.id));
-      renderSeriesPicker(seriesList, avail, 'Alles Geladene liegt im Diagramm.');
-
-      // Der Ort-Dropdown im Ladedialog zieht dieselbe Auswahl nach — sonst
-      // fände man einen bereits geladenen zweiten Lauf nur hier im Panel,
-      // aber nicht dort, wo man beim Laden zuerst danach sucht.
+      // Die Auswahl "was noch dazu passt" lebt jetzt ausschließlich im
+      // Ladedialog — hier im Panel steht nur noch, was tatsächlich im
+      // Diagramm liegt (eine Quelle der Wahrheit statt zweier Listen).
       renderComparePicker();
+      renderLocRunsPicker();
     }
 
     // Gemeinsame Zeilen-Darstellung für "noch nicht gezeigte Serie, per ＋
@@ -5052,6 +5065,35 @@
       cmpLocSelected = e.target.value;
       renderComparePicker();
     });
+
+    // Modelllevel/Druckflächen-Picker: bereits geladene Läufe genau an dem
+    // Ort, der oben per Karte/Koordinaten steht — kein eigener Ort-Dropdown
+    // nötig, der Ort steht ja schon in #om-lat/#om-lon. Toleranz von 3 km,
+    // weil ein erneut eingegebener Punkt selten exakt auf denselben Gitter-
+    // punkt trifft wie beim ersten Abruf.
+    function renderLocRunsPicker() {
+      const listEl = document.getElementById('loc-runs-picker');
+      if (!listEl) return;
+
+      const lat = parseFloat(document.getElementById('om-lat').value);
+      const lon = parseFloat(document.getElementById('om-lon').value);
+      if (Number.isNaN(lat) || Number.isNaN(lon)) {
+        renderSeriesPicker(listEl, [], 'Erst einen Ort wählen (Karte anklicken).');
+        return;
+      }
+
+      const wantKind = currentSrc === 'pl' ? 'om-pl' : 'om-ml';
+      const used = new Set(STATE.curves.map(c => c.seriesId));
+      const here = { target_lat: lat, target_lon: lon };
+      const entries = [...STATE.series.values()]
+        .filter(s => s.kind === wantKind && !used.has(s.id))
+        .map(s => ({ series: s, sameLoc: true, distKm: sndDistanceKm(here, s.soundings[0]) }))
+        .filter(e => e.distKm != null && e.distKm < 3)
+        .sort((a, b) => a.distKm - b.distKm
+          || String(b.series.run_date ?? '').localeCompare(String(a.series.run_date ?? ''))
+          || String(b.series.run_hour ?? '').localeCompare(String(a.series.run_hour ?? '')));
+      renderSeriesPicker(listEl, entries, 'Für diesen Ort noch nichts geladen.');
+    }
 
     // Entfernung einer Serie zum aktuell gewählten Ort (null, wenn unbekannt)
     function sndDistanceFromCurrentLoc(series) {
@@ -5518,6 +5560,7 @@
         }
         if (pan) omMap.setView([lat, lon], Math.max(omMap.getZoom(), 8));
       }
+      renderLocRunsPicker();
     }
 
     function initOmMap() {
@@ -5556,7 +5599,13 @@
       obs:  'Tatsächlich gemessene Radiosonden-Aufstiege. Die Karte markiert Stationen, die zuletzt wirklich gestartet sind; pro Station lässt sich der Aufstiegstermin wählen.',
       file: '',
     };
-    const SRC_LOAD_LABEL = { dwd: 'Aktuelle Daten holen', ml: 'Daten laden', pl: 'Daten laden', obs: 'Aufstieg laden', file: 'Datei wählen' };
+    // "Daten laden" unten rechts (#om-done) schließt nur noch den Dialog —
+    // deshalb hier andere Beschriftungen für den eigentlichen Abrufen-Knopf
+    // (#om-load), der je nach Reiter neben der passenden Auswahl sitzt.
+    const SRC_LOAD_LABEL = { dwd: 'Aktuelle Daten holen', ml: 'Abrufen', pl: 'Abrufen', obs: 'Aufstieg laden', file: 'Datei wählen' };
+    // Wohin #om-load je Reiter gehört — dieselbe Schaltfläche wandert per
+    // appendChild dorthin, statt für jeden Reiter eine eigene zu pflegen.
+    const SRC_LOAD_SLOT = { dwd: 'dwd-load-slot', ml: 'mlpl-load-slot', pl: 'mlpl-load-slot', obs: 'obs-load-slot', file: null };
 
     let currentSrc = 'ml';
     const omPanelEl = document.getElementById('om-panel');
@@ -5574,7 +5623,16 @@
       } else {
         document.getElementById('om-hint').textContent = SRC_HINT[src];
       }
-      document.getElementById('om-load').textContent = SRC_LOAD_LABEL[src];
+
+      const loadBtn = document.getElementById('om-load');
+      const slotId = SRC_LOAD_SLOT[src];
+      if (slotId) {
+        document.getElementById(slotId).appendChild(loadBtn);
+        loadBtn.style.display = '';
+        loadBtn.textContent = SRC_LOAD_LABEL[src];
+      } else {
+        loadBtn.style.display = 'none';   // Datei-Reiter: "Datei(en) auswählen …" übernimmt das
+      }
       // Rohdaten gibt es nur für Quellen, die tatsächlich einen Server befragen
       document.getElementById('om-download').style.display = (src === 'dwd' || src === 'file') ? 'none' : '';
       setStatus('');
@@ -5583,7 +5641,8 @@
         setTimeout(() => omMap.invalidateSize(), 0);
       }
       if (src === 'obs') refreshObsStations();
-      renderComparePicker();  // unabhängig vom Reiter, zeigt immer bereits Geladenes
+      renderComparePicker();   // DWD-only, aber unabhängig vom Reiter aktuell halten
+      renderLocRunsPicker();   // ml/pl-only, dito
     }
 
     document.querySelectorAll('.src-tab').forEach(btn =>
@@ -5599,6 +5658,9 @@
     function closeOmDialog() { omDialog.classList.add('hidden'); }
 
     document.getElementById('btn-fetch').addEventListener('click', () => openOmDialog());
+    // Einziger Schließen-Knopf, der nach einem Ladevorgang aktiv angeklickt wird
+    // (kein Auto-Close mehr — konsistent über alle Quellen-Reiter hinweg).
+    document.getElementById('om-done').addEventListener('click', closeOmDialog);
     document.getElementById('btn-pick-file').addEventListener('click',
       () => document.getElementById('file-input').click());
 
@@ -5951,7 +6013,6 @@
           + (dist != null ? ` · ${formatDist(dist).replace('· ', '')} vom gewählten Ort` : '')
           + (truncated ? `\n⚠ Aufstieg endet bereits bei ${Math.round(topP)} hPa — vermutlich eine noch laufende Meldung. Ein anderes Format/Termin reicht evtl. höher.` : ''),
           false);
-        setTimeout(closeOmDialog, truncated ? 2600 : 900);
       } catch (err) {
         console.error('Messdaten-Abruf Fehler:', err);
         setStatus(`Fehler: ${err.message}`, true);
@@ -6127,7 +6188,6 @@
         saveOmSettings(lat, lon, alias);
         setStatus(`✓ ${result.soundings.length}/${steps.length} Profile geladen — ${result.sourceLabel}, Lauf ${result.runLabel}`
           + (result.skipped.length ? ` — ohne Daten: +${result.skipped.join('h, +')}h` : ''));
-        setTimeout(closeOmDialog, 600);
       } catch (err) {
         console.error('OM-Abruf Fehler:', err);
         setStatus(`Fehler: ${err.message}`, true);
@@ -6298,7 +6358,7 @@
         const replace = document.getElementById('chk-replace')?.checked ?? false;
         if (replace) STATE.curves = [];
         loadSoundings(all, !replace);
-        closeOmDialog();
+        setStatus(`✓ ${all.length} Profil(e) geladen.`);
       }).catch(err => alert('Fehler: ' + err));
     }
 
@@ -6512,16 +6572,10 @@
     const DATA_BASE = '/data';
     // const DATA_BASE = 'https://raw.githubusercontent.com/wetterheidi/sounding_data/main/data';
 
-    // fromDialog: nur true, wenn der Aufruf vom Ladedialog kam (Reiter "DWD
-    // Opendata" → Laden-Knopf) — nur dann darf am Ende der Dialog geschlossen
-    // werden. Der automatische Startladevorgang unten ruft dieselbe Funktion
-    // ohne Dialog auf; ihn unconditional zu schließen würde einen Dialog, den
-    // die Nutzerin kurz nach dem Laden der Seite öffnet, unter der Hand wieder
-    // zuklappen.
-    // Schließt den Dialog NICHT automatisch: direkt nach dem Laden zeigt der
-    // Reiter die geladenen Läufe zum Dazuwählen (Bug-Report: zwei Opendata-
-    // Läufe waren bislang nicht vergleichbar, weil man dafür ins linke Panel
-    // wechseln musste) — ein Auto-Close würde genau das wieder verstellen.
+    // Schließt den Dialog NICHT automatisch — wie jeder Ladevorgang: erst der
+    // "Daten laden"-Knopf unten rechts (#om-done) schließt aktiv. Direkt nach
+    // dem Laden zeigt der Ort-Dropdown (#cmp-add) die geladenen Läufe zum
+    // Dazuwählen, ohne dass man dafür neu ins Panel wechseln müsste.
     async function fetchFromCloud() {
       const indexUrl = `${DATA_BASE}/index.json`;
       const loadBtn = document.getElementById('om-load');
@@ -6558,7 +6612,7 @@
         if (replace) STATE.curves = [];
         loadSoundings(flatData, !replace);
 
-        setStatus(`✓ ${flatData.length} Profile aus ${fileNames.length} Dateien geladen. Unten einen Lauf zum Vergleich dazuwählen, oder schließen.`);
+        setStatus(`✓ ${flatData.length} Profile aus ${fileNames.length} Dateien geladen. Oben Ort und Lauf zum Vergleich dazuwählen, dann unten schließen.`);
       } catch (error) {
         console.error('Cloud-Download Fehler:', error);
         setStatus(`Fehler: ${error.message}`, true);
