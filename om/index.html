@@ -1566,6 +1566,22 @@
       redraw();
     }
 
+    // Cache für die T/p-Punktlisten der Skew-T-Hintergrundkurven (Adiabaten,
+    // Isohumen). Diese hängen nur von proj.p_bot/p_top ab (fixe Konstanten),
+    // nicht von Zoom/Pan/Fenstergröße — deshalb reicht eine Berechnung pro
+    // (p_bot, p_top)-Paar statt bei jedem redraw() erneut MET.*_adiabat_T()
+    // für jeden Kurvenpunkt aufzurufen.
+    const _adiabatPtsCache = new Map();
+    function getCachedAdiabatPts(key, proj, compute) {
+      const cacheKey = `${key}|${proj.p_bot}|${proj.p_top}`;
+      let pts = _adiabatPtsCache.get(cacheKey);
+      if (!pts) {
+        pts = compute();
+        _adiabatPtsCache.set(cacheKey, pts);
+      }
+      return pts;
+    }
+
     function drawBackground() {
       const m = proj.margin;
       const W = proj.W, H = proj.H;
@@ -1633,57 +1649,84 @@
       }
 
       // --- Trockenadiabaten (alle 10K) ---
+      // T/p-Punkte hängen nur von proj.p_bot/p_top ab (fixe Konstanten, siehe
+      // SkewTProj-Konstruktor) — nicht von Zoom/Pan. Einmal berechnen und über
+      // alle redraw()-Aufrufe wiederverwenden statt MET.dry_adiabat_T() bei
+      // jedem Zoom-Tick neu für jeden Kurvenpunkt aufzurufen.
+      const dryAdiabatPts = getCachedAdiabatPts('dry', proj, () => {
+        const curves = [];
+        for (let Th = -40; Th <= 120; Th += 10) {
+          const T0_K = (Th + 273.15);
+          const pts = [];
+          for (let p = proj.p_bot; p >= proj.p_top - 10; p -= 5) {
+            pts.push({ T_C: MET.dry_adiabat_T(T0_K, 1000, p) - 273.15, p });
+          }
+          curves.push(pts);
+        }
+        return curves;
+      });
       ctx.strokeStyle = PALETTE.dryAdiabat;
       ctx.lineWidth = 0.8;
-      for (let Th = -40; Th <= 120; Th += 10) {
-        const T0_K = (Th + 273.15);
+      dryAdiabatPts.forEach(pts => {
         ctx.beginPath();
-        let first = true;
-        for (let p = proj.p_bot; p >= proj.p_top - 10; p -= 5) {
-          const T_K = MET.dry_adiabat_T(T0_K, 1000, p);
-          const cp = proj.toCanvas(T_K - 273.15, p);
-          if (first) { ctx.moveTo(cp.x, cp.y); first = false; }
-          else ctx.lineTo(cp.x, cp.y);
-        }
+        pts.forEach((pt, i) => {
+          const cp = proj.toCanvas(pt.T_C, pt.p);
+          if (i === 0) ctx.moveTo(cp.x, cp.y); else ctx.lineTo(cp.x, cp.y);
+        });
         ctx.stroke();
-      }
+      });
 
       // --- Feuchtadiabaten (alle 4K) ---
+      const moistAdiabatPts = getCachedAdiabatPts('moist', proj, () => {
+        const curves = [];
+        for (let Tw = -20; Tw <= 36; Tw += 4) {
+          const T0_K = Tw + 273.15;
+          const pts = [];
+          for (let p = 1000; p >= proj.p_top - 10; p -= 10) {
+            if (p > proj.p_bot) continue;
+            pts.push({ T_C: MET.moist_adiabat_T(T0_K, 1000, p) - 273.15, p });
+          }
+          curves.push(pts);
+        }
+        return curves;
+      });
       ctx.strokeStyle = PALETTE.moistAdiabat;
       ctx.lineWidth = 0.8;
-      for (let Tw = -20; Tw <= 36; Tw += 4) {
-        const T0_K = Tw + 273.15;
+      moistAdiabatPts.forEach(pts => {
         ctx.beginPath();
-        let first = true;
-        for (let p = 1000; p >= proj.p_top - 10; p -= 10) {
-          if (p > proj.p_bot) { first = true; continue; }
-          const T_K = MET.moist_adiabat_T(T0_K, 1000, p);
-          const cp = proj.toCanvas(T_K - 273.15, p);
-          if (first) { ctx.moveTo(cp.x, cp.y); first = false; }
-          else ctx.lineTo(cp.x, cp.y);
-        }
+        pts.forEach((pt, i) => {
+          const cp = proj.toCanvas(pt.T_C, pt.p);
+          if (i === 0) ctx.moveTo(cp.x, cp.y); else ctx.lineTo(cp.x, cp.y);
+        });
         ctx.stroke();
-      }
+      });
 
       // --- Isohumen (gestrichelt, g/kg) ---
       // Mischungsverhältnis w = const → T(p) = MET.T_from_mixing_ratio(w, p)
       // Konvention: es_water (konsistent mit Taupunkt-Definition)
+      const isohumePts = getCachedAdiabatPts('isohume', proj, () => {
+        const curves = [];
+        for (const w_gkg of [0.5, 1, 2, 4, 7, 10, 16, 24]) {
+          const w = w_gkg / 1000; // kg/kg
+          const pts = [];
+          for (let p = proj.p_bot; p >= proj.p_top - 10; p -= 5) {
+            pts.push({ T_C: MET.T_from_mixing_ratio(w, p), p });
+          }
+          curves.push({ w_gkg, pts, T_bot: MET.T_from_mixing_ratio(w, proj.p_bot) });
+        }
+        return curves;
+      });
       ctx.strokeStyle = PALETTE.isohume;
       ctx.lineWidth = 0.7;
       ctx.setLineDash([3, 4]);
-      for (const w_gkg of [0.5, 1, 2, 4, 7, 10, 16, 24]) {
-        const w = w_gkg / 1000; // kg/kg
+      isohumePts.forEach(({ w_gkg, pts, T_bot }) => {
         ctx.beginPath();
-        let first = true;
-        for (let p = proj.p_bot; p >= proj.p_top - 10; p -= 5) {
-          const T_C = MET.T_from_mixing_ratio(w, p);
-          const cp = proj.toCanvas(T_C, p);
-          if (first) { ctx.moveTo(cp.x, cp.y); first = false; }
-          else ctx.lineTo(cp.x, cp.y);
-        }
+        pts.forEach((pt, i) => {
+          const cp = proj.toCanvas(pt.T_C, pt.p);
+          if (i === 0) ctx.moveTo(cp.x, cp.y); else ctx.lineTo(cp.x, cp.y);
+        });
         ctx.stroke();
         // Label am unteren Rand
-        const T_bot = MET.T_from_mixing_ratio(w, proj.p_bot);
         const cp_bot = proj.toCanvas(T_bot, proj.p_bot);
         if (cp_bot.x >= m.left && cp_bot.x <= m.left + proj.W) {
           ctx.save();
@@ -1693,7 +1736,7 @@
           ctx.fillText(w_gkg, cp_bot.x, m.top + proj.H - 4);
           ctx.restore();
         }
-      }
+      });
       ctx.setLineDash([]);
 
       // --- END CLIPPING ---
@@ -3195,8 +3238,13 @@
       return { type, sfl_simple, sfl_dwd };
     }
 
+    let _lastIndicesSnd = null;
     function computeAndDisplayIndices(snd) {
       if (!snd || !snd.levels) return;
+      // Teuer (Parcel/CAPE/CIN/Hail/CAT/…) und unabhängig von Zoom/Pan — nur bei
+      // tatsächlichem Kurvenwechsel neu berechnen, nicht bei jedem redraw().
+      if (snd === _lastIndicesSnd) return;
+      _lastIndicesSnd = snd;
       const lvls = snd.levels;
 
       // FIX: Boden ist Index 0
@@ -4573,6 +4621,7 @@
       }
     });
 
+    let _wheelRedrawPending = false;
     canvas.addEventListener('wheel', e => {
       if (!proj) return;
       e.preventDefault(); // Verhindert das Scrollen der gesamten Webseite
@@ -4597,7 +4646,10 @@
         }
 
         proj.zoom = newZoom;
-        redraw();
+        if (!_wheelRedrawPending) {
+          _wheelRedrawPending = true;
+          requestAnimationFrame(() => { _wheelRedrawPending = false; redraw(); });
+        }
       }
     }, { passive: false });
 
