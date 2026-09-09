@@ -166,6 +166,19 @@
       background: var(--accent);
     }
 
+    #btn-panel-toggle {
+      font-size: 13px;
+      font-weight: 600;
+      padding: 6px 14px;
+      color: var(--accent);
+      border-color: var(--accent2);
+    }
+
+    #btn-panel-toggle:hover {
+      background: var(--accent2);
+      color: #fff;
+    }
+
     /* ------------------------------------------------------------------ */
     /* Timeslider-Leiste                                                    */
     /* ------------------------------------------------------------------ */
@@ -862,8 +875,8 @@
   <header>
     <h1>T<span>log</span>P<span style="color:var(--text2);font-weight:300"> Sounding Viewer</span></h1>
     <div class="meta-chips" id="meta-chips">
-      <button class="chip" id="btn-panel-toggle"
-        title="Datenpanel ein-/ausklappen" style="cursor:pointer;">☰ Daten</button>
+      <button class="btn" id="btn-panel-toggle"
+        title="Datenpanel ein-/ausklappen">☰ Daten</button>
 
       <span class="chip accent" id="chip-time">Keine Daten</span>
     </div>
@@ -1051,8 +1064,6 @@
           <div id="curve-warn" class="panel-warn" hidden></div>
         </div>
       </div>
-
-      <button class="btn primary" id="btn-add-data">＋ Daten laden</button>
     </div>
 
     <div id="chart-wrap">
@@ -5132,8 +5143,6 @@
     try {
       if (localStorage.getItem(PANEL_KEY) === '1') document.documentElement.classList.add('panel-collapsed');
     } catch { /* ignorieren */ }
-
-    document.getElementById('btn-add-data').addEventListener('click', () => openOmDialog());
 
     // =========================================================================
     // Live-Abruf von Open-Meteo (Portierung aus om/index.html)
