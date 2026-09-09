@@ -1012,7 +1012,7 @@
           title="Letzte Server-Antwort unverändert als JSON-Datei speichern (Rohdaten, wie sie der Server liefert)">
           Rohdaten (JSON) ⭳
         </button>
-        <button class="btn primary" id="om-done" title="Dialog schließen — bereits geladene Kurven bleiben im Diagramm">Daten laden</button>
+        <button class="btn primary" id="om-done" title="Dialog schließen — bereits ins Diagramm gelegte Kurven bleiben erhalten">Schließen</button>
       </div>
     </div>
   </div>
@@ -4807,7 +4807,11 @@
 
     // Nach jedem Laden: Kurven auf noch existierende Serien eindampfen und, wenn
     // nötig, eine neue Hauptkurve bestimmen (neueste Serie am aktuellen Ort).
-    function syncCurves({ preferSeriesId = null } = {}) {
+    // autoSelectMain=false unterdrückt den Rateversuch bei leerem Kurven-Stack:
+    // beim DWD-Bulk-Abruf (viele Orte auf einmal) wäre "irgendein erster Ort"
+    // reine Willkür — dort soll die Nutzerin bewusst über den Ort-Dropdown/die
+    // Liste per ＋ auswählen, statt dass sofort ein zufälliger Ort geplottet wird.
+    function syncCurves({ preferSeriesId = null, autoSelectMain = true } = {}) {
       STATE.curves = STATE.curves.filter(c => STATE.series.has(c.seriesId));
 
       let main = mainCurve();
@@ -4816,7 +4820,7 @@
         if (existing) { setMainCurve(existing.id); main = existing; }
         else { main = addCurve(preferSeriesId, { isMain: true }); }
       }
-      if (!main) {
+      if (!main && autoSelectMain) {
         const cand = seriesForCurrentLocation()[0];
         if (cand) main = addCurve(cand.series.id, { isMain: true });
       }
@@ -4844,6 +4848,11 @@
     function renderDataPanel() {
       const curveList = document.getElementById('curve-list');
       if (!curveList) return;
+
+      // Der Leer-Hinweis auf der Zeichenfläche gilt nicht nur, solange gar
+      // nichts geladen ist, sondern auch, solange geladene Daten noch keiner
+      // Kurve zugeordnet wurden (z.B. direkt nach einem DWD-Bulk-Abruf).
+      document.getElementById('empty-state').classList.toggle('hidden', STATE.curves.length > 0);
 
       const tempCols = PALETTE.overlayTemp;
       curveList.innerHTML = '';
@@ -5599,9 +5608,9 @@
       obs:  'Tatsächlich gemessene Radiosonden-Aufstiege. Die Karte markiert Stationen, die zuletzt wirklich gestartet sind; pro Station lässt sich der Aufstiegstermin wählen.',
       file: '',
     };
-    // "Daten laden" unten rechts (#om-done) schließt nur noch den Dialog —
-    // deshalb hier andere Beschriftungen für den eigentlichen Abrufen-Knopf
-    // (#om-load), der je nach Reiter neben der passenden Auswahl sitzt.
+    // "Schließen" unten rechts (#om-done) macht nur das — abrufen/laden
+    // passiert über #om-load, der je nach Reiter neben der passenden Auswahl
+    // sitzt und hier seine Beschriftung bekommt.
     const SRC_LOAD_LABEL = { dwd: 'Aktuelle Daten holen', ml: 'Abrufen', pl: 'Abrufen', obs: 'Aufstieg laden', file: 'Datei wählen' };
     // Wohin #om-load je Reiter gehört — dieselbe Schaltfläche wandert per
     // appendChild dorthin, statt für jeden Reiter eine eigene zu pflegen.
@@ -6213,7 +6222,7 @@
     // preferSeriesId: Serie, die nach dem Laden zur Hauptkurve werden soll
     // (leer = neueste Serie am aktuellen Ort). Wird gesetzt, wenn frisch
     // abgerufene Daten direkt angezeigt werden sollen.
-    function loadSoundings(files_or_data, merge = false, preferSeriesId = null) {
+    function loadSoundings(files_or_data, merge = false, preferSeriesId = null, autoSelectMain = true) {
       if (merge) {
         const newKeys = new Set(files_or_data.map(soundingIdentityKey));
         STATE.allSoundings = STATE.allSoundings.filter(s => !newKeys.has(soundingIdentityKey(s))).concat(files_or_data);
@@ -6246,8 +6255,11 @@
         STATE.currentLocationKey = locations[0];
       }
 
-      document.getElementById('empty-state').classList.add('hidden');
-      syncCurves({ preferSeriesId });
+      // #empty-state wird nicht hier ausgeblendet, sondern in renderDataPanel()
+      // abhängig davon, ob es tatsächlich eine Kurve gibt — sonst bliebe nach
+      // einem Abruf ohne autoSelectMain (z.B. DWD-Bulk) eine leere Fläche ohne
+      // jede Erklärung stehen, bis die Nutzerin manuell etwas dazuwählt.
+      syncCurves({ preferSeriesId, autoSelectMain });
     }
 
     // Dünnt hochaufgelöste Profile auf 50-m-Bins aus (mittl. Abstand < 20 m).
@@ -6573,9 +6585,11 @@
     // const DATA_BASE = 'https://raw.githubusercontent.com/wetterheidi/sounding_data/main/data';
 
     // Schließt den Dialog NICHT automatisch — wie jeder Ladevorgang: erst der
-    // "Daten laden"-Knopf unten rechts (#om-done) schließt aktiv. Direkt nach
+    // "Schließen"-Knopf unten rechts (#om-done) schließt aktiv. Direkt nach
     // dem Laden zeigt der Ort-Dropdown (#cmp-add) die geladenen Läufe zum
-    // Dazuwählen, ohne dass man dafür neu ins Panel wechseln müsste.
+    // Dazuwählen, ohne dass man dafür neu ins Panel wechseln müsste. Es wird
+    // dabei bewusst NICHT automatisch ein Ort geplottet (autoSelectMain:
+    // false) — bei vielen Orten auf einmal wäre "irgendeiner zuerst" Willkür.
     async function fetchFromCloud() {
       const indexUrl = `${DATA_BASE}/index.json`;
       const loadBtn = document.getElementById('om-load');
@@ -6610,9 +6624,13 @@
         const flatData = allData.flatMap(r => Array.isArray(r) ? r : [r]);
         const replace = document.getElementById('chk-replace').checked;
         if (replace) STATE.curves = [];
-        loadSoundings(flatData, !replace);
+        // autoSelectMain: false — der Abruf bringt immer ALLE Orte auf einmal,
+        // ein automatisch geplotteter "irgendein erster Ort" wäre reine Willkür.
+        // Die Nutzerin wählt bewusst über den Ort-Dropdown und ＋ aus, was sie
+        // tatsächlich sehen will.
+        loadSoundings(flatData, !replace, null, false);
 
-        setStatus(`✓ ${flatData.length} Profile aus ${fileNames.length} Dateien geladen. Oben Ort und Lauf zum Vergleich dazuwählen, dann unten schließen.`);
+        setStatus(`✓ ${flatData.length} Profile aus ${fileNames.length} Dateien geladen. Oben Ort wählen und Lauf mit ＋ dazulegen.`);
       } catch (error) {
         console.error('Cloud-Download Fehler:', error);
         setStatus(`Fehler: ${error.message}`, true);
