@@ -5008,7 +5008,14 @@
           ? 'Als Vergleichskurve ins Diagramm legen'
           : 'Aus der Nachbarschaft ins Diagramm legen';
         add.addEventListener('click', () => {
-          addCurve(s.id);
+          // Gibt es noch keine Hauptkurve (z.B. direkt nach einem DWD-Bulk-
+          // Abruf ohne autoSelectMain), wird die erste bewusst dazugelegte
+          // Kurve die Hauptkurve — sonst bliebe die Zeitleiste leer und auf
+          // der Zeichenfläche erschiene trotz "zeigen" nichts, weil beides an
+          // STATE.soundings hängt, das nur die Hauptkurve befüllt.
+          const wasEmpty = !mainCurve();
+          const c = addCurve(s.id, wasEmpty ? { isMain: true } : {});
+          if (wasEmpty && c) setMainCurve(c.id);
           renderDataPanel();
           redraw();
         });
