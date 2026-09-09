@@ -3195,8 +3195,13 @@
       return { type, sfl_simple, sfl_dwd };
     }
 
+    let _lastIndicesSnd = null;
     function computeAndDisplayIndices(snd) {
       if (!snd || !snd.levels) return;
+      // Teuer (Parcel/CAPE/CIN/Hail/CAT/…) und unabhängig von Zoom/Pan — nur bei
+      // tatsächlichem Kurvenwechsel neu berechnen, nicht bei jedem redraw().
+      if (snd === _lastIndicesSnd) return;
+      _lastIndicesSnd = snd;
       const lvls = snd.levels;
 
       // FIX: Boden ist Index 0
@@ -4573,6 +4578,7 @@
       }
     });
 
+    let _wheelRedrawPending = false;
     canvas.addEventListener('wheel', e => {
       if (!proj) return;
       e.preventDefault(); // Verhindert das Scrollen der gesamten Webseite
@@ -4597,7 +4603,10 @@
         }
 
         proj.zoom = newZoom;
-        redraw();
+        if (!_wheelRedrawPending) {
+          _wheelRedrawPending = true;
+          requestAnimationFrame(() => { _wheelRedrawPending = false; redraw(); });
+        }
       }
     }, { passive: false });
 
