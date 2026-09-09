@@ -871,11 +871,6 @@
       <button class="btn" id="btn-theme" title="Tag-/Nachtmodus wechseln"
         style="font-size:15px;padding:4px 9px;min-width:34px;">☀</button>
 
-      <button class="btn" id="btn-export" style="color: #4ab56e; border-color: #4ab56e;"
-        title="Angezeigtes Hauptprofil als TXT speichern (jede Kurve im Datenpanel hat zusätzlich ihren eigenen Knopf)">
-        TXT Export ⭳
-      </button>
-
       <button class="btn primary" id="btn-fetch">＋ Daten laden</button>
       <input type="file" id="file-input" accept=".json,.txt" multiple style="display:none">
     </div>
@@ -1009,8 +1004,8 @@
         </label>
         <span style="flex:1"></span>
         <button class="btn" id="om-download" disabled
-          title="Letzte Server-Antwort unverändert als JSON-Datei speichern (Rohdaten, wie sie der Server liefert)">
-          Rohdaten (JSON) ⭳
+          title="Letzte Server-Antwort unverändert als JSON-Datei speichern (Rohformat des Servers, ein Abruf). Für alle geladenen Zeitschritte einer Kurve im wiederladbaren App-Format: JSON-Knopf im Datenpanel links.">
+          Server-Rohdaten (JSON) ⭳
         </button>
         <button class="btn primary" id="om-done" title="Dialog schließen — bereits ins Diagramm gelegte Kurven bleiben erhalten">Schließen</button>
       </div>
@@ -4954,12 +4949,12 @@
 
         const dlTxt = el('button', 'curve-btn txt', 'TXT');
         dlTxt.title = 'Dieses Profil als Textdatei speichern';
-        dlTxt.addEventListener('click', () => exportSoundingToAscii(snd));
+        dlTxt.addEventListener('click', () => exportSoundingToAscii(curveSounding(c)));
         dlTxt.disabled = !snd;
         btns.appendChild(dlTxt);
 
         const dlJson = el('button', 'curve-btn txt', 'JSON');
-        dlJson.title = 'Alle Zeitschritte dieser Serie als JSON speichern (wieder ladbar)';
+        dlJson.title = 'Alle Zeitschritte dieser Serie als JSON speichern (wieder ladbar, App-Format). Für die unveränderte Server-Rohantwort einer OpenData-Quelle: "Server-Rohdaten (JSON)" im Laden-Dialog.';
         dlJson.addEventListener('click', () => exportSeriesToJson(s));
         btns.appendChild(dlJson);
 
@@ -6737,10 +6732,6 @@
       a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     }
-
-    // Button mit der Funktion verknüpfen
-    document.getElementById('btn-export').addEventListener('click',
-      () => exportSoundingToAscii(STATE.soundings[STATE.currentIdx]));
 
     document.getElementById('chk-cape-lfc').addEventListener('change', (e) => {
       STATE.showCapeLfc = e.target.checked;
