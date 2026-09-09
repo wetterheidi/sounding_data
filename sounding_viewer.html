@@ -380,6 +380,12 @@
       font-family: var(--mono);
       padding-left: 20px;
     }
+    .curve-row .curve-loc {
+      font-size: 9.5px;
+      color: var(--text2);
+      font-family: var(--mono);
+      padding-left: 20px;
+    }
     .curve-ctl {
       display: flex;
       align-items: center;
@@ -2580,25 +2586,26 @@
 
       // --- Titel ---
       const runStr = formatSoundingTitle(snd);
-      const coordStr = (snd.target_lat != null || snd.grid_lat != null)
-        ? `${snd.grid_lat ?? snd.target_lat}°N  ${snd.grid_lon ?? snd.target_lon}°E` : '';
-      const locLabel = coordStr ? getLocLabel(getLocKey(snd)) : (snd.location_alias ?? '');
-      const locStr = locLabel && locLabel !== coordStr ? locLabel : coordStr;
+      const locStr = sndLocLabel(snd);
       ctx.fillStyle = PALETTE.titleText;
       ctx.font = '11px IBM Plex Mono, monospace';
       ctx.textAlign = 'left';
       ctx.fillText(runStr, m.left + 6, m.top + 14);
-      ctx.fillText(locStr, m.left + 6, m.top + 26);
+      if (locStr) ctx.fillText(locStr, m.left + 6, m.top + 26);
 
       // --- Legende der Vergleichskurven ---
       // Bleibt bewusst auf dem Canvas (nicht nur im Datenpanel), damit
-      // Screenshots und Ausdrucke die Zuordnung Farbe ↔ Lauf behalten.
+      // Screenshots und Ausdrucke die Zuordnung Farbe ↔ Lauf behalten. Der Ort
+      // steht mit dabei, sonst lässt sich eine Messung neben einem nahen, aber
+      // nicht identischen Modellgitterpunkt nicht sauber zuordnen.
       if (overlays && overlays.length > 0) {
         let y = m.top + 38;
         for (const ov of overlays) {
           if (!ov.snd) continue;
           ctx.fillStyle = ov.color;
-          ctx.fillText(`- - -  ${formatSoundingTitle(ov.snd)}`, m.left + 6, y);
+          const ovLoc = sndLocLabel(ov.snd);
+          const txt = `- - -  ${formatSoundingTitle(ov.snd)}` + (ovLoc ? `  ·  ${ovLoc}` : '');
+          ctx.fillText(txt, m.left + 6, y);
           y += 12;
         }
       }
@@ -4502,6 +4509,29 @@
       return alias ? `${alias} · ${key}` : key;
     }
 
+    // Koordinaten als "12.345°N 6.789°E" formatiert (immer mit Vorzeichen-Buchstabe,
+    // nie negativ) — dieselbe Notation, die getLocKey() für Modell-Orte im Key benutzt.
+    function formatLatLon(lat, lon) {
+      const latS = lat >= 0 ? `${lat.toFixed(3)}°N` : `${(-lat).toFixed(3)}°S`;
+      const lonS = lon >= 0 ? `${lon.toFixed(3)}°E` : `${(-lon).toFixed(3)}°W`;
+      return `${latS} ${lonS}`;
+    }
+
+    // Orts-Label für Sidepanel und Tempfläche: Alias + tatsächliche Koordinaten,
+    // damit Kurven aus unterschiedlichen, aber nahe beieinander liegenden Orten
+    // (z.B. Messstation vs. Modellgitterpunkt) sich eindeutig zuordnen lassen.
+    // Bei Messung/Datei steckt der Name schon im Titel (formatSoundingTitle) —
+    // dort reichen die reinen Koordinaten.
+    function locLabelFor(kind, locKey, latlon) {
+      const coordStr = latlon ? formatLatLon(latlon.lat, latlon.lon) : '';
+      if (kind === 'obs' || kind === 'datei') return coordStr;
+      const alias = STATE.locationAliases?.[locKey];
+      if (alias && coordStr) return `${alias} · ${coordStr}`;
+      return alias || coordStr;
+    }
+    function seriesLocLabel(s) { return locLabelFor(s.kind, s.locKey, s.latlon); }
+    function sndLocLabel(snd) { return locLabelFor(getKind(snd), getLocKey(snd), sndLatLon(snd)); }
+
     // Hilfsfunktion: Erzeugt einen sauberen Text für den Lauf (z.B. "20260327 06Z")
     // OM-Läufe (Open-Meteo-Dev) bekommen einen eigenen Key, damit sie im
     // Dropdown neben dem opendata-Lauf desselben Modells/Runs auswählbar sind.
@@ -4885,6 +4915,9 @@
 
         const distTxt = s.locKey === STATE.currentLocationKey ? '' : ` ${formatDist(sndDistanceFromCurrentLoc(s))}`;
         row.appendChild(el('div', 'curve-sub', s.sub + distTxt));
+
+        const locTxt = seriesLocLabel(s);
+        if (locTxt) row.appendChild(el('div', 'curve-loc', locTxt));
 
         // Bedienzeile
         const ctl = el('div', 'curve-ctl');
@@ -5563,11 +5596,57 @@
       if ([...omModelSel.options].some(o => o.value === prev)) omModelSel.value = prev;
     }
 
+    // Reverse-Geocoding für den Alias-Vorschlag im Ladedialog (Modelllevel/
+    // Druckflächen) — derselbe Photon-Dienst wie im Dronecast-Projekt, offene
+    // CORS-Header, kein Key nötig. Ergebnis pro grob gerundeter Koordinate
+    // gecacht, damit Kartenklicks in derselben Gegend nicht erneut abgefragt werden.
+    const PHOTON_REVERSE_URL = 'https://photon.komoot.io/reverse';
+    const geocodeCache = new Map();
+    async function reverseGeocodePlace(lat, lon) {
+      const key = `${lat.toFixed(3)},${lon.toFixed(3)}`;
+      if (geocodeCache.has(key)) return geocodeCache.get(key);
+      let name = null;
+      try {
+        const url = `${PHOTON_REVERSE_URL}?${new URLSearchParams({
+          lat: String(lat), lon: String(lon), limit: '1', lang: 'de',
+        })}`;
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`Photon ${r.status}`);
+        const data = await r.json();
+        const props = data.features?.[0]?.properties ?? null;
+        name = props ? (props.name || props.street || props.city || null) : null;
+      } catch { /* Vorschlag ist Komfort, nie Fehlerquelle — Alias-Feld bleibt leer */ }
+      geocodeCache.set(key, name);
+      return name;
+    }
+
+    // Zuletzt automatisch eingetragener Alias-Vorschlag. Nur solange das Feld
+    // leer ist oder noch genau diesen Vorschlag enthält, wird bei einem neuen
+    // Ort automatisch nachgezogen — ein von Hand eingetippter Alias bleibt
+    // unangetastet (er soll frei überschreibbar sein, nicht erzwungen werden).
+    let omAliasAutoValue = '';
+    let omGeocodeSeq = 0;
+    function maybeAutoFillAlias(lat, lon) {
+      if (currentSrc !== 'ml' && currentSrc !== 'pl') return;
+      const aliasEl = document.getElementById('om-alias');
+      const current = aliasEl.value.trim();
+      if (current && current !== omAliasAutoValue) return;
+      const reqId = ++omGeocodeSeq;
+      reverseGeocodePlace(lat, lon).then(name => {
+        if (reqId !== omGeocodeSeq || !name) return;
+        const stillDefault = aliasEl.value.trim() === '' || aliasEl.value.trim() === omAliasAutoValue;
+        if (!stillDefault) return;
+        aliasEl.value = name;
+        omAliasAutoValue = name;
+      });
+    }
+
     function setOmLocation(lat, lon, { pan = false } = {}) {
       lat = Math.round(lat * 10000) / 10000;
       lon = Math.round(lon * 10000) / 10000;
       document.getElementById('om-lat').value = lat;
       document.getElementById('om-lon').value = lon;
+      maybeAutoFillAlias(lat, lon);
       if (omMap) {
         if (!omMarker) {
           omMarker = L.marker([lat, lon], { draggable: true }).addTo(omMap);
@@ -5614,8 +5693,8 @@
     const SRC_KEYS = ['dwd', 'ml', 'pl', 'obs', 'file'];
     const SRC_HINT = {
       dwd:  '',
-      ml:   'Native ICON-Modelllevel vom OM-Server. Der Lauf wird automatisch bestimmt (neuester verfügbarer laut meta.json). Nach dem Laden kann die Server-Antwort unverändert als JSON gespeichert werden (Rohdaten-Knopf).',
-      pl:   'Druckflächen (1000–30 hPa) von der öffentlichen Open-Meteo-API. Die Vorhersagestunden zählen ab dem angegebenen Lauf (bis 92 Tage rückwirkend). Level, die das Modell nicht liefert, werden übersprungen.',
+      ml:   'Native ICON-Modelllevel vom OM-Server. Der Lauf wird automatisch bestimmt (neuester verfügbarer laut meta.json). Nach dem Laden kann die Server-Antwort unverändert als JSON gespeichert werden (Rohdaten-Knopf). Der Alias wird beim Setzen des Orts automatisch vorgeschlagen (Ortssuche) und lässt sich frei überschreiben.',
+      pl:   'Druckflächen (1000–30 hPa) von der öffentlichen Open-Meteo-API. Die Vorhersagestunden zählen ab dem angegebenen Lauf (bis 92 Tage rückwirkend). Level, die das Modell nicht liefert, werden übersprungen. Der Alias wird beim Setzen des Orts automatisch vorgeschlagen (Ortssuche) und lässt sich frei überschreiben.',
       obs:  'Tatsächlich gemessene Radiosonden-Aufstiege. Die Karte markiert Stationen, die zuletzt wirklich gestartet sind; pro Station lässt sich der Aufstiegstermin wählen.',
       file: '',
     };
