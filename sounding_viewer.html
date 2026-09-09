@@ -5653,19 +5653,14 @@
       const current = aliasEl.value.trim();
       const key = locKeyFor(lat, lon);
 
-      if (!current) {
-        omAliasCoordKey = key;
-        setAliasStale(false);
-        return;
-      }
-
-      // Feld enthält noch den letzten automatischen Vorschlag (kein von Hand
-      // gewählter Alias) — beim Ortswechsel einfach durch einen neuen ersetzen.
-      if (current === omAliasAutoValue) {
+      // Feld ist leer oder enthält noch den letzten automatischen Vorschlag
+      // (kein von Hand gewählter Alias) — (neu) automatisch befüllen.
+      if (!current || current === omAliasAutoValue) {
         const reqId = ++omGeocodeSeq;
         reverseGeocodePlace(lat, lon).then(name => {
           if (reqId !== omGeocodeSeq || !name) return;
-          if (aliasEl.value.trim() !== omAliasAutoValue) return; // inzwischen von Hand geändert
+          const stillDefault = aliasEl.value.trim() === '' || aliasEl.value.trim() === omAliasAutoValue;
+          if (!stillDefault) return; // inzwischen von Hand geändert
           aliasEl.value = name;
           omAliasAutoValue = name;
           omAliasCoordKey = key;
