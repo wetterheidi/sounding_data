@@ -780,6 +780,12 @@
     }
     .om-field input:focus,
     .om-field select:focus { border-color: var(--accent); }
+    .om-field input#om-alias.alias-stale { border-color: #d08b3a; }
+    .alias-stale-hint {
+      font-size: 9.5px;
+      color: #d08b3a;
+      line-height: 1.3;
+    }
 
     .om-hint { font-size: 11px; color: var(--text3); line-height: 1.5; }
 
@@ -945,6 +951,7 @@
         <div class="om-field src-only ml pl">
           <label for="om-alias">Alias (optional)</label>
           <input type="text" id="om-alias" placeholder="z.B. Startplatz">
+          <span id="om-alias-stale-hint" class="alias-stale-hint" hidden>⚠ Ort geändert — Alias prüfen</span>
         </div>
         <div class="om-field src-only ml pl">
           <label for="om-model">Modell</label>
@@ -5620,33 +5627,74 @@
       return name;
     }
 
-    // Zuletzt automatisch eingetragener Alias-Vorschlag. Nur solange das Feld
-    // leer ist oder noch genau diesen Vorschlag enthält, wird bei einem neuen
-    // Ort automatisch nachgezogen — ein von Hand eingetippter Alias bleibt
-    // unangetastet (er soll frei überschreibbar sein, nicht erzwungen werden).
+    // Zuletzt automatisch eingetragener Alias-Vorschlag (Text) sowie die
+    // Koordinaten, für die der aktuelle Alias-Text zuletzt bestätigt wurde
+    // (durch Eintippen oder durch einen automatischen Vorschlag). Ändert sich
+    // der Ort, während im Feld noch ein von Hand gesetzter Alias von einem
+    // ANDEREN Ort steht, wird nicht stillschweigend überschrieben (der Alias
+    // soll frei wählbar bleiben) — das Feld wird stattdessen auffällig als
+    // "ggf. nicht mehr passend" markiert, statt den veralteten Text unbemerkt
+    // stehen zu lassen.
     let omAliasAutoValue = '';
+    let omAliasCoordKey = null;
     let omGeocodeSeq = 0;
-    function maybeAutoFillAlias(lat, lon) {
+
+    function locKeyFor(lat, lon) { return `${lat},${lon}`; }
+
+    function setAliasStale(stale) {
+      document.getElementById('om-alias').classList.toggle('alias-stale', stale);
+      const hint = document.getElementById('om-alias-stale-hint');
+      if (hint) hint.hidden = !stale;
+    }
+
+    function syncAliasForLocation(lat, lon) {
       if (currentSrc !== 'ml' && currentSrc !== 'pl') return;
       const aliasEl = document.getElementById('om-alias');
       const current = aliasEl.value.trim();
-      if (current && current !== omAliasAutoValue) return;
-      const reqId = ++omGeocodeSeq;
-      reverseGeocodePlace(lat, lon).then(name => {
-        if (reqId !== omGeocodeSeq || !name) return;
-        const stillDefault = aliasEl.value.trim() === '' || aliasEl.value.trim() === omAliasAutoValue;
-        if (!stillDefault) return;
-        aliasEl.value = name;
-        omAliasAutoValue = name;
-      });
+      const key = locKeyFor(lat, lon);
+
+      if (!current) {
+        omAliasCoordKey = key;
+        setAliasStale(false);
+        return;
+      }
+
+      // Feld enthält noch den letzten automatischen Vorschlag (kein von Hand
+      // gewählter Alias) — beim Ortswechsel einfach durch einen neuen ersetzen.
+      if (current === omAliasAutoValue) {
+        const reqId = ++omGeocodeSeq;
+        reverseGeocodePlace(lat, lon).then(name => {
+          if (reqId !== omGeocodeSeq || !name) return;
+          if (aliasEl.value.trim() !== omAliasAutoValue) return; // inzwischen von Hand geändert
+          aliasEl.value = name;
+          omAliasAutoValue = name;
+          omAliasCoordKey = key;
+          setAliasStale(false);
+        });
+        return;
+      }
+
+      // Von Hand gesetzter Alias: stehen lassen, aber markieren, wenn er noch
+      // von einem anderen Ort stammt als dem gerade gewählten.
+      setAliasStale(key !== omAliasCoordKey);
     }
+
+    // Manuelle Eingabe zählt als Bestätigung für den aktuell gewählten Ort —
+    // Warnmarkierung verschwindet, künftige automatische Vorschläge lassen
+    // diesen Text in Ruhe (siehe syncAliasForLocation).
+    document.getElementById('om-alias').addEventListener('input', () => {
+      const lat = parseFloat(document.getElementById('om-lat').value);
+      const lon = parseFloat(document.getElementById('om-lon').value);
+      omAliasCoordKey = (Number.isNaN(lat) || Number.isNaN(lon)) ? null : locKeyFor(lat, lon);
+      setAliasStale(false);
+    });
 
     function setOmLocation(lat, lon, { pan = false } = {}) {
       lat = Math.round(lat * 10000) / 10000;
       lon = Math.round(lon * 10000) / 10000;
       document.getElementById('om-lat').value = lat;
       document.getElementById('om-lon').value = lon;
-      maybeAutoFillAlias(lat, lon);
+      syncAliasForLocation(lat, lon);
       if (omMap) {
         if (!omMarker) {
           omMarker = L.marker([lat, lon], { draggable: true }).addTo(omMap);
@@ -6202,6 +6250,13 @@
         if (saved.lon != null) document.getElementById('om-lon').value = saved.lon;
         if (saved.alias) document.getElementById('om-alias').value = saved.alias;
         if (saved.steps) document.getElementById('om-steps').value = saved.steps;
+        // Alias gilt für genau diese wiederhergestellten Koordinaten als
+        // bestätigt — sonst würde initOmMap() ihn beim ersten Öffnen des
+        // Dialogs (setOmLocation mit denselben, unveränderten Koordinaten)
+        // fälschlich als "Ort geändert" markieren.
+        if (saved.alias && saved.lat != null && saved.lon != null) {
+          omAliasCoordKey = locKeyFor(saved.lat, saved.lon);
+        }
       }
     })();
 
