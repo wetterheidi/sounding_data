@@ -42,7 +42,8 @@ nginx → https://tlogpviewer.wetterheidi.de/
 ## Orte verwalten (Admin-Oberfläche)
 
 Öffne https://tlogpviewer.wetterheidi.de/admin.html im Browser.
-- Browser fragt nach Benutzername und Passwort (nginx Basic Auth)
+- Login läuft über den zentralen Pförtner (`verwaltung.wetterheidi.de`); Zugriff auf
+  `/admin.html` nur mit gesetztem Tool-Admin-Häkchen, sonst Sperrseite (403)
 - Orte hinzufügen, bearbeiten, aktivieren/deaktivieren per UI
 - Änderungen werden sofort in `/apps/TLogPViewer/sounding_data/locations.json` gespeichert
 - Beim nächsten Timer-Lauf werden die neuen Orte automatisch heruntergeladen
@@ -86,27 +87,22 @@ journalctl -u tlogp-d2eu.service -f
 
 ## Server-Wartung
 
-### nginx-Auth einrichten (einmalig)
+### Authentifizierung (Pförtner)
 
-Es gibt zwei getrennte Passwort-Dateien:
+Seit Juli 2026 ("Pförtnerprojekt", Etappe 5) läuft die Anmeldung **nicht mehr** über
+htpasswd/Basic Auth, sondern zentral über `verwaltung.wetterheidi.de` per nginx
+`auth_request` (siehe `deploy/nginx-tlogpviewer.conf`, `snippets/pfoertner.conf`):
 
-| Datei | Zugriffsbereich | Benutzer |
-|---|---|---|
-| `/etc/nginx/.htpasswd-tlogp` | Admin-UI + API | `admin` |
-| `/etc/nginx/.htpasswd-wetterheidi` | Viewer (öffentliche Nutzer) | `wetterheidi`, weitere |
+| Bereich | Zugriff |
+|---|---|
+| `/` (Viewer) | Login nötig, Tool-Häkchen "tlogpviewer" |
+| `/admin.html` | zusätzlich Tool-Admin-Häkchen, sonst 403 |
+| `/api/` | Login nötig; Nutzername/Admin-Flag gehen als `X-Remote-User`/`X-Tool-Admin` an `admin_api.py` (Port 8765) |
+| `/om/`, `/data/` | öffentlich, kein Login |
 
-```bash
-# Admin-Passwort setzen (Benutzer: admin):
-htpasswd -c /etc/nginx/.htpasswd-tlogp admin
-
-# Viewer-Nutzer anlegen (erster Nutzer, -c erstellt die Datei):
-htpasswd -c /etc/nginx/.htpasswd-wetterheidi wetterheidi
-
-# Weitere Viewer-Nutzer hinzufügen (ohne -c, sonst wird die Datei überschrieben!):
-htpasswd /etc/nginx/.htpasswd-wetterheidi weiterernutzer
-
-nginx -t && systemctl reload nginx
-```
+Nutzer- und Rollenverwaltung (wer welches Häkchen hat) passiert ausschließlich im
+Pförtner, nicht in diesem Repo. Details zum Server-Layout und Deploy-Workflow stehen in
+[`deploy/PUSH-ANLEITUNG.md`](deploy/PUSH-ANLEITUNG.md).
 
 ---
 
@@ -176,8 +172,15 @@ gewählt.
 `om/index.html` ist eine Kopie von `sounding_viewer.html` mit ersetztem Datenpfad —
 der Skew-T-Rendering-Kern ist identisch. Änderungen am Diagramm-Kern müssen daher
 in beiden Dateien nachgezogen werden. Die Hauptversion (`sounding_viewer.html`,
-DWD-Pipeline, Basic Auth) bleibt unberührt; ausgeliefert wird `om/` über einen
-eigenen `location /om/`-Block ohne `auth_basic` (siehe `deploy/nginx-tlogpviewer.conf`).
+DWD-Pipeline, Pförtner-Login) bleibt unberührt; ausgeliefert wird `om/` über einen
+eigenen `location /om/`-Block mit `auth_request off` (siehe `deploy/nginx-tlogpviewer.conf`).
+
+Die Leaflet-Karte zur Ortswahl für Modelllevel/Druckflächen sowie der Live-Open-Meteo-Abruf
+sind mittlerweile auch direkt in `sounding_viewer.html` (Ladedialog, Reiter "Modelllevel"/
+"Druckflächen") verfügbar – nicht mehr exklusiv in `om/`. Reverse-Geocoding (Alias-Vorschlag
+per Photon) sowie die Messungs-Anbindung an Windy-Radiosondendaten gibt es dagegen nur in
+`sounding_viewer.html`, nicht in `om/index.html`. Der `?expert=1`-Modus (schaltet die volle
+UI frei, sonst reduzierte "Simple"-Ansicht) existiert weiterhin nur in `om/index.html`.
 
 ---
 
@@ -239,14 +242,30 @@ python3 fetch_sounding.py --lat 48.35 --lon 11.79 --model icon-eu --date 2024051
 ## Bedienung des TlogP-Viewers
 
 Der Viewer unter https://tlogpviewer.wetterheidi.de/ benötigt keinen lokalen Webserver.
-Die HTML-Datei kann auch per Doppelklick lokal geöffnet werden (dann "Lokal laden" verwenden).
+Die HTML-Datei kann auch per Doppelklick lokal geöffnet werden.
 
 ### Daten laden
-- **Cloud:** Button "☁️ Aktuelle Daten laden" – lädt alle JSON-Dateien vom Server
-- **Lokal:** Button "Lokal laden ↑" oder Drag & Drop einer JSON-Datei ins Fenster
+Ein einziger Einstiegspunkt: Button "＋ Daten laden" öffnet einen Dialog mit fünf Reitern:
+- **DWD Opendata** – ruft alle vorberechneten Profile aller vordefinierten Orte ab (`/data/index.json`)
+- **Modelllevel** / **Druckflächen** – Ort per Karte oder Koordinaten wählen, Live-Abruf von Open-Meteo (siehe Abschnitt "OM Viewer" unten – dieselbe Logik ist hier direkt in den Ladedialog integriert)
+- **Messung** – echte Radiosondenaufstiege (Quelle: Windy), Station per Karte wählen
+- **Datei** – lokale JSON-Datei auswählen oder per Drag & Drop ins Fenster ziehen
+
+Der Viewer startet **bewusst leer** – es gibt keinen automatischen Ladevorgang mehr beim Öffnen.
+Beim ersten Hinzufügen einer Kurve wird diese automatisch zur Hauptkurve; weitere Kurven
+(auch aus anderen Quellen/Orten) lassen sich zum Vergleich dazuladen. Die Checkbox
+"Bestand ersetzen" steuert, ob neue Daten den bisherigen Bestand ersetzen oder ergänzen.
+
+### Vergleichsdarstellung
+Struktur **Ort → Serie → Kurve**: Eine Serie ist eine Kombination aus Quelle, Modell/Lauf
+und Ort; jede Serie kann mehrere Kurven (Zeitpunkte) enthalten. Im Datenpanel markiert ein
+Radio-Button (◉) die aktuelle Hauptkurve, die Zeitleiste, Sidebar-Indizes (CAPE, CIN, LFC, …)
+und den Hodographen steuert. Alle Quellen (DWD Opendata, Modelllevel, Druckflächen, Messung,
+Datei) lassen sich gegeneinander als Vergleichskurven darstellen, solange sie räumlich nah
+genug beieinanderliegen.
 
 ### Navigation
-- **Ort:** Dropdown oben links
+- **Ort/Serie/Kurve:** Auswahl im Ladedialog bzw. per Radio-Button im Datenpanel
 - **Zeit:** Schieberegler unten oder Pfeiltasten Links/Rechts
 - **Animation:** Leertaste startet/stoppt die Zeitleiste
 
@@ -255,6 +274,9 @@ Die HTML-Datei kann auch per Doppelklick lokal geöffnet werden (dann "Lokal lad
 - **Mausrad:** Zoom
 - **Klicken & Ziehen:** Verschieben im Zoom
 - **Doppelklick:** Zoom zurücksetzen
+- **Höhenachse:** km-Skala am rechten Rand (ICAO-Standardatmosphäre) zusätzlich zur Druckachse links
+- **DEM-Höhe:** Checkbox blendet eine Referenzlinie auf Basis Copernicus-DEM90 ein (Standard: aus)
+- **Modellwolken:** per Default aktiv (nutzt QW/QI/Bedeckungsgrad des Modells statt reiner RH-Schwelle)
 
 ---
 
