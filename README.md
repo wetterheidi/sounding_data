@@ -17,6 +17,7 @@ Hetzner Server (wetterheidi-server)
   /apps/TLogPViewer/
   ├── sounding_data/     ← Git-Repo (nur Code, keine Daten)
   │   ├── fetch_sounding.py
+  │   ├── fetch_sounding_openmeteo.py
   │   ├── run_locations.sh
   │   ├── locations.json
   │   ├── admin_api.py
@@ -32,7 +33,10 @@ nginx → https://tlogpviewer.wetterheidi.de/
 
 **Datenpfad:**
 - Zwei `systemd`-Timer starten `run_locations.sh` pünktlich zur DWD-Verfügbarkeit
-- Das Skript lädt GRIB2-Dateien vom DWD, konvertiert sie in JSON und schreibt sie nach `/apps/TLogPViewer/data/`
+- Das Skript ruft pro aktivem Ort und Modell **zwei** Fetcher nacheinander auf und schreibt die JSON-Dateien nach `/apps/TLogPViewer/data/`:
+  - `fetch_sounding_openmeteo.py` – native Modelllevel fertig berechnet von Open-Meteo (primär `open-meteo.wetterheidi.de`, Fallback Michaels Server); Dateiname mit Suffix `_OM`
+  - `fetch_sounding.py` – GRIB2-Dateien direkt vom DWD-Opendata-Server, per eccodes dekodiert
+- Nach jedem Ort wird `data/index.json` neu erzeugt
 - nginx liefert die JSON-Dateien direkt aus – kein GitHub im Datenpfad
 
 **GitHub** wird nur noch für Code-Versionierung genutzt. Keine Wetterdaten im Repo.
@@ -113,8 +117,9 @@ git -C /apps/TLogPViewer/sounding_data pull
 ```
 Für Änderungen an `run_locations.sh`, `fetch_sounding.py` oder `locations.json` ist kein Service-Neustart nötig – sie werden beim nächsten Timer-Lauf automatisch verwendet.
 
-Wenn `admin_api.py` geändert wurde:
+Wenn `admin_api.py` geändert wurde (die API läuft aus einer Kopie außerhalb des Repo-Klons):
 ```bash
+cp /apps/TLogPViewer/sounding_data/admin_api.py /apps/TLogPViewer/admin_api.py
 systemctl restart tlogp-api.service
 ```
 
@@ -187,22 +192,16 @@ UI frei, sonst reduzierte "Simple"-Ansicht) existiert weiterhin nur in `om/index
 
 ---
 
-## Fallback auf GitHub Actions
+## Ausfall der Server-Pipeline
 
-Falls der Server ausfällt oder Probleme auftreten:
+Einen GitHub-Fallback gibt es nicht mehr: Der Workflow `.github/workflows/download.yml`
+wurde im Mai 2026 entfernt und `data/*.json` liegt nicht mehr im Repo (die auskommentierte
+`raw.githubusercontent.com`-Zeile bei `DATA_BASE` in `sounding_viewer.html` ist ein Relikt
+und würde ins Leere zeigen).
 
-**1. Viewer auf GitHub-Daten umstellen** – in `sounding_viewer.html` die zwei Zeilen tauschen:
-```js
-// Aktiv (Server):
-const DATA_BASE = '/data';
-
-// Auf GitHub umschalten:
-// const DATA_BASE = '/data';
-const DATA_BASE = 'https://raw.githubusercontent.com/wetterheidi/sounding_data/main/data';
-```
-
-**2. GitHub Actions reaktivieren** – unter https://github.com/wetterheidi/sounding_data/actions
-den Workflow `TlogP Data Fetcher` über den Button "Enable workflow" reaktivieren.
+Fällt nur die DWD-/Timer-Pipeline aus, bleiben im Viewer die Reiter **Modelllevel**,
+**Druckflächen** und **Messung** sowie der öffentliche OM-Viewer (`/om/`) nutzbar, da sie
+ihre Daten direkt im Browser von Open-Meteo bzw. Windy laden.
 
 ---
 
@@ -217,6 +216,12 @@ python3 -m venv ~/sounding-env
 source ~/sounding-env/bin/activate
 pip install numpy requests eccodes
 ```
+
+Alternativ ohne eccodes: `fetch_sounding_openmeteo.py` (nur Python-Standardbibliothek)
+holt dieselben Modelllevel fertig berechnet von Open-Meteo und schreibt das gleiche
+JSON-Schema (Dateiname mit Suffix `_OM`). Parameter wie unten, aber ohne `--jobs`;
+Standardmodell ist dort `icon-d2`, `--date` nur zusammen mit `--run`, und es sind nur
+Läufe verfügbar, die der Open-Meteo-Server noch vorhält.
 
 ### Nutzung
 ```bash
@@ -239,13 +244,18 @@ python3 fetch_sounding.py --lat 48.35 --lon 11.79 --model icon-eu --date 2024051
 | `--date` / `--run` | Für historische Läufe, z.B. `--date 20240515 --run 12` |
 | `--alias` | Kurzname für die Ausgabedatei |
 | `--outdir` | Ausgabeverzeichnis (Standard: `.`) |
+| `--jobs` | Anzahl paralleler Downloads (Standard: 30, nur `fetch_sounding.py`) |
 
 ---
 
 ## Bedienung des TlogP-Viewers
 
 Der Viewer unter https://tlogpviewer.wetterheidi.de/ benötigt keinen lokalen Webserver.
-Die HTML-Datei kann auch per Doppelklick lokal geöffnet werden.
+Die HTML-Datei kann auch per Doppelklick lokal geöffnet werden; dann funktioniert allerdings
+der Reiter "DWD Opendata" nicht (relativer Pfad `/data`), die übrigen Quellen schon.
+
+Die physikalischen Verfahren (Parcel, CAPE/CIN, LFC/EL, Bunkers, Niederschlagsphase, Wolken
+usw.) sind in `TlogP_Sounding_Viewer_Dokumentation.docx` beschrieben.
 
 ### Daten laden
 Ein einziger Einstiegspunkt: Button "＋ Daten laden" öffnet einen Dialog mit fünf Reitern:
