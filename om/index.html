@@ -4746,24 +4746,36 @@
 
     // =========================================================================
     // Live-Abruf von Open-Meteo
-    //   Modelllevel:  OM-Server (open-meteo.mah.priv.at, ICON Global separat
-    //                 auf open-meteo-temp.mah.priv.at) — native ICON-Level,
+    //   Modelllevel:  OM-Server (primär open-meteo.wetterheidi.de, Fallback
+    //                 open-meteo.mah.priv.at bzw. für ICON Global
+    //                 open-meteo-temp.mah.priv.at) — native ICON-Level,
     //                 Portierung von fetch_sounding_openmeteo.py nach JS
     //   Druckflächen: öffentliche API (api.open-meteo.com) — Portierung von
     //                 om_pressure_tool.html, hier direkt in den Viewer geladen
     // =========================================================================
+    // Primärer Modelllevel-Server seit 2026-09: hostet ICON-D2, ICON-EU UND ICON
+    // Global mit identischem API-Aufbau, CORS offen. Michaels Server bleiben als
+    // Fallback (cfg.servers, Reihenfolge = Priorität). Stichprobe 2026-09-27:
+    // für ICON-D2/-EU wertgleich mit OM_ML_SERVER_DEFAULT.
+    const OM_ML_SERVER_PRIMARY = 'open-meteo.wetterheidi.de';
     const OM_ML_SERVER_DEFAULT = 'open-meteo.mah.priv.at';
     // ICON Global (Modelllevel) läuft seit 2026-08 auf einem eigenen Server
     // (Absprache mit Michael): die dwd_icon-Ingestion auf OM_ML_SERVER_DEFAULT
     // ist kaputt (meta.json liefert 500, Modelllevel-Felder kommen durchgehend
-    // null zurück) — auf diesem Server ist ICON Global separat lauffähig.
+    // null zurück) — auf diesem Server ist ICON Global separat lauffähig
+    // (Stichprobe 2026-09-27: dort inzwischen ebenfalls meist null, bleibt
+    // trotzdem letzter Fallback).
     const OM_ML_SERVER_ICON_GLOBAL = 'open-meteo-temp.mah.priv.at';
     const OM_ML_BASE = server => `https://${server}/v1/forecast`;
     const OM_ML_META = (server, dataset) => `https://${server}/data/${dataset}/static/meta.json`;
     const OM_PL_BASE = 'https://api.open-meteo.com/v1/forecast';
     // Terrain-Höhe (Copernicus DEM90): unabhängig vom Modell/Server der Modelllevel-
-    // Daten, aber am selben Server verfügbar wie ICON-D2/ICON-EU (OM_ML_SERVER_DEFAULT).
-    const OM_ELEV_URL = `https://${OM_ML_SERVER_DEFAULT}/v1/elevation`;
+    // Daten. Server-Kette in Prioritätsreihenfolge: der Primärserver hat (Stand
+    // 2026-09-27) noch kein DEM90 und antwortet mit {"elevation":[nan]} (kein
+    // gültiges JSON) -- wird übersprungen und greift automatisch, sobald dort
+    // DEM90 liegt. Danach Michaels Server, zuletzt die öffentliche Instanz.
+    const OM_ELEV_URLS = [OM_ML_SERVER_PRIMARY, OM_ML_SERVER_DEFAULT, 'api.open-meteo.com']
+      .map(server => `https://${server}/v1/elevation`);
 
     // Einfach-Modus (Standard, siehe Skript im <head>): Modelllevel laden und
     // die passenden Druckflächen automatisch als Vergleich dazuholen; die
@@ -4774,9 +4786,9 @@
     // Abstand zwischen zwei Modellläufen (für den Rückfall auf den Vorlauf,
     // falls der neueste Lauf laut meta.json noch nicht fertig ingestiert ist)
     const OM_ML_MODELS = {
-      'ml:icon-d2': { api_model: 'icon_d2',     dataset: 'dwd_icon_d2', n_levels: 65,  label: 'ICON-D2', defSteps: '0:24:1', interval_h: 3, server: OM_ML_SERVER_DEFAULT },
-      'ml:icon-eu': { api_model: 'icon_eu',     dataset: 'dwd_icon_eu', n_levels: 74,  label: 'ICON-EU', defSteps: '0:48:3', interval_h: 6, server: OM_ML_SERVER_DEFAULT },
-      'ml:icon':    { api_model: 'icon_global', dataset: 'dwd_icon',    n_levels: 120, label: 'ICON',    defSteps: '0:72:6', interval_h: 6, server: OM_ML_SERVER_ICON_GLOBAL },
+      'ml:icon-d2': { api_model: 'icon_d2',     dataset: 'dwd_icon_d2', n_levels: 65,  label: 'ICON-D2', defSteps: '0:24:1', interval_h: 3, servers: [OM_ML_SERVER_PRIMARY, OM_ML_SERVER_DEFAULT] },
+      'ml:icon-eu': { api_model: 'icon_eu',     dataset: 'dwd_icon_eu', n_levels: 74,  label: 'ICON-EU', defSteps: '0:48:3', interval_h: 6, servers: [OM_ML_SERVER_PRIMARY, OM_ML_SERVER_DEFAULT] },
+      'ml:icon':    { api_model: 'icon_global', dataset: 'dwd_icon',    n_levels: 120, label: 'ICON',    defSteps: '0:72:6', interval_h: 6, servers: [OM_ML_SERVER_PRIMARY, OM_ML_SERVER_ICON_GLOBAL] },
     };
     // Reihenfolge = Anzeigereihenfolge, wie in om_pressure_tool.html
     const OM_PL_MODELS = {
@@ -4894,14 +4906,17 @@
     // Terrain-Höhe (Copernicus DEM90) für einen Ort holen; scheitert der Abruf,
     // bleibt die DEM-Checkbox einfach ohne Wert (kein Abbruch des Ladevorgangs)
     async function omFetchDem90(lat, lon) {
-      try {
-        const { data } = await omGetJson(`${OM_ELEV_URL}?${new URLSearchParams({ latitude: String(lat), longitude: String(lon) })}`, 20000);
-        const val = data.elevation?.[0];
-        return (typeof val === 'number' && !Number.isNaN(val)) ? val : null;
-      } catch (err) {
-        console.warn('DEM90-Höhe nicht abrufbar:', err);
-        return null;
+      const params = new URLSearchParams({ latitude: String(lat), longitude: String(lon) });
+      for (const url of OM_ELEV_URLS) {
+        try {
+          const { data } = await omGetJson(`${url}?${params}`, 20000);
+          const val = data.elevation?.[0];
+          if (typeof val === 'number' && !Number.isNaN(val)) return val;
+        } catch (err) {
+          console.warn(`DEM90-Höhe nicht abrufbar (${url}):`, err);
+        }
       }
+      return null;
     }
 
     // Letzte unveränderte Server-Antwort (für den Rohdaten-Download)
@@ -4909,7 +4924,7 @@
 
     // ---- Modelllevel vom OM-Server (Portierung von build_soundings()) ----
     // Ruft genau einen Modelllauf ab; der Lauf-Rückfall sitzt in omFetchModelLevels()
-    async function omFetchMlRun(cfg, runStartMs, lat, lon, alias, steps, setStatus) {
+    async function omFetchMlRun(cfg, server, runStartMs, lat, lon, alias, steps, setStatus) {
       const runStart = new Date(runStartMs);
       const run_date = `${runStart.getUTCFullYear()}${omPad2(runStart.getUTCMonth() + 1)}${omPad2(runStart.getUTCDate())}`;
       const run_hour = omPad2(runStart.getUTCHours());
@@ -4946,14 +4961,14 @@
         return p;
       }
 
-      setStatus(`${cfg.label} ${run_date}/${run_hour}Z laden (${cfg.n_levels} Level) …`);
+      setStatus(`${cfg.label} ${run_date}/${run_hour}Z laden (${cfg.n_levels} Level, ${server}) …`);
       let data, text;
       try {
-        ({ data, text } = await omGetJson(`${OM_ML_BASE(cfg.server)}?${buildParams(hourlyVars.concat(cloudVars).concat(lpiVars))}`));
+        ({ data, text } = await omGetJson(`${OM_ML_BASE(server)}?${buildParams(hourlyVars.concat(cloudVars).concat(lpiVars))}`));
       } catch (err) {
         // cloud_water/ice/cover_levelN sind noch nicht überall verfügbar (neu
         // seit 2026) -> einmal ohne diese Felder retryen statt ganz abzubrechen.
-        ({ data, text } = await omGetJson(`${OM_ML_BASE(cfg.server)}?${buildParams(hourlyVars)}`));
+        ({ data, text } = await omGetJson(`${OM_ML_BASE(server)}?${buildParams(hourlyVars)}`));
       }
       const H = data.hourly;
       const times = H.time;
@@ -5004,6 +5019,7 @@
         soundings.push({
           model: cfg.label,
           source: 'open-meteo-dev',
+          om_server: server,   // tatsächlich liefernder Server (Primär oder Fallback)
           run_date, run_hour,
           step_h: step,
           valid_time: new Date(validMs).toISOString().slice(0, 16) + 'Z',
@@ -5021,27 +5037,53 @@
       return { soundings, skipped, run_date, run_hour, text };
     }
 
+    // Probiert die Server in cfg.servers der Reihe nach. Lauf (meta.json) und
+    // Daten kommen dabei IMMER vom selben Server -- ein Fallback-Server kann
+    // einen anderen Lauf geladen haben, und die Daten werden per Gültigkeitszeit
+    // zugeordnet. Ein Server gilt als gescheitert bei Netzwerk-/HTTP-Fehler oder
+    // wenn er (auch mit Vorlauf) kein einziges Profil liefert (z. B. HTTP 200
+    // mit lauter null bei kaputter Ingestion).
     async function omFetchModelLevels(cfg, lat, lon, alias, steps, setStatus) {
-      setStatus('Aktuellen Lauf abfragen (meta.json) …');
-      const meta = (await omGetJson(OM_ML_META(cfg.server, cfg.dataset), 30000)).data;
-      const runStartMs = meta.last_run_initialisation_time * 1000;
+      let lastErr = null;
+      let lastEmpty = null;
+      for (const server of cfg.servers) {
+        const fallback = server !== cfg.servers[0];
+        try {
+          setStatus(`Aktuellen Lauf abfragen (meta.json, ${server}) …`);
+          const meta = (await omGetJson(OM_ML_META(server, cfg.dataset), 30000)).data;
+          const runStartMs = meta.last_run_initialisation_time * 1000;
 
-      let r = await omFetchMlRun(cfg, runStartMs, lat, lon, alias, steps, setStatus);
-      if (r.soundings.length === 0) {
-        // Direkt nach einem Lauf-Wechsel kann meta.json schon den neuen Lauf
-        // melden, obwohl dessen Stundendaten noch nicht (vollständig) auf dem
-        // Server liegen -> einmal mit dem davorliegenden Lauf versuchen
-        setStatus(`Lauf noch unvollständig — versuche Vorlauf (−${cfg.interval_h} h) …`);
-        r = await omFetchMlRun(cfg, runStartMs - cfg.interval_h * 3600000, lat, lon, alias, steps, setStatus);
-      }
+          let r = await omFetchMlRun(cfg, server, runStartMs, lat, lon, alias, steps, setStatus);
+          if (r.soundings.length === 0) {
+            // Direkt nach einem Lauf-Wechsel kann meta.json schon den neuen Lauf
+            // melden, obwohl dessen Stundendaten noch nicht (vollständig) auf dem
+            // Server liegen -> einmal mit dem davorliegenden Lauf versuchen
+            setStatus(`Lauf noch unvollständig — versuche Vorlauf (−${cfg.interval_h} h) …`);
+            r = await omFetchMlRun(cfg, server, runStartMs - cfg.interval_h * 3600000, lat, lon, alias, steps, setStatus);
+          }
+          if (r.soundings.length === 0) {
+            console.warn(`Modelllevel: keine Profile von ${server}, versuche nächsten Server`);
+            lastEmpty = r;
+            continue;
+          }
 
-      if (r.soundings.length > 0) {
-        omLastRaw = {
-          text: r.text,
-          filename: `omserver_modellevel_${cfg.label}_${r.run_date}_${r.run_hour}Z_${omLatLabel(lat)}_${omLonLabel(lon)}.json`,
-        };
+          omLastRaw = {
+            text: r.text,
+            filename: `omserver_modellevel_${cfg.label}_${r.run_date}_${r.run_hour}Z_${omLatLabel(lat)}_${omLonLabel(lon)}.json`,
+          };
+          return {
+            soundings: r.soundings, skipped: r.skipped, runLabel: `${r.run_date}/${r.run_hour}Z`,
+            sourceLabel: `Modelllevel · ${server}${fallback ? ' ⚠ Fallback' : ''}`,
+          };
+        } catch (err) {
+          console.warn(`Modelllevel: ${server} nicht nutzbar:`, err);
+          lastErr = err;
+        }
       }
-      return { soundings: r.soundings, skipped: r.skipped, runLabel: `${r.run_date}/${r.run_hour}Z`, sourceLabel: 'Modelllevel · OM-Server' };
+      if (lastEmpty) {
+        return { soundings: [], skipped: lastEmpty.skipped, runLabel: `${lastEmpty.run_date}/${lastEmpty.run_hour}Z`, sourceLabel: 'Modelllevel · OM-Server' };
+      }
+      throw lastErr ?? new Error('Kein Modelllevel-Server erreichbar');
     }
 
     // Tatsächlich verfügbarer Vorhersagehorizont je Modell, live aus meta.json
@@ -5053,7 +5095,14 @@
     async function omFetchMaxStep(cfg) {
       const cached = omMaxStepCache.get(cfg.dataset);
       if (cached && Date.now() - cached.ts < OM_MAX_STEP_TTL) return cached.maxStep;
-      const meta = (await omGetJson(OM_ML_META(cfg.server, cfg.dataset), 15000)).data;
+      // Erster erreichbarer Server (wie omFetchModelLevels, dort ist der
+      // Primärserver im Normalfall auch der liefernde).
+      let meta = null, lastErr = null;
+      for (const server of cfg.servers) {
+        try { meta = (await omGetJson(OM_ML_META(server, cfg.dataset), 15000)).data; break; }
+        catch (err) { lastErr = err; }
+      }
+      if (!meta) throw lastErr;
       const maxStep = Math.max(1, Math.floor((meta.data_end_time - meta.last_run_initialisation_time) / 3600));
       omMaxStepCache.set(cfg.dataset, { maxStep, ts: Date.now() });
       return maxStep;

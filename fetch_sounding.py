@@ -77,20 +77,30 @@ MODEL_CFG = {
     }
 }
 
-# Terrain-Höhe (Copernicus DEM90) von Michaels Server -- unabhängig vom DWD-Opendata-
-# Pfad dieses Skripts, aber praktischerweise am selben Server verfügbar wie die
-# ICON-D2/ICON-EU-Modelllevel-Daten (siehe fetch_sounding_openmeteo.py).
-DEM_ELEVATION_URL = "https://open-meteo.mah.priv.at/v1/elevation"
+# Terrain-Höhe (Copernicus DEM90) -- unabhängig vom DWD-Opendata-Pfad dieses
+# Skripts. Server-Kette in Prioritätsreihenfolge (wie fetch_sounding_openmeteo.py):
+# open-meteo.wetterheidi.de hat (Stand 2026-09-27) noch kein DEM90 und antwortet
+# mit {"elevation":[nan]} (kein gültiges JSON) -- wird übersprungen und greift
+# automatisch, sobald dort DEM90 liegt. Danach Michaels Server, zuletzt die
+# öffentliche Instanz.
+DEM_ELEVATION_URLS = [
+    "https://open-meteo.wetterheidi.de/v1/elevation",
+    "https://open-meteo.mah.priv.at/v1/elevation",
+    "https://api.open-meteo.com/v1/elevation",
+]
 
 def fetch_dem90_elevation(lat: float, lon: float) -> float | None:
-    try:
-        r = requests.get(DEM_ELEVATION_URL, params={"latitude": lat, "longitude": lon}, timeout=20)
-        r.raise_for_status()
-        val = r.json().get("elevation", [None])[0]
-        return val if val is not None and not math.isnan(val) else None
-    except (requests.RequestException, KeyError, IndexError, ValueError) as e:
-        log.warning(f"  DEM90-Höhe nicht abrufbar: {e}")
-        return None
+    for url in DEM_ELEVATION_URLS:
+        try:
+            r = requests.get(url, params={"latitude": lat, "longitude": lon}, timeout=20)
+            r.raise_for_status()
+            val = r.json().get("elevation", [None])[0]
+            if val is not None and not math.isnan(val):
+                return val
+        except (requests.RequestException, KeyError, IndexError, TypeError, ValueError) as e:
+            log.info(f"  DEM90-Höhe von {url} nicht abrufbar: {e}")
+    log.warning("  DEM90-Höhe auf keinem Server abrufbar")
+    return None
 
 def _var_filename(param: str, cfg: dict) -> str:
     """Variablenname im Dateinamen: je nach Modell groß oder klein."""

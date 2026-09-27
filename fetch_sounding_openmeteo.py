@@ -25,22 +25,32 @@ from urllib import error as urlerror, parse as urlparse, request as urlrequest
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)-7s  %(message)s", datefmt="%H:%M:%S")
 log = logging.getLogger(__name__)
 
+# Primärer Server seit 2026-09: hostet ICON-D2, ICON-EU UND ICON Global mit
+# identischem API-Aufbau (Stichprobe 2026-09-27: für ICON-D2/-EU wertgleich mit
+# SERVER_DEFAULT). Michaels Server bleiben als Fallback, s. MODEL_CFG["servers"].
+SERVER_PRIMARY = "open-meteo.wetterheidi.de"
 # Produktions-Instanz (open-meteo-dev.mah.priv.at hängt an einer kaputten
 # Ingestion und blieb auf altem Modelllauf stehen, siehe Absprache mit Michael).
+# Seit 2026-09 nur noch Fallback.
 SERVER_DEFAULT = "open-meteo.mah.priv.at"
 # ICON Global (Modelllevel) läuft seit 2026-08 auf einem eigenen Server (Absprache
 # mit Michael): die dwd_icon-Ingestion auf SERVER_DEFAULT ist kaputt (meta.json
 # liefert 500, Modelllevel-Felder kommen durchgehend null zurück) — auf diesem
-# Server ist ICON Global separat lauffähig.
+# Server ist ICON Global separat lauffähig. Seit 2026-09 nur noch Fallback
+# (Stichprobe 2026-09-27: liefert inzwischen ebenfalls meist null).
 SERVER_ICON_GLOBAL = "open-meteo-temp.mah.priv.at"
+# DEM90-Geländehöhe: Server-Kette. SERVER_PRIMARY hat (Stand 2026-09-27) noch
+# kein DEM90 und antwortet mit {"elevation":[nan]} (kein gültiges JSON) -- wird
+# übersprungen und greift automatisch, sobald dort DEM90 liegt.
+ELEVATION_SERVERS = [SERVER_PRIMARY, SERVER_DEFAULT, "api.open-meteo.com"]
 BASE_URL = "https://{server}/v1/forecast"
 META_URL = "https://{server}/data/{dataset}/static/meta.json"
 ELEVATION_URL = "https://{server}/v1/elevation"
 
 MODEL_CFG = {
-    "icon-d2": {"api_model": "icon_d2", "dataset": "dwd_icon_d2", "n_levels": 65, "label": "ICON-D2", "server": SERVER_DEFAULT},
-    "icon-eu": {"api_model": "icon_eu", "dataset": "dwd_icon_eu", "n_levels": 74, "label": "ICON-EU", "server": SERVER_DEFAULT},
-    "icon":    {"api_model": "icon_global", "dataset": "dwd_icon", "n_levels": 120, "label": "ICON", "server": SERVER_ICON_GLOBAL},
+    "icon-d2": {"api_model": "icon_d2", "dataset": "dwd_icon_d2", "n_levels": 65, "label": "ICON-D2", "servers": [SERVER_PRIMARY, SERVER_DEFAULT]},
+    "icon-eu": {"api_model": "icon_eu", "dataset": "dwd_icon_eu", "n_levels": 74, "label": "ICON-EU", "servers": [SERVER_PRIMARY, SERVER_DEFAULT]},
+    "icon":    {"api_model": "icon_global", "dataset": "dwd_icon", "n_levels": 120, "label": "ICON", "servers": [SERVER_PRIMARY, SERVER_ICON_GLOBAL]},
 }
 
 
@@ -128,17 +138,19 @@ def humidity_to_dewpoint(qv_gkg: float | None, rh_pct: float | None,
 
 
 def fetch_dem90_elevation(lat: float, lon: float) -> float | None:
-    """Terrain-Höhe (Copernicus DEM90) von Michaels Server, unabhängig vom Modell/Server
-    der Modelllevel-Daten -- SERVER_DEFAULT liefert diesen Endpunkt zuverlässig,
-    SERVER_ICON_GLOBAL (Behelfsserver) dagegen aktuell nur "nan" (per curl geprüft)."""
-    url = f"{ELEVATION_URL.format(server=SERVER_DEFAULT)}?{urlparse.urlencode({'latitude': lat, 'longitude': lon})}"
-    try:
-        data = _get_json(url, timeout=20)
-        val = data.get("elevation", [None])[0]
-        return val if val is not None and not math.isnan(val) else None
-    except (urlerror.URLError, KeyError, IndexError, ValueError) as e:
-        log.warning(f"  DEM90-Höhe nicht abrufbar: {e}")
-        return None
+    """Terrain-Höhe (Copernicus DEM90), unabhängig vom Modell/Server der
+    Modelllevel-Daten: erster Server aus ELEVATION_SERVERS mit gültigem Wert."""
+    query = urlparse.urlencode({"latitude": lat, "longitude": lon})
+    for server in ELEVATION_SERVERS:
+        try:
+            data = _get_json(f"{ELEVATION_URL.format(server=server)}?{query}", timeout=20)
+            val = data.get("elevation", [None])[0]
+            if val is not None and not math.isnan(val):
+                return val
+        except (urlerror.URLError, OSError, KeyError, IndexError, TypeError, ValueError) as e:
+            log.info(f"  DEM90-Höhe von {server} nicht abrufbar: {e}")
+    log.warning("  DEM90-Höhe auf keinem Server abrufbar")
+    return None
 
 
 def current_run(server: str, dataset: str) -> tuple[datetime, str]:
@@ -161,7 +173,7 @@ def fetch_hourly(server: str, lat: float, lon: float, api_model: str, hourly_var
     return _get_json(url, timeout=90)
 
 
-def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run: str,
+def build_soundings(server: str, lat: float, lon: float, model: str, run_date: datetime, run: str,
                      steps: list[int], alias: str | None = None) -> list[dict]:
     cfg = MODEL_CFG[model]
     n_lev = cfg["n_levels"]
@@ -183,15 +195,15 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
     forecast_days = max(1, ((run_start - now).days) + (max_step // 24) + 2)
 
     log.info(f"━━ {cfg['label']}  {run_date.strftime('%Y%m%d')}/{run}Z  ({lat}, {lon})  "
-             f"{n_lev} Level, {len(steps)} Schritte, 1 Request ━━")
+             f"{n_lev} Level, {len(steps)} Schritte, 1 Request, {server} ━━")
     try:
-        data = fetch_hourly(cfg["server"], lat, lon, cfg["api_model"], hourly_vars + cloud_vars + lpi_vars, forecast_days)
+        data = fetch_hourly(server, lat, lon, cfg["api_model"], hourly_vars + cloud_vars + lpi_vars, forecast_days)
     except urlerror.HTTPError as e:
         # cloud_water/ice/cover_levelN sind noch nicht überall verfügbar (neu seit
         # 2026, siehe Absprache mit Michael) -> einmal ohne diese Felder retryen,
         # statt den ganzen Lauf abzubrechen.
         log.warning(f"  cloud_water/ice/cover_levelN nicht abrufbar ({e.code}), retry ohne Wolkenfelder")
-        data = fetch_hourly(cfg["server"], lat, lon, cfg["api_model"], hourly_vars, forecast_days)
+        data = fetch_hourly(server, lat, lon, cfg["api_model"], hourly_vars, forecast_days)
     H = data["hourly"]
     times = H["time"]
     elev = data.get("elevation")
@@ -250,6 +262,7 @@ def build_soundings(lat: float, lon: float, model: str, run_date: datetime, run:
         soundings.append({
             "model": cfg["label"],
             "source": "open-meteo-dev",
+            "om_server": server,   # tatsächlich liefernder Server (Primär oder Fallback)
             "run_date": run_date.strftime("%Y%m%d"),
             "run_hour": run,
             "step_h": step,
@@ -291,21 +304,36 @@ def main():
     args = ap.parse_args()
 
     cfg = MODEL_CFG[args.model]
-
-    if args.run:
-        run = args.run.zfill(2)
-        run_date = datetime.strptime(args.date, "%Y%m%d") if args.date else datetime.now(timezone.utc).replace(
-            hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
-    else:
-        run_date, run = current_run(cfg["server"], cfg["dataset"])
-        run_date = run_date.replace(tzinfo=None)
-        log.info(f"Aktueller Lauf laut meta.json: {run_date.strftime('%Y%m%d')}/{run}Z")
-
     steps = parse_steps(args.step)
     out_dir = Path(args.outdir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    soundings = build_soundings(args.lat, args.lon, args.model, run_date, run, steps, alias=args.alias)
+    # Server der Reihe nach probieren (cfg["servers"], Reihenfolge = Priorität).
+    # Lauf (meta.json) und Daten kommen dabei IMMER vom selben Server -- ein
+    # Fallback-Server kann einen anderen Lauf geladen haben, und die Daten werden
+    # per Gültigkeitszeit zugeordnet. Ein Server gilt als gescheitert bei
+    # Netzwerk-/HTTP-Fehler oder wenn er kein einziges Profil liefert (z. B.
+    # HTTP 200 mit lauter null bei kaputter Ingestion).
+    soundings = []
+    for server in cfg["servers"]:
+        fallback = server != cfg["servers"][0]
+        try:
+            if args.run:
+                run = args.run.zfill(2)
+                run_date = datetime.strptime(args.date, "%Y%m%d") if args.date else datetime.now(timezone.utc).replace(
+                    hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+            else:
+                run_date, run = current_run(server, cfg["dataset"])
+                run_date = run_date.replace(tzinfo=None)
+                log.info(f"Aktueller Lauf laut meta.json ({server}): {run_date.strftime('%Y%m%d')}/{run}Z")
+            soundings = build_soundings(server, args.lat, args.lon, args.model, run_date, run, steps, alias=args.alias)
+        except (urlerror.URLError, OSError, KeyError, ValueError) as e:
+            log.warning(f"Server {server} nicht nutzbar: {e}")
+            continue
+        if soundings:
+            log.info(f"Datenquelle: {server}" + (" (FALLBACK)" if fallback else ""))
+            break
+        log.warning(f"Server {server} lieferte keine Profile -- versuche nächsten Server")
 
     if soundings:
         lat_s = f"{abs(args.lat):.2f}{'N' if args.lat >= 0 else 'S'}"

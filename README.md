@@ -159,9 +159,12 @@ Eigenständige Variante des Viewers unter https://tlogpviewer.wetterheidi.de/om/
 live von Open-Meteo geladen, der Ort wird per Leaflet-Karte (oder Koordinaten-Eingabe)
 gewählt.
 
-- **Modelllevel** (native ICON-Level): OM-Server `open-meteo.mah.priv.at` (ICON Global
-  separat auf `open-meteo-temp.mah.priv.at`), Lauf automatisch der neueste laut
-  `meta.json` — JS-Portierung von `fetch_sounding_openmeteo.py`
+- **Modelllevel** (native ICON-Level): primär `open-meteo.wetterheidi.de` (ICON-D2,
+  ICON-EU und ICON Global), Fallback `open-meteo.mah.priv.at` bzw. für ICON Global
+  `open-meteo-temp.mah.priv.at`. Lauf automatisch der neueste laut `meta.json` desselben
+  Servers. Die Statuszeile nach dem Laden nennt den tatsächlich liefernden Server
+  („⚠ Fallback“, wenn nicht der primäre), jedes Profil trägt ihn im Feld `om_server`
+  — JS-Portierung von `fetch_sounding_openmeteo.py` (dort gleiche Server-Reihenfolge)
 - **Druckflächen** (1000–30 hPa): öffentliche API `api.open-meteo.com` — Logik aus
   `om_pressure_tool.html`, hier direkt in den Viewer integriert
 - **Rohdaten-Download**: die letzte Server-Antwort kann unverändert (byte-identisch)
