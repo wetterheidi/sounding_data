@@ -291,6 +291,42 @@ genug beieinanderliegen.
 - **DEM-Höhe:** Checkbox blendet eine Referenzlinie auf Basis Copernicus-DEM90 ein (Standard: aus)
 - **Modellwolken:** per Default aktiv (nutzt QW/QI/Bedeckungsgrad des Modells statt reiner RH-Schwelle)
 
+### Diagrammwerte am Mauspunkt
+Die Sidebar zeigt beim Hovern die Werte des **Profils** auf dem nächsten Modell-Level. Für die
+Werte des **Diagramms** genau unter dem Mauszeiger (unabhängig von der Kurve) gibt es einen
+Tooltip, der nur bei Bedarf erscheint:
+
+| Bedienung | Wirkung |
+|---|---|
+| **Shift** halten | Tooltip am Mauspunkt, verschwindet beim Loslassen |
+| **I** | Tooltip dauerhaft ein/aus (wirkt nicht in Eingabefeldern) |
+| **Shift + Klick** | Punkt **A** anheften, zweiter Klick setzt **B**, dritter beginnt neu bei A |
+| **Esc** | Angeheftete Punkte löschen |
+
+Inhalt des Tooltips (die farbigen Zeilen entsprechen den gestrichelten Hilfslinien durch den Mauspunkt):
+
+| Zeile | Bedeutung |
+|---|---|
+| p | Druck [hPa] |
+| T | Temperatur an der Diagrammposition [°C] |
+| z | Höhe dieses Druckniveaus, log-p-interpoliert aus dem aktuellen Profil [m AGL / ft AMSL] |
+| θ (orange) | Potentielle Temperatur = Trockenadiabate durch den Punkt [°C und K] |
+| ws (grün) | Sättigungsmischungsverhältnis = Isohume durch den Punkt [g/kg] |
+| θw (blau) | Feuchtadiabate durch den Punkt, als Temperatur bei 1000 hPa [°C] |
+
+Mit gesetztem Punkt A zeigt der Tooltip zusätzlich die Differenzen Maus − A; sind A und B gesetzt,
+steht bei B ein fester Kasten mit B − A:
+
+| Zeile | Bedeutung |
+|---|---|
+| Δp, ΔT | Druck- [hPa] und Temperaturdifferenz [K] |
+| Δz | Höhendifferenz [m / ft] |
+| Γ | Temperaturgradient −ΔT/Δz [K/100 m]; positiv = Abkühlung mit der Höhe, trockenadiabatisch ≈ 0,98 |
+| Δθ | Differenz der potentiellen Temperatur [K]; ≈ 0 trockenadiabatisch, > 0 stabil, < 0 überadiabatisch |
+
+Die Punkte sind in (p, T) gespeichert und bleiben beim Zoomen/Verschieben an ihrer Diagrammposition.
+Höhen (z, Δz, Γ) beziehen sich immer auf den gerade angezeigten Termin der Hauptkurve.
+
 ---
 
 ## Referenz: DWD ICON Modelle
