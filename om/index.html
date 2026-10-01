@@ -4122,9 +4122,14 @@
     });
 
     // Keyboard-Navigation
+    // preventDefault verhindert, dass ein fokussierter Slider zusätzlich selbst einen Schritt macht
+    // (sonst würde der übernächste Termin angesprungen). In Textfeldern/Dropdowns nicht eingreifen.
     document.addEventListener('keydown', e => {
-      if (e.key === 'ArrowRight') jumpTo(STATE.currentIdx + 1);
-      if (e.key === 'ArrowLeft') jumpTo(STATE.currentIdx - 1);
+      const t = e.target;
+      if (t !== document.getElementById('timeslider') &&
+          (t.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName))) return;
+      if (e.key === 'ArrowRight') { e.preventDefault(); jumpTo(STATE.currentIdx + 1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); jumpTo(STATE.currentIdx - 1); }
       if (e.key === ' ') { e.preventDefault(); togglePlay(); }
     });
 
