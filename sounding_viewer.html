@@ -1244,7 +1244,11 @@
         <div style="font-size: 11px; color: var(--text2); line-height: 1.5;">
           <b>Mausrad:</b> Zoomen<br>
           <b>Klick & Ziehen:</b> Verschieben<br>
-          <b>Doppelklick:</b> Zoom zurücksetzen
+          <b>Doppelklick:</b> Zoom zurücksetzen<br>
+          <b>Shift halten:</b> Diagrammwerte am Mauspunkt<br>
+          <b>I:</b> Diagrammwerte dauerhaft ein/aus<br>
+          <b>Shift+Klick:</b> Punkt A/B anheften (Differenzen)<br>
+          <b>Esc:</b> angeheftete Punkte löschen
         </div>
       </details>
       </div><!-- #sidebar-scroll -->
@@ -1277,7 +1281,9 @@
       animTimer: null,
       animPlaying: false,
       mouseHover: null,
-      probeKey: false, // Shift gedrückt → Diagrammwerte-Tooltip am Mauspunkt
+      probeKey: false,    // Shift gedrückt → Diagrammwerte-Tooltip am Mauspunkt
+      probeSticky: false, // Taste I → Tooltip dauerhaft an
+      probePins: [],      // Shift+Klick: bis zu zwei angeheftete Punkte {p_hPa, T_C}
       showCapeLfc: false,
       showCapeCcl: false,
       showCat: false,
@@ -1840,7 +1846,7 @@
       // --- NEU: Clipping und Zeichen-Status wieder zurücksetzen ---
       ctx.restore();
 
-      if (STATE.probeKey) drawProbeTooltip(center.x, center.y, p_m, T_m, snd, p_sfc);
+      if (STATE.probeKey || STATE.probeSticky) drawProbeTooltip(center.x, center.y, p_m, T_m, snd);
     }
 
     // Höhe [m AGL] am Druck p aus dem Profil, linear in ln(p) interpoliert
@@ -1856,31 +1862,57 @@
       return null;
     }
 
-    // Diagrammwerte genau am Mauspunkt (nicht die Temp-Werte) — nur solange Shift gedrückt ist.
-    // Die Farben der Zeilen entsprechen den gestrichelten Hilfslinien durch den Punkt.
-    function drawProbeTooltip(cx, cy, p_m, T_m, snd, p_sfc) {
-      const T_K = T_m + 273.15;
-      const theta = MET.potential_T(T_K, p_m) - 273.15;
-      const thetaW = MET.moist_adiabat_T(T_K, p_m, 1000) - 273.15;
-      const ws = MET.mixing_ratio(T_m, p_m) * 1000;
-      const rows = [
-        [`p   ${p_m.toFixed(0)} hPa`, PALETTE.hodoText],
-        [`T   ${T_m.toFixed(1)} °C`, PALETTE.hodoText],
-      ];
-      if (snd && p_m <= p_sfc) {
-        const z = heightAtP(snd.levels, p_m);
+    // Diagrammwerte an einem Punkt (p, T) — nicht die Temp-Werte; Höhe aus dem aktuellen Profil
+    function probeValues(p, T, snd) {
+      const T_K = T + 273.15;
+      const p_sfc = snd && snd.levels.length > 0 ? snd.levels[0].p_hPa : null;
+      let z = null, amsl = null;
+      if (p_sfc != null && p <= p_sfc) {
+        z = heightAtP(snd.levels, p);
         if (z != null) {
           const z_sfc = snd.hsurf_m ?? 44330 * (1 - Math.pow(p_sfc / 1013.25, 0.19026));
-          const amsl = z + Math.max(0, z_sfc);
-          rows.push([`z   ${Math.round(z)} m AGL / ${Math.round(amsl * 3.28084)} ft`, PALETTE.hodoText]);
+          amsl = z + Math.max(0, z_sfc);
         }
       }
-      rows.push(
-        [`θ   ${theta.toFixed(1)} °C (${(theta + 273.15).toFixed(1)} K)`, '#e0b83a'],
-        [`ws  ${ws < 1 ? ws.toFixed(2) : ws.toFixed(1)} g/kg`, '#4ab56e'],
-        [`θw  ${thetaW.toFixed(1)} °C`, '#4a90e2'],
-      );
+      return {
+        p, T, z, amsl,
+        theta: MET.potential_T(T_K, p) - 273.15,
+        thetaW: MET.moist_adiabat_T(T_K, p, 1000) - 273.15,
+        ws: MET.mixing_ratio(T, p) * 1000,
+      };
+    }
 
+    // Die Farben der θ/ws/θw-Zeilen entsprechen den gestrichelten Hilfslinien durch den Punkt
+    function probeRows(v) {
+      const rows = [
+        [`p   ${v.p.toFixed(0)} hPa`, PALETTE.hodoText],
+        [`T   ${v.T.toFixed(1)} °C`, PALETTE.hodoText],
+      ];
+      if (v.z != null) rows.push([`z   ${Math.round(v.z)} m AGL / ${Math.round(v.amsl * 3.28084)} ft`, PALETTE.hodoText]);
+      rows.push(
+        [`θ   ${v.theta.toFixed(1)} °C (${(v.theta + 273.15).toFixed(1)} K)`, '#e0b83a'],
+        [`ws  ${v.ws < 1 ? v.ws.toFixed(2) : v.ws.toFixed(1)} g/kg`, '#4ab56e'],
+        [`θw  ${v.thetaW.toFixed(1)} °C`, '#4a90e2'],
+      );
+      return rows;
+    }
+
+    // Differenzen b − a; Γ = −ΔT/Δz (positiv = Abkühlung mit der Höhe, trockenadiabatisch ≈ 0.98)
+    function deltaRows(a, b, title) {
+      const sg = (x, d) => (x > 0 ? '+' : '') + x.toFixed(d);
+      const rows = [[title, PALETTE.hodoLegend]];
+      rows.push([`Δp  ${sg(b.p - a.p, 0)} hPa`, PALETTE.hodoText]);
+      rows.push([`ΔT  ${sg(b.T - a.T, 1)} K`, PALETTE.hodoText]);
+      if (a.z != null && b.z != null) {
+        const dz = b.z - a.z;
+        rows.push([`Δz  ${sg(dz, 0)} m / ${sg(dz * 3.28084, 0)} ft`, PALETTE.hodoText]);
+        if (Math.abs(dz) >= 1) rows.push([`Γ   ${(-(b.T - a.T) / dz * 100).toFixed(2)} K/100 m`, PALETTE.hodoText]);
+      }
+      rows.push([`Δθ  ${sg(b.theta - a.theta, 1)} K`, '#e0b83a']);
+      return rows;
+    }
+
+    function drawTooltipBox(rows, cx, cy) {
       ctx.save();
       ctx.font = '11px IBM Plex Mono, monospace';
       const pad = 6, lh = 15;
@@ -1888,7 +1920,7 @@
       const h = rows.length * lh + 2 * pad - 3;
       const Wc = canvas.width / (window.devicePixelRatio || 1);
       const Hc = canvas.height / (window.devicePixelRatio || 1);
-      // Standardmäßig rechts unterhalb des Cursors, am Rand auf die andere Seite klappen
+      // Standardmäßig rechts unterhalb des Punkts, am Rand auf die andere Seite klappen
       let x = cx + 14, y = cy + 14;
       if (x + w > Wc - 4) x = cx - 14 - w;
       if (y + h > Hc - 4) y = cy - 14 - h;
@@ -1905,6 +1937,64 @@
         ctx.fillText(txt, x + pad, y + pad + i * lh);
       });
       ctx.restore();
+    }
+
+    // Live-Tooltip am Mauspunkt (Shift halten oder mit "I" dauerhaft an);
+    // mit einem gesetzten Pin A zusätzlich die Differenzen Maus − A
+    function drawProbeTooltip(cx, cy, p_m, T_m, snd) {
+      const v = probeValues(p_m, T_m, snd);
+      let rows = probeRows(v);
+      if (STATE.probePins.length === 1) {
+        const a = STATE.probePins[0];
+        rows = rows.concat(deltaRows(probeValues(a.p_hPa, a.T_C, snd), v, '— Δ zu A —'));
+      }
+      drawTooltipBox(rows, cx, cy);
+    }
+
+    // Angeheftete Punkte (Shift+Klick): A, B, Verbindungslinie und Differenzen-Kasten bei B.
+    // Gespeichert in (p, T), damit sie Zoom/Verschieben überstehen.
+    function drawProbePins() {
+      const pins = STATE.probePins;
+      if (!proj || pins.length === 0) return;
+      const snd = STATE.soundings[STATE.currentIdx];
+      const m = proj.margin;
+      const pts = pins.map(pp => proj.toCanvas(pp.T_C, pp.p_hPa));
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(m.left, m.top, proj.W, proj.H);
+      ctx.clip();
+      ctx.strokeStyle = PALETTE.crosshair;
+      ctx.lineWidth = 1.5;
+      // Linie A→B bzw. gestrichelt A→Maus, solange B noch fehlt und der Tooltip aktiv ist
+      const hov = STATE.mouseHover;
+      const live = (STATE.probeKey || STATE.probeSticky) && hov;
+      if (pts.length === 2 || live) {
+        const end = pts.length === 2 ? pts[1] : proj.toCanvas(hov.T_C, hov.p_hPa);
+        ctx.setLineDash(pts.length === 2 ? [] : [2, 3]);
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.font = 'bold 11px IBM Plex Mono, monospace';
+      ctx.textBaseline = 'bottom';
+      pts.forEach((c, i) => {
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = PALETTE.hodoBg;
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = PALETTE.crosshair;
+        ctx.fillText(i === 0 ? 'A' : 'B', c.x + 7, c.y - 4);
+      });
+      ctx.restore();
+
+      if (pts.length === 2) {
+        const [a, b] = pins.map(pp => probeValues(pp.p_hPa, pp.T_C, snd));
+        drawTooltipBox(deltaRows(a, b, '— B − A —  (Esc löscht)'), pts[1].x, pts[1].y);
+      }
     }
 
     // =========================================================================
@@ -2947,6 +3037,7 @@
         computeAndDisplayIndices(snd);
         drawSounding(snd, visibleOverlays());
       }
+      drawProbePins();        // vor den Maus-Linien, damit der Live-Tooltip obenauf liegt
       drawInteractiveLines(); // HIER zeichnen wir die neuen Maus-Linien!
       drawHodograph();
     }
@@ -6717,6 +6808,17 @@
 
     canvas.addEventListener('mousedown', e => {
       if (e.button !== 0) return; // Nur linke Maustaste erlaubt ziehen
+      if (e.shiftKey && proj) {
+        // Shift+Klick: Punkt anheften (A, dann B; der dritte Klick beginnt neu bei A)
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const p_hPa = proj.canvasY2p(e.clientY - rect.top);
+        if (p_hPa < proj.p_top || p_hPa > proj.p_bot) return;
+        const pin = { p_hPa, T_C: proj.canvas2T(e.clientX - rect.left, p_hPa) };
+        STATE.probePins = STATE.probePins.length >= 2 ? [pin] : [...STATE.probePins, pin];
+        redraw();
+        return;
+      }
       isDragging = true;
       dragStart = { x: e.clientX, y: e.clientY };
       projStart = { x: proj.offsetX, y: proj.offsetY };
@@ -6740,7 +6842,7 @@
 
     // Klick auf Hodograph-Expand-Button
     canvas.addEventListener('click', e => {
-      if (!STATE.showHodograph || !proj) return;
+      if (!STATE.showHodograph || !proj || e.shiftKey) return;
       const rect = canvas.getBoundingClientRect();
       const dpr  = window.devicePixelRatio || 1;
       const mx   = (e.clientX - rect.left) * dpr;
@@ -6883,7 +6985,18 @@
       STATE.probeKey = on;
       if (STATE.mouseHover) redraw();
     }
-    window.addEventListener('keydown', e => { if (e.key === 'Shift') setProbeKey(true); });
+    window.addEventListener('keydown', e => {
+      if (e.key === 'Shift') { setProbeKey(true); return; }
+      const t = e.target;
+      if (t.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // I: Tooltip dauerhaft ein/aus
+      if (e.key === 'i' || e.key === 'I') { STATE.probeSticky = !STATE.probeSticky; if (STATE.mouseHover) redraw(); }
+      // Esc: angeheftete Punkte löschen (Dialog schließt sein eigener Handler)
+      if (e.key === 'Escape' && STATE.probePins.length && omDialog.classList.contains('hidden')) {
+        STATE.probePins = []; redraw();
+      }
+    });
     window.addEventListener('keyup', e => { if (e.key === 'Shift') setProbeKey(false); });
     window.addEventListener('blur', () => setProbeKey(false));
 
