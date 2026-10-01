@@ -744,6 +744,7 @@
 
     #om-map {
       height: 300px;
+      flex-shrink: 0;             /* lieber scrollt das Panel, als dass die Karte schrumpft */
       border: 1px solid var(--border);
       border-radius: var(--radius);
       background: var(--bg3);
@@ -788,6 +789,69 @@
     }
 
     .om-hint { font-size: 11px; color: var(--text3); line-height: 1.5; }
+
+    /* Ortssuche mit Historie/Favoriten im Ladedialog */
+    #loc-search-wrap { position: relative; }
+    #loc-search-results {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 100%;
+      z-index: 1001;              /* über den Leaflet-Panes/-Controls */
+      margin: 2px 0 0;
+      padding: 0;
+      list-style: none;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, .35);
+      max-height: 260px;
+      overflow-y: auto;
+    }
+    #loc-search-results li {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 6px;
+      padding: 6px 9px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1.3;
+      color: var(--text);
+    }
+    #loc-search-results li:last-child { border-bottom: none; }
+    #loc-search-results li:hover,
+    #loc-search-results li.active { background: var(--bg3); }
+    #loc-search-results .geo-text { min-width: 0; }
+    #loc-search-results .geo-sub {
+      display: block;
+      color: var(--text3);
+      font-family: var(--mono);
+      font-size: 10.5px;
+    }
+    #loc-search-results .geo-star {
+      flex: 0 0 auto;
+      border: none;
+      background: none;
+      padding: 0 2px;
+      font-size: 15px;
+      line-height: 1.2;
+      color: var(--text3);
+      cursor: pointer;
+    }
+    #loc-search-results .geo-star:hover { color: #d9a441; }
+    #loc-search-results .geo-star.fav { color: #e0a93a; }
+    #loc-search-results li.geo-hist-head {
+      cursor: default;
+      padding: 4px 9px;
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--text3);
+      background: var(--bg3);
+    }
 
     #om-status {
       font-family: var(--mono);
@@ -934,6 +998,16 @@
           </div>
           <div id="cmp-picker"></div>
         </div>
+      </div>
+
+      <!-- Ortssuche mit Historie + Favoriten (wie Dronecast/Trajektorien):
+           Fokus auf das leere Feld zeigt die zuletzt geladenen Orte, ☆ markiert
+           einen als Favorit (wird nie aus der Historie verdrängt). -->
+      <div id="loc-search-wrap" class="om-field src-only ml pl obs">
+        <label for="loc-search">Ort suchen · Koordinate · zuletzt verwendet</label>
+        <input type="text" id="loc-search" autocomplete="off" spellcheck="false"
+          placeholder="Ortsname oder 47.98, 11.23 — leeres Feld anklicken für Historie/Favoriten">
+        <ul id="loc-search-results" hidden></ul>
       </div>
 
       <!-- Karte: für alle ortsbezogenen Quellen -->
@@ -5984,6 +6058,242 @@
     }
 
     // =========================================================================
+    // Ortssuche mit Historie + Favoriten im Ladedialog
+    //
+    // Gleiche Systematik wie im Dronecast/Trajektorientool (src/geocode.js dort):
+    // die zuletzt tatsächlich geladenen Orte (max. LOC_HISTORY_MAX) landen in
+    // localStorage, ☆/★ markiert Favoriten, die nie verdrängt werden. Fokus auf
+    // das leere Suchfeld zeigt die Liste; Tippen sucht per Photon bzw. erkennt
+    // eine Dezimalkoordinate "lat, lon". Der Alias wird mitgespeichert und beim
+    // Auswählen wieder eingesetzt.
+    // =========================================================================
+    const LOC_HISTORY_KEY = 'tlogp-loc-history.v1';
+    const LOC_HISTORY_MAX = 8;
+    const PHOTON_SEARCH_URL = 'https://photon.komoot.io/api/';
+
+    function loadLocHistory() {
+      try {
+        const list = JSON.parse(localStorage.getItem(LOC_HISTORY_KEY));
+        return Array.isArray(list) ? list : [];
+      } catch { return []; }
+    }
+    function saveLocHistory(list) {
+      try { localStorage.setItem(LOC_HISTORY_KEY, JSON.stringify(list)); }
+      catch { /* Speichern ist Komfort, nie Fehlerquelle */ }
+    }
+    const sameLoc = (e, lat, lon) => Math.abs(e.lat - lat) <= 1e-4 && Math.abs(e.lon - lon) <= 1e-4;
+
+    // Favoriten zählen nicht gegen die Kapazität — nur die LOC_HISTORY_MAX
+    // jüngsten unmarkierten Einträge bleiben beim Einreihen erhalten.
+    function capLocHistory(list) {
+      let kept = 0;
+      return list.filter(e => e.fav || ++kept <= LOC_HISTORY_MAX);
+    }
+
+    // Erfolgreich geladenen Ort vorn einreihen; denselben Ort ersetzen statt
+    // duplizieren (Favoritenstatus bleibt erhalten, ein leerer Alias
+    // überschreibt keinen früher vergebenen).
+    async function recordLocHistory(lat, lon, alias) {
+      const place = await reverseGeocodePlace(lat, lon);   // gecacht, meist sofort
+      const list = loadLocHistory();
+      const idx = list.findIndex(e => sameLoc(e, lat, lon));
+      const prev = idx >= 0 ? list.splice(idx, 1)[0] : null;
+      list.unshift({ lat, lon, alias: alias || prev?.alias || '', place: place || prev?.place || '', fav: !!prev?.fav });
+      saveLocHistory(capLocHistory(list));
+    }
+
+    // Favoritenstatus umschalten, ohne sofort zu kappen — überzählige Einträge
+    // fallen erst beim nächsten recordLocHistory() heraus, damit ein Klick auf
+    // den Stern nicht nebenbei andere Einträge aus der offenen Liste wirft.
+    function setLocFavorite(lat, lon, fav) {
+      const list = loadLocHistory();
+      const e = list.find(x => sameLoc(x, lat, lon));
+      if (!e) return;
+      e.fav = fav;
+      saveLocHistory(list);
+    }
+
+    // "47.98, 11.23" / "47.98 11.23" / "47.98N 11.23E" → {lat, lon}
+    function parseLatLonInput(q) {
+      const m = q.trim().match(/^(-?\d+(?:\.\d+)?)\s*°?\s*([NS])?\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*°?\s*([EOW])?$/i);
+      if (!m) return null;
+      let lat = parseFloat(m[1]), lon = parseFloat(m[3]);
+      if (m[2]?.toUpperCase() === 'S') lat = -Math.abs(lat);
+      if (m[4]?.toUpperCase() === 'W') lon = -Math.abs(lon);
+      if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+      return { lat, lon };
+    }
+
+    function fmtLatLon(lat, lon) {
+      return `${Math.abs(lat).toFixed(4)}°${lat >= 0 ? 'N' : 'S'} ${Math.abs(lon).toFixed(4)}°${lon >= 0 ? 'E' : 'W'}`;
+    }
+
+    (function initLocSearch() {
+      const input = document.getElementById('loc-search');
+      const listEl = document.getElementById('loc-search-results');
+      // hits: {lat, lon, title, sub, alias?, fav?, hist}
+      let hits = [];
+      let active = -1;
+      let historyMode = false;
+      let searchTimer = null;
+      let searchSeq = 0;
+
+      function hide() {
+        listEl.hidden = true;
+        listEl.innerHTML = '';
+        hits = [];
+        active = -1;
+        historyMode = false;
+      }
+
+      function showHistory() {
+        const hist = loadLocHistory();
+        if (!hist.length) { hide(); return; }
+        hits = hist.map(e => ({
+          lat: e.lat, lon: e.lon, alias: e.alias, fav: !!e.fav, hist: true,
+          title: e.alias || e.place || fmtLatLon(e.lat, e.lon),
+          sub: [e.alias && e.place && e.place !== e.alias ? e.place : '', fmtLatLon(e.lat, e.lon)]
+            .filter(Boolean).join(' · '),
+        }));
+        active = 0;
+        historyMode = true;
+        render();
+      }
+
+      function render() {
+        listEl.innerHTML = '';
+        if (!hits.length) { listEl.hidden = true; return; }
+        if (historyMode) {
+          const head = document.createElement('li');
+          head.className = 'geo-hist-head';
+          head.textContent = 'Zuletzt verwendet · ☆ = Favorit';
+          listEl.appendChild(head);
+        }
+        hits.forEach((h, i) => {
+          const li = document.createElement('li');
+          if (i === active) li.classList.add('active');
+          const text = document.createElement('div');
+          text.className = 'geo-text';
+          text.textContent = h.title;
+          if (h.sub) {
+            const sub = document.createElement('span');
+            sub.className = 'geo-sub';
+            sub.textContent = h.sub;
+            text.appendChild(sub);
+          }
+          li.appendChild(text);
+          if (h.hist) {
+            const star = document.createElement('button');
+            star.type = 'button';
+            star.className = 'geo-star' + (h.fav ? ' fav' : '');
+            star.textContent = h.fav ? '★' : '☆';
+            star.title = h.fav ? 'Favorit entfernen' : 'Als Favorit merken';
+            star.addEventListener('mousedown', e => {
+              e.preventDefault();      // Fokus im Feld halten
+              e.stopPropagation();     // nicht als Auswahl des Eintrags werten
+              h.fav = !h.fav;
+              setLocFavorite(h.lat, h.lon, h.fav);
+              render();
+            });
+            li.appendChild(star);
+          }
+          li.addEventListener('mousedown', e => {
+            e.preventDefault();        // sonst schließt blur die Liste vor dem Klick
+            pick(i);
+          });
+          listEl.appendChild(li);
+        });
+        listEl.hidden = false;
+      }
+
+      function pick(i) {
+        const h = hits[i];
+        if (!h) return;
+        hide();
+        input.value = '';
+        input.blur();
+        if (h.hist && h.alias) {
+          // Gespeicherten Alias wieder einsetzen und für genau diesen Ort als
+          // bestätigt markieren — sonst würde syncAliasForLocation() ihn als
+          // "von einem anderen Ort" anmahnen oder per Geocoding überschreiben.
+          const lat = Math.round(h.lat * 10000) / 10000;
+          const lon = Math.round(h.lon * 10000) / 10000;
+          document.getElementById('om-alias').value = h.alias;
+          omAliasAutoValue = '';
+          omAliasCoordKey = locKeyFor(lat, lon);
+          setAliasStale(false);
+        }
+        setOmLocation(h.lat, h.lon, { pan: true });
+      }
+
+      async function runSearch() {
+        const q = input.value.trim();
+        if (q.length < 2) { hide(); return; }
+        historyMode = false;
+        const coord = parseLatLonInput(q);
+        if (coord) {
+          hits = [{ ...coord, title: 'Koordinate', sub: fmtLatLon(coord.lat, coord.lon) }];
+          active = 0;
+          render();
+          return;
+        }
+        const seq = ++searchSeq;
+        try {
+          const r = await fetch(`${PHOTON_SEARCH_URL}?${new URLSearchParams({ q, limit: '6', lang: 'de' })}`);
+          if (!r.ok) throw new Error(`Photon ${r.status}`);
+          const data = await r.json();
+          if (seq !== searchSeq) return;   // inzwischen weitergetippt
+          hits = (data.features ?? []).filter(f => f.geometry?.coordinates).map(f => {
+            const p = f.properties ?? {};
+            const title = p.name || p.street || p.city || 'Ort';
+            const crumbs = [p.city, p.county, p.state, p.country]
+              .filter((c, k, a) => c && a.indexOf(c) === k && c !== title);
+            const [lon, lat] = f.geometry.coordinates;
+            return { lat, lon, title, sub: crumbs.join(', ') };
+          });
+          active = hits.length ? 0 : -1;
+          render();
+        } catch { if (seq === searchSeq) hide(); }
+      }
+
+      input.addEventListener('focus', () => { if (!input.value.trim()) showHistory(); });
+      input.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        if (!input.value.trim()) { showHistory(); return; }
+        searchTimer = setTimeout(runSearch, 300);
+      });
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          // Esc schließt nur die Liste, nicht gleich den ganzen Dialog
+          if (!listEl.hidden) { e.preventDefault(); e.stopPropagation(); hide(); }
+          return;
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const coord = parseLatLonInput(input.value);
+          if (coord) { hits = [{ ...coord }]; pick(0); return; }
+          if (!listEl.hidden && active >= 0) pick(active);
+          return;
+        }
+        if (listEl.hidden || !hits.length) return;
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          active = (active + 1) % hits.length;
+          render();
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          active = (active - 1 + hits.length) % hits.length;
+          render();
+        }
+      });
+      // Verzögert, damit mousedown auf einen Eintrag vorher greift; nicht
+      // schließen, falls das Feld inzwischen wieder den Fokus hat.
+      input.addEventListener('blur', () => setTimeout(() => {
+        if (document.activeElement !== input) hide();
+      }, 150));
+    })();
+
+    // =========================================================================
     // Quellenreiter im Ladedialog
     // =========================================================================
     const SRC_KEYS = ['dwd', 'ml', 'pl', 'obs', 'file'];
@@ -6588,6 +6898,7 @@
         }
 
         saveOmSettings(lat, lon, alias);
+        recordLocHistory(lat, lon, alias);
         setStatus(`✓ ${result.soundings.length}/${steps.length} Profile geladen — ${result.sourceLabel}, Lauf ${result.runLabel}`
           + (result.skipped.length ? ` — ohne Daten: +${result.skipped.join('h, +')}h` : ''));
       } catch (err) {
