@@ -1277,6 +1277,7 @@
       animTimer: null,
       animPlaying: false,
       mouseHover: null,
+      probeKey: false, // Shift gedrückt → Diagrammwerte-Tooltip am Mauspunkt
       showCapeLfc: false,
       showCapeCcl: false,
       showCat: false,
@@ -1837,6 +1838,72 @@
       ctx.fill();
 
       // --- NEU: Clipping und Zeichen-Status wieder zurücksetzen ---
+      ctx.restore();
+
+      if (STATE.probeKey) drawProbeTooltip(center.x, center.y, p_m, T_m, snd, p_sfc);
+    }
+
+    // Höhe [m AGL] am Druck p aus dem Profil, linear in ln(p) interpoliert
+    function heightAtP(levels, p_hPa) {
+      const lv = (levels || []).filter(l => l.z_m != null && l.p_hPa != null);
+      for (let i = 0; i < lv.length - 1; i++) {
+        const a = lv[i], b = lv[i + 1];
+        if ((a.p_hPa - p_hPa) * (b.p_hPa - p_hPa) <= 0 && a.p_hPa !== b.p_hPa) {
+          const f = Math.log(a.p_hPa / p_hPa) / Math.log(a.p_hPa / b.p_hPa);
+          return a.z_m + f * (b.z_m - a.z_m);
+        }
+      }
+      return null;
+    }
+
+    // Diagrammwerte genau am Mauspunkt (nicht die Temp-Werte) — nur solange Shift gedrückt ist.
+    // Die Farben der Zeilen entsprechen den gestrichelten Hilfslinien durch den Punkt.
+    function drawProbeTooltip(cx, cy, p_m, T_m, snd, p_sfc) {
+      const T_K = T_m + 273.15;
+      const theta = MET.potential_T(T_K, p_m) - 273.15;
+      const thetaW = MET.moist_adiabat_T(T_K, p_m, 1000) - 273.15;
+      const ws = MET.mixing_ratio(T_m, p_m) * 1000;
+      const rows = [
+        [`p   ${p_m.toFixed(0)} hPa`, PALETTE.hodoText],
+        [`T   ${T_m.toFixed(1)} °C`, PALETTE.hodoText],
+      ];
+      if (snd && p_m <= p_sfc) {
+        const z = heightAtP(snd.levels, p_m);
+        if (z != null) {
+          const z_sfc = snd.hsurf_m ?? 44330 * (1 - Math.pow(p_sfc / 1013.25, 0.19026));
+          const amsl = z + Math.max(0, z_sfc);
+          rows.push([`z   ${Math.round(z)} m AGL / ${Math.round(amsl * 3.28084)} ft`, PALETTE.hodoText]);
+        }
+      }
+      rows.push(
+        [`θ   ${theta.toFixed(1)} °C (${(theta + 273.15).toFixed(1)} K)`, '#e0b83a'],
+        [`ws  ${ws < 1 ? ws.toFixed(2) : ws.toFixed(1)} g/kg`, '#4ab56e'],
+        [`θw  ${thetaW.toFixed(1)} °C`, '#4a90e2'],
+      );
+
+      ctx.save();
+      ctx.font = '11px IBM Plex Mono, monospace';
+      const pad = 6, lh = 15;
+      const w = Math.max(...rows.map(r => ctx.measureText(r[0]).width)) + 2 * pad;
+      const h = rows.length * lh + 2 * pad - 3;
+      const Wc = canvas.width / (window.devicePixelRatio || 1);
+      const Hc = canvas.height / (window.devicePixelRatio || 1);
+      // Standardmäßig rechts unterhalb des Cursors, am Rand auf die andere Seite klappen
+      let x = cx + 14, y = cy + 14;
+      if (x + w > Wc - 4) x = cx - 14 - w;
+      if (y + h > Hc - 4) y = cy - 14 - h;
+      ctx.fillStyle = PALETTE.hodoBg;
+      ctx.strokeStyle = PALETTE.hodoBorder;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.rect(x + 0.5, y + 0.5, w, h);
+      ctx.fill();
+      ctx.stroke();
+      ctx.textBaseline = 'top';
+      rows.forEach(([txt, col], i) => {
+        ctx.fillStyle = col;
+        ctx.fillText(txt, x + pad, y + pad + i * lh);
+      });
       ctx.restore();
     }
 
@@ -6745,6 +6812,7 @@
 
       // Status aktualisieren für die interaktiven Linien
       STATE.mouseHover = { p_hPa, T_C };
+      STATE.probeKey = e.shiftKey;
 
       const snd = STATE.soundings[STATE.currentIdx];
       if (!snd) return;
@@ -6808,6 +6876,16 @@
 
       redraw();
     });
+
+    // Shift halten → Tooltip mit den Diagrammwerten am Mauspunkt (ohne Mausbewegung ein-/ausblenden)
+    function setProbeKey(on) {
+      if (STATE.probeKey === on) return;
+      STATE.probeKey = on;
+      if (STATE.mouseHover) redraw();
+    }
+    window.addEventListener('keydown', e => { if (e.key === 'Shift') setProbeKey(true); });
+    window.addEventListener('keyup', e => { if (e.key === 'Shift') setProbeKey(false); });
+    window.addEventListener('blur', () => setProbeKey(false));
 
     canvas.addEventListener('mouseleave', () => {
       STATE.mouseHover = null;
