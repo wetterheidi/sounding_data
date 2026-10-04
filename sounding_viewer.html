@@ -6064,8 +6064,10 @@
     // die zuletzt tatsächlich geladenen Orte (max. LOC_HISTORY_MAX) landen in
     // localStorage, ☆/★ markiert Favoriten, die nie verdrängt werden. Fokus auf
     // das leere Suchfeld zeigt die Liste; Tippen sucht per Photon bzw. erkennt
-    // eine Dezimalkoordinate "lat, lon". Der Alias wird mitgespeichert und beim
-    // Auswählen wieder eingesetzt.
+    // eine Dezimalkoordinate "lat, lon". Alias, Modell und Vorhersagestunden
+    // (Laufzeit + Inkrement, z.B. "0:48:1") werden mitgespeichert und beim
+    // Auswählen wieder eingesetzt. Lauf-Datum/-Stunde bewusst nicht — die
+    // wären beim nächsten Aufruf veraltet.
     // =========================================================================
     const LOC_HISTORY_KEY = 'tlogp-loc-history.v1';
     const LOC_HISTORY_MAX = 8;
@@ -6092,13 +6094,17 @@
 
     // Erfolgreich geladenen Ort vorn einreihen; denselben Ort ersetzen statt
     // duplizieren (Favoritenstatus bleibt erhalten, ein leerer Alias
-    // überschreibt keinen früher vergebenen).
-    async function recordLocHistory(lat, lon, alias) {
+    // überschreibt keinen früher vergebenen). Modell und Vorhersagestunden
+    // sind immer die zuletzt an diesem Ort benutzten.
+    async function recordLocHistory(lat, lon, alias, { model = '', steps = '' } = {}) {
       const place = await reverseGeocodePlace(lat, lon);   // gecacht, meist sofort
       const list = loadLocHistory();
       const idx = list.findIndex(e => sameLoc(e, lat, lon));
       const prev = idx >= 0 ? list.splice(idx, 1)[0] : null;
-      list.unshift({ lat, lon, alias: alias || prev?.alias || '', place: place || prev?.place || '', fav: !!prev?.fav });
+      list.unshift({
+        lat, lon, alias: alias || prev?.alias || '', place: place || prev?.place || '', fav: !!prev?.fav,
+        model: model || prev?.model || '', steps: steps || prev?.steps || '',
+      });
       saveLocHistory(capLocHistory(list));
     }
 
@@ -6131,7 +6137,7 @@
     (function initLocSearch() {
       const input = document.getElementById('loc-search');
       const listEl = document.getElementById('loc-search-results');
-      // hits: {lat, lon, title, sub, alias?, fav?, hist}
+      // hits: {lat, lon, title, sub, alias?, model?, steps?, fav?, hist}
       let hits = [];
       let active = -1;
       let historyMode = false;
@@ -6150,14 +6156,40 @@
         const hist = loadLocHistory();
         if (!hist.length) { hide(); return; }
         hits = hist.map(e => ({
-          lat: e.lat, lon: e.lon, alias: e.alias, fav: !!e.fav, hist: true,
+          lat: e.lat, lon: e.lon, alias: e.alias, model: e.model, steps: e.steps, fav: !!e.fav, hist: true,
           title: e.alias || e.place || fmtLatLon(e.lat, e.lon),
-          sub: [e.alias && e.place && e.place !== e.alias ? e.place : '', fmtLatLon(e.lat, e.lon)]
+          sub: [e.alias && e.place && e.place !== e.alias ? e.place : '', fmtLatLon(e.lat, e.lon), histModelLabel(e)]
             .filter(Boolean).join(' · '),
         }));
         active = 0;
         historyMode = true;
         render();
+      }
+
+      // "ICON-D2 (ML) 0:48:1" — Modellkürzel mit Quelle, damit ICON-D2 als
+      // Modelllevel und als Druckflächen unterscheidbar bleibt
+      function histModelLabel(e) {
+        const cfg = OM_ML_MODELS[e.model] ?? OM_PL_MODELS[e.model];
+        if (!cfg) return '';
+        return `${cfg.label} (${e.model.startsWith('ml:') ? 'ML' : 'PL'})${e.steps ? ' ' + e.steps : ''}`;
+      }
+
+      // Gespeichertes Modell + Vorhersagestunden wieder einsetzen — nur in den
+      // Modell-Reitern; dort wird ggf. auf den zum Modell passenden Reiter
+      // (Modelllevel ↔ Druckflächen) gewechselt. Im Messungs-Reiter zählt nur der Ort.
+      function applyHistModel(h) {
+        if (currentSrc !== 'ml' && currentSrc !== 'pl') return;
+        if (!OM_ML_MODELS[h.model] && !OM_PL_MODELS[h.model]) return;
+        const src = h.model.startsWith('ml:') ? 'ml' : 'pl';
+        if (src !== currentSrc) setSource(src);
+        if (omModelSel.value !== h.model) {
+          omModelSel.value = h.model;
+          applyOmModelUi();
+        }
+        if (h.steps) {
+          document.getElementById('om-steps').value = h.steps;
+          ++omMaxStepReqId;   // laufende Horizont-Abfrage darf die Stunden nicht mehr überschreiben
+        }
       }
 
       function render() {
@@ -6223,6 +6255,7 @@
           omAliasCoordKey = locKeyFor(lat, lon);
           setAliasStale(false);
         }
+        if (h.hist) applyHistModel(h);
         setOmLocation(h.lat, h.lon, { pan: true });
       }
 
@@ -6898,7 +6931,7 @@
         }
 
         saveOmSettings(lat, lon, alias);
-        recordLocHistory(lat, lon, alias);
+        recordLocHistory(lat, lon, alias, { model: key, steps: document.getElementById('om-steps').value.trim() });
         setStatus(`✓ ${result.soundings.length}/${steps.length} Profile geladen — ${result.sourceLabel}, Lauf ${result.runLabel}`
           + (result.skipped.length ? ` — ohne Daten: +${result.skipped.join('h, +')}h` : ''));
       } catch (err) {
