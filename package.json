@@ -1,0 +1,12 @@
+{
+  "name": "tlogpviewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "TLogP/Skew-T Sounding-Viewer",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "deploy": "bash scripts/deploy-hetzner.sh",
+    "rollback": "bash scripts/rollback-hetzner.sh"
+  }
+}

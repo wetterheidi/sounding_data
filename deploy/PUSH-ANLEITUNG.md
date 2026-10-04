@@ -5,7 +5,8 @@
 | Was | Wo |
 |-----|----|
 | Code-Repo | GitHub: `wetterheidi/sounding_data` |
-| Server-Verzeichnis (Repo-Klon) | `/apps/TLogPViewer/sounding_data/` |
+| Web-Frontend (ausgeliefert) | `/apps/tlogpviewer-web/` — per `npm run deploy` |
+| Server-Verzeichnis (Repo-Klon) | `/apps/TLogPViewer/sounding_data/` — Download-Skripte, `locations.json` |
 | Admin-API (laufende Kopie) | `/apps/TLogPViewer/admin_api.py` — läuft bewusst **außerhalb** des Repo-Klons |
 | Backups von locations.json | `/apps/TLogPViewer/backups/` |
 | Datendateien | `/apps/TLogPViewer/data/` (von git ignoriert) |
@@ -30,7 +31,14 @@ git push origin main
 
 Kein Rebase, kein Workaround — direkter Push funktioniert jederzeit.
 
-### 2. Auf dem Server deployen
+### 2a. Web-Frontend deployen (sounding_viewer.html, admin.html, om/, leaflet/)
+
+```bash
+npm run deploy     # baut dist/ und schiebt es nach /apps/tlogpviewer-web
+npm run rollback   # zurück auf den Stand vor dem letzten Deploy
+```
+
+### 2b. Python-Skripte, run_locations.sh, deploy/ auf dem Server aktualisieren
 
 ```bash
 ssh root@<server-ip>
