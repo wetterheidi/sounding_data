@@ -1,6 +1,6 @@
 # Deploy-Anleitung: Lokale Code-Änderungen auf den Server bringen
 
-## Architektur (Stand Juli 2026, nach Pförtner-Umstellung)
+## Architektur (Stand Oktober 2026, nach Umstellung auf npm run deploy)
 
 | Was | Wo |
 |-----|----|
@@ -33,10 +33,19 @@ Kein Rebase, kein Workaround — direkter Push funktioniert jederzeit.
 
 ### 2a. Web-Frontend deployen (sounding_viewer.html, admin.html, om/, leaflet/)
 
+Vom Mac aus, im Repo-Ordner (Node.js nötig, keine npm-Pakete):
+
 ```bash
 npm run deploy     # baut dist/ und schiebt es nach /apps/tlogpviewer-web
 npm run rollback   # zurück auf den Stand vor dem letzten Deploy
 ```
+
+- Ausgeliefert wird der **lokale Arbeitsstand** – der Push aus Schritt 1 ist
+  dafür nicht nötig, sollte aber trotzdem passieren.
+- Vor jedem Deploy wird der aktuelle Stand nach `/apps/tlogpviewer-web.prev`
+  gesichert; `npm run rollback` holt ihn zurück.
+- `--delete` wirkt nur in `/apps/tlogpviewer-web`. Der Git-Klon unter
+  `/apps/TLogPViewer` wird vom Deploy nie angefasst.
 
 ### 2b. Python-Skripte, run_locations.sh, deploy/ auf dem Server aktualisieren
 

@@ -2,8 +2,9 @@
 
 Dieses Projekt stellt meteorologische Vertikalprofile (Temps) aus DWD-Modelldaten bereit und visualisiert sie interaktiv als Skew-T Log-P Diagramm.
 
-**Live:** https://tlogpviewer.wetterheidi.de/ *(Passwortgeschützt)*
-**Admin:** https://tlogpviewer.wetterheidi.de/admin.html *(Passwortgeschützt)*
+**Live:** https://tlogpviewer.wetterheidi.de/ *(Login über den Pförtner)*
+**Admin:** https://tlogpviewer.wetterheidi.de/admin.html *(nur Tool-Admins)*
+**Öffentlich:** https://tlogpviewer.wetterheidi.de/om/ *(ohne Login, siehe unten)*
 
 ---
 
@@ -15,21 +16,28 @@ DWD OpenData-Server
         ▼
 Hetzner Server (wetterheidi-server)
   /apps/TLogPViewer/
-  ├── sounding_data/     ← Git-Repo (nur Code, keine Daten)
+  ├── sounding_data/     ← Git-Klon (per git pull): Download-Pipeline
   │   ├── fetch_sounding.py
   │   ├── fetch_sounding_openmeteo.py
   │   ├── run_locations.sh
-  │   ├── locations.json
-  │   ├── admin_api.py
-  │   ├── sounding_viewer.html
-  │   └── admin.html
-  ├── data/              ← Generierte JSON-Dateien (von nginx ausgeliefert)
+  │   └── locations.json ← von der Admin-UI gepflegt
+  ├── admin_api.py       ← laufende Kopie der Admin-API (→ /api/)
+  ├── data/              ← Generierte JSON-Dateien (→ /data/)
   ├── venv/              ← Python-Umgebung
   └── backups/           ← Automatische Backups von locations.json
+  /apps/tlogpviewer-web/ ← Web-Frontend (per npm run deploy, → /)
+  ├── index.html         ← sounding_viewer.html
+  ├── admin.html
+  ├── om/                ← öffentliche Variante
+  └── leaflet/, favicon.svg
+  /apps/tlogpviewer-web.prev/ ← Stand vor dem letzten Deploy (npm run rollback)
         │
         ▼
 nginx → https://tlogpviewer.wetterheidi.de/
 ```
+
+Die HTML-Dateien liegen zwar auch im Git-Klon, ausgeliefert wird aber nur
+`/apps/tlogpviewer-web/`.
 
 **Datenpfad:**
 - Zwei `systemd`-Timer starten `run_locations.sh` pünktlich zur DWD-Verfügbarkeit
@@ -110,10 +118,22 @@ Pförtner, nicht in diesem Repo. Details zum Server-Layout und Deploy-Workflow s
 
 ---
 
-### Code-Update einspielen
-Nach einem `git push` vom Mac:
+### Web-Frontend deployen
+Änderungen an `sounding_viewer.html`, `admin.html`, `om/`, `leaflet/` oder
+`favicon.svg` gehen vom Mac aus direkt auf den Server (Node.js nötig, keine
+npm-Pakete):
 ```bash
-git -C /apps/TLogPViewer/sounding_data pull
+npm run build      # nur dist/ bauen (zum Prüfen)
+npm run deploy     # dist/ bauen und nach /apps/tlogpviewer-web schieben
+npm run rollback   # auf den Stand vor dem letzten Deploy zurück
+```
+Ausgeliefert wird der **lokale Arbeitsstand**, auch wenn er noch nicht
+committet ist. Welche Dateien in `dist/` landen, legt `scripts/build.mjs` fest.
+
+### Pipeline-Update einspielen
+Für Python-Skripte, `run_locations.sh` und `deploy/` nach einem `git push` vom Mac:
+```bash
+git -C /apps/TLogPViewer/sounding_data pull --ff-only
 ```
 Für Änderungen an `run_locations.sh`, `fetch_sounding.py` oder `locations.json` ist kein Service-Neustart nötig – sie werden beim nächsten Timer-Lauf automatisch verwendet.
 
@@ -125,12 +145,16 @@ systemctl restart tlogp-api.service
 
 ### nginx-Konfiguration aktualisieren
 
-**Wichtig:** Die Datei im Repo enthält nur Port 80. Certbot ergänzt beim ersten Einrichten den SSL-Block direkt in der Server-Datei. Deshalb nach jedem `cp` der Konfiguration certbot erneut aufrufen, damit SSL wiederhergestellt wird:
+Die Datei im Repo ist eine vollständige Kopie des Server-Vhosts, inklusive der
+von Certbot eingetragenen SSL-Zeilen. `root` und `index` stellt
+`npm run deploy` selbst ein (vorher gesichert als `….vor-npm-deploy`). Andere
+Änderungen am Vhost spielt man so ein (der Pförtner-Block darf dabei nicht
+verändert werden):
 
 ```bash
+cp /etc/nginx/sites-available/tlogpviewer.wetterheidi.de /root/tlogpviewer.vhost.bak
 cp /apps/TLogPViewer/sounding_data/deploy/nginx-tlogpviewer.conf \
    /etc/nginx/sites-available/tlogpviewer.wetterheidi.de
-certbot --nginx -d tlogpviewer.wetterheidi.de
 nginx -t && systemctl reload nginx
 ```
 
