@@ -131,17 +131,21 @@ Ausgeliefert wird der **lokale Arbeitsstand**, auch wenn er noch nicht
 committet ist. Welche Dateien in `dist/` landen, legt `scripts/build.mjs` fest.
 
 ### Pipeline-Update einspielen
-Für Python-Skripte, `run_locations.sh` und `deploy/` nach einem `git push` vom Mac:
+Für Python-Skripte, `run_locations.sh`, `admin_api.py` und die systemd-Units in
+`deploy/`, vom Mac aus nach Commit und `git push`:
 ```bash
-git -C /apps/TLogPViewer/sounding_data pull --ff-only
+npm run deploy:backend     # Server-Klon per git pull auf origin/main bringen
+npm run rollback:backend   # auf den Commit vor dem letzten deploy:backend zurück
 ```
-Für Änderungen an `run_locations.sh`, `fetch_sounding.py` oder `locations.json` ist kein Service-Neustart nötig – sie werden beim nächsten Timer-Lauf automatisch verwendet.
+`deploy:backend` bricht ab, wenn lokal etwas nicht committet oder nicht gepusht
+ist, denn der Server holt den Code von GitHub. Danach übernimmt es
+`admin_api.py` (Kopie + Neustart von `tlogp-api`) und geänderte
+`.service`/`.timer`-Dateien (`daemon-reload`, Timer-Neustart), jeweils nur,
+wenn sie sich geändert haben. Änderungen an `run_locations.sh` und den
+Fetch-Skripten greifen beim nächsten Timer-Lauf; ein laufender Download wird
+nicht unterbrochen.
 
-Wenn `admin_api.py` geändert wurde (die API läuft aus einer Kopie außerhalb des Repo-Klons):
-```bash
-cp /apps/TLogPViewer/sounding_data/admin_api.py /apps/TLogPViewer/admin_api.py
-systemctl restart tlogp-api.service
-```
+Die Vhost-Datei wird bewusst **nicht** automatisch eingespielt (siehe unten).
 
 ### nginx-Konfiguration aktualisieren
 

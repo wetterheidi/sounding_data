@@ -47,25 +47,31 @@ npm run rollback   # zurück auf den Stand vor dem letzten Deploy
 - `--delete` wirkt nur in `/apps/tlogpviewer-web`. Der Git-Klon unter
   `/apps/TLogPViewer` wird vom Deploy nie angefasst.
 
-### 2b. Python-Skripte, run_locations.sh, deploy/ auf dem Server aktualisieren
+### 2b. Pipeline aktualisieren (Python-Skripte, run_locations.sh, admin_api.py, systemd-Units)
+
+Vom Mac aus, nachdem Schritt 1 (commit + push) erledigt ist:
 
 ```bash
-ssh root@<server-ip>
-cd /apps/TLogPViewer/sounding_data
-git pull --ff-only
+npm run deploy:backend     # Server-Klon per git pull --ff-only auf origin/main
+npm run rollback:backend   # zurück auf den Commit vor dem letzten deploy:backend
 ```
 
-Fertig.
+- Bricht ab, wenn lokal nicht committete Änderungen da sind oder `main` nicht
+  gepusht ist – der Server holt den Code von GitHub, nicht vom Mac.
+- Merkt sich vor dem Pull den bisherigen Commit in
+  `/apps/TLogPViewer/.backend-prev-commit` (für den Rollback).
+- `admin_api.py`: Die API läuft aus einer Kopie in `/apps/TLogPViewer/` (damit
+  `git pull` sie nie im laufenden Betrieb verändert). Hat sie sich geändert,
+  wird die Kopie aktualisiert und `tlogp-api.service` neu gestartet.
+- `deploy/*.service`, `deploy/*.timer`: geänderte Units werden nach
+  `/etc/systemd/system` kopiert, danach `daemon-reload`; geänderte Timer werden
+  neu gestartet. Ein laufender Download wird nicht abgebrochen.
+- Der Rollback nutzt `git reset --keep`, damit die per Admin-UI geänderte
+  `locations.json` stehen bleibt.
+- Der nginx-Vhost wird **nicht** automatisch eingespielt (Pförtner-Block und
+  Certbot-Zeilen auf dem Server sind maßgeblich), siehe README.
 
-### Sonderfall: Änderung an admin_api.py
-
-Die API läuft aus einer Kopie in `/apps/TLogPViewer/` (damit `git pull` sie nie
-im laufenden Betrieb verändert). Nach einer Änderung zusätzlich:
-
-```bash
-cp /apps/TLogPViewer/sounding_data/admin_api.py /apps/TLogPViewer/admin_api.py
-systemctl restart tlogp-api.service
-```
+Was die Skripte auf dem Server tun, steht in `scripts/backend-remote.sh`.
 
 ---
 
@@ -79,7 +85,8 @@ gibt es beim `git pull` einen Konflikt.
 **Empfehlung:** `locations.json` immer über die Admin-Oberfläche bearbeiten
 (`https://tlogpviewer.wetterheidi.de/admin.html`), nicht lokal.
 
-Falls doch ein Konflikt entsteht:
+Falls doch ein Konflikt entsteht (`npm run deploy:backend` bricht dann beim
+`git pull` ab, ohne etwas zu überschreiben):
 ```bash
 # Auf dem Server: Server-Version sichern, dann Pull, dann wiederherstellen
 cp locations.json /tmp/locations_save.json

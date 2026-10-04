@@ -7,6 +7,8 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "deploy": "bash scripts/deploy-hetzner.sh",
-    "rollback": "bash scripts/rollback-hetzner.sh"
+    "rollback": "bash scripts/rollback-hetzner.sh",
+    "deploy:backend": "bash scripts/deploy-backend-hetzner.sh",
+    "rollback:backend": "bash scripts/rollback-backend-hetzner.sh"
   }
 }
