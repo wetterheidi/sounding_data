@@ -1285,6 +1285,35 @@
         </table>
       </details>
       <details class="sidebar-section" closed>
+        <summary><input type="checkbox" id="chk-icing" style="margin-right:3px;">Vereisung (ADWICE/−8D) <label
+            style="cursor:pointer;font-size:10px;margin-left:6px;text-transform:none;letter-spacing:0"></summary>
+        <table class="wind-table" id="icing-table">
+          <thead>
+            <tr>
+              <th>Schicht</th>
+              <th>Intensität</th>
+              <th>Art</th>
+              <th title="Kondensat laut Modell (nur Zusatzinfo, fließt nicht in die Intensität ein)">Modell</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div style="display:flex;gap:10px;font-size:10px;margin:4px 0 2px;">
+          <label style="cursor:pointer" title="Gestrichelte −8D-Kurve (Godske) mit Vereisungsfläche im Diagramm">
+            <input type="checkbox" id="chk-icing-8d" checked style="margin-right:3px;">−8D-Kurve</label>
+          <label style="cursor:pointer" title="Szenario-Balken am rechten Rand und Intensitätsbänder im Diagramm">
+            <input type="checkbox" id="chk-icing-adwice" checked style="margin-right:3px;">ADWICE-Schichten</label>
+        </div>
+        <div style="font-size:10px;color:var(--text2);margin-top:3px;line-height:1.4;">
+          Farbkästchen in der Tabelle und Balken am rechten Diagrammrand: Szenario –
+          <span style="color:#4a7fe0">■</span> allgemein,
+          <span style="color:#e0c030">■</span> warmer Stratus,
+          <span style="color:#3fae5a">■</span> labil,
+          <span style="color:#e04848">■</span> gefrierender Regen.
+          Intensität aus adiabatischem LWC (Tafferner 2003). Tooltip: Maus kurz auf einer Zeile halten zeigt Szenario und LWC (nicht auf Touch-Geräten).
+        </div>
+      </details>
+      <details class="sidebar-section" closed>
         <summary>Niederschlagsphase</summary>
         <div class="index-row"><span class="index-name">Typ (Bourgouin)</span><span class="index-val"
             id="idx-precip-type">—</span></div>
@@ -1370,6 +1399,10 @@
       parcelData: null,
       catData: null,
       contrailData: null,
+      showIcing: false,
+      showIcing8D: true,     // Unterschalter: −8D-Kurve mit Fläche
+      showIcingAdwice: true, // Unterschalter: ADWICE-Szenariobalken + Intensitätsbänder
+      icingData: null,
     };
 
     // =========================================================================
@@ -1390,6 +1423,9 @@
       // Datenkurven
       get temp()          { return this.isDark ? '#e05c3a'              : '#cc2020'; },
       get dew()           { return this.isDark ? '#4ab56e'              : '#1a8840'; },
+      get icing8d()       { return this.isDark ? '#7fc8f0'              : '#1f74b8'; },
+      get icingArea()     { return this.isDark ? 'rgba(127,200,240,0.22)': 'rgba(31,116,184,0.16)'; },
+      get icingAreaDim()  { return this.isDark ? 'rgba(127,200,240,0.07)': 'rgba(31,116,184,0.05)'; },
       get dewArea()       { return this.isDark ? 'rgba(74,181,110,0.13)': 'rgba(26,140,64,0.10)'; },
       get compareTemp()   { return this.isDark ? '#c77dff'              : '#7b2fbf'; },
       get compareDew()    { return this.isDark ? '#5ad0c8'              : '#0e8a82'; },
@@ -2376,6 +2412,75 @@
       return `${snd.model}${srcTag} ${snd.run_date} ${snd.run_hour}Z +${String(snd.step_h).padStart(3, '0')}h`;
     }
 
+    /**
+     * −8D-Kurve (Godske) der Hauptkurve plus Fläche zwischen T und −8D, wo
+     * T < −8D im Fenster ICING_T_MIN…ICING_T_MAX liegt (gedämpft, wo das Modell
+     * nur Wolkeneis meldet). Erwartet den
+     * Diagrammpapier-Clip des Aufrufers und Level mit Td_C.
+     */
+    function drawIcing8D(lvls) {
+      // Teilintervall [lo, hi] von f ∈ [0, 1], auf dem v0 + f·(v1 − v0) ≥ 0 gilt
+      const clipLin = ([lo, hi], v0, v1) => {
+        if (v0 >= 0 && v1 >= 0) return [lo, hi];
+        if (v0 < 0 && v1 < 0) return [1, 0];
+        const fz = v0 / (v0 - v1);
+        return v0 >= 0 ? [lo, Math.min(hi, fz)] : [Math.max(lo, fz), hi];
+      };
+      const lerp = (a, b, f) => a + f * (b - a);
+
+      ctx.save();
+      // Fläche: je ein Pfad mit Teilflächen je Levelpaar, damit sich Kanten nicht
+      // doppelt abdunkeln; Schichten, in denen das Modell nur Eis hat, gedämpft
+      const paths = { normal: new Path2D(), dim: new Path2D() };
+      for (let i = 0; i < lvls.length - 1; i++) {
+        const a = lvls[i], b = lvls[i + 1];
+        const path = icingIceOnly(a) && icingIceOnly(b) ? paths.dim : paths.normal;
+        const da = icing8D(a), db = icing8D(b);
+        let iv = [0, 1];
+        iv = clipLin(iv, da - a.T_C, db - b.T_C);
+        iv = clipLin(iv, ICING_T_MAX - a.T_C, ICING_T_MAX - b.T_C);
+        iv = clipLin(iv, a.T_C - ICING_T_MIN, b.T_C - ICING_T_MIN);
+        if (iv[1] <= iv[0]) continue;
+        const pts = [
+          [lerp(a.T_C, b.T_C, iv[0]), lerp(a.p_hPa, b.p_hPa, iv[0])],
+          [lerp(a.T_C, b.T_C, iv[1]), lerp(a.p_hPa, b.p_hPa, iv[1])],
+          [lerp(da, db, iv[1]), lerp(a.p_hPa, b.p_hPa, iv[1])],
+          [lerp(da, db, iv[0]), lerp(a.p_hPa, b.p_hPa, iv[0])],
+        ].map(([T, p]) => proj.toCanvas(T, p));
+        path.moveTo(pts[0].x, pts[0].y);
+        pts.slice(1).forEach(c => path.lineTo(c.x, c.y));
+        path.closePath();
+      }
+      ctx.fillStyle = PALETTE.icingArea;
+      ctx.fill(paths.normal);
+      ctx.fillStyle = PALETTE.icingAreaDim;
+      ctx.fill(paths.dim);
+
+      // Kurve: nur unterhalb 0 °C bis −40 °C (darüber kein unterkühltes Wasser)
+      ctx.beginPath();
+      ctx.strokeStyle = PALETTE.icing8d;
+      ctx.lineWidth = 1.3;
+      ctx.setLineDash([6, 3]);
+      let pen = false, labelPt = null;
+      const m = proj.margin;
+      lvls.forEach(l => {
+        if (l.T_C > ICING_T_MAX || l.T_C < -40) { pen = false; return; }
+        const c = proj.toCanvas(icing8D(l), l.p_hPa);
+        pen ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y);
+        pen = true;
+        if (c.x >= m.left + 20 && c.x <= m.left + proj.W && c.y >= m.top && c.y <= m.top + proj.H) labelPt = c;
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+      if (labelPt) {
+        ctx.fillStyle = PALETTE.icing8d;
+        ctx.font = '10px IBM Plex Mono, monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText('−8D', labelPt.x - 4, labelPt.y + 3);
+      }
+      ctx.restore();
+    }
+
     // overlays: [{ snd, color, dewColor, label }] — beliebig viele Vergleichskurven
     function drawSounding(snd, overlays) {
       if (!snd || !snd.levels || snd.levels.length === 0) return;
@@ -2541,6 +2646,9 @@
         i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y);
       });
       ctx.stroke();
+
+      // --- Vereisung: −8D-Kurve + Fläche, wo T links davon im Fenster 0…−20 °C ---
+      if (STATE.showIcing && STATE.showIcing8D) drawIcing8D(lvlsTd);
 
       // --- Temperatur (rot-orange) ---
       ctx.beginPath();
@@ -2759,6 +2867,33 @@
           ctx.fillStyle = bg;
           ctx.fillRect(m.left, y_top, proj.W, y_bot - y_top);
           ctx.strokeStyle = bc;
+          ctx.lineWidth = 0.8;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          ctx.moveTo(m.left, y_top); ctx.lineTo(m.left + proj.W, y_top);
+          ctx.moveTo(m.left, y_bot); ctx.lineTo(m.left + proj.W, y_bot);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        });
+        ctx.restore();
+      }
+
+      // --- Vereisung (optional): Intensität als Hinterleuchtung (ab „leicht“),
+      // Szenario als schmaler Balken am rechten Rand wie in ADWICE-Profilen
+      if (STATE.showIcing && STATE.showIcingAdwice && STATE.icingData) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(m.left, m.top, proj.W, proj.H);
+        ctx.clip();
+        STATE.icingData.bands.forEach(({ cat, regime, p_lo, p_hi }) => {
+          const y_top = proj.toCanvasY(p_hi);
+          const y_bot = proj.toCanvasY(p_lo);
+          ctx.fillStyle = ICING_REGIMES[regime].color;
+          ctx.fillRect(m.left + proj.W - 7, y_top, 5, y_bot - y_top);
+          if (!ICING_BG[cat]) return;
+          ctx.fillStyle = ICING_BG[cat];
+          ctx.fillRect(m.left, y_top, proj.W, y_bot - y_top);
+          ctx.strokeStyle = ICING_COLORS[cat];
           ctx.lineWidth = 0.8;
           ctx.setLineDash([4, 3]);
           ctx.beginPath();
@@ -3698,6 +3833,246 @@
     }
 
     // =========================================================================
+    // Vereisung
+    //   Szenarien:  NCAR/RAP-Algorithmus in der ADWICE-Fassung von
+    //               Tafferner et al. (2003, Wea. Forecasting 18, 184–203), Fig. 2
+    //   Intensität: adiabatischer LWC ab Wolkenbasis (Tafferner Gl. 1 bzw.
+    //               Krutina „Vereisung“ Form. 1), in Schichtwolken ab 500 m
+    //               über der Basis konstant (Korolev et al. 2007), Klassen
+    //               nach Lewis (1947) aus Tafferner Tab. 2; „Labil“ ab der
+    //               Unterkante der labilen Schicht, ohne Deckel
+    //   Eisart:     Krutina Tab. 23
+    //   −8D-Kurve:  Godske (Krutina 6.2.1.1), nur Darstellung im Diagramm
+    // Ausführlich in Kap. 8 von TlogP_Sounding_Viewer_Dokumentation.docx.
+    // =========================================================================
+
+    // −8D-Methode: Fläche im Diagramm nur im Fenster ICING_T_MIN…ICING_T_MAX
+    // (Krutina 6.2.1.1: „0 bis ca. −20 °C“)
+    const ICING_T_MAX = 0;    // °C
+    const ICING_T_MIN = -20;  // °C
+
+    // Szenario-Schwellen, Tafferner Fig. 2 (RH über Wasser)
+    const ICING_RH_FZ = 80;            // Freezing rain: feuchte Schichten über/unter der warmen Nase
+    const ICING_RH_WS = 85;            // Warm stratus
+    const ICING_WS_T = [-12, 0];       // Warm stratus: Temperaturbereich
+    const ICING_WS_CIRRUS_T = -50;     // Feuchte Schichten kälter als das gelten als Cirrus (stören nicht)
+    const ICING_CO_T = [-20, 0];       // Unstable
+    const ICING_CO_RH_MIN = 63;        // Unstable: Mindest-RH am Niveau selbst
+    const ICING_GE_T = [-16, 0];       // General
+    /** RH-Schwelle x(T): linear 63 % bei −20 °C … 82 % bei 0 °C (Forbes et al. 1993) */
+    const icingRhThreshold = T => 63 + 19 * (Math.max(-20, Math.min(0, T)) + 20) / 20;
+
+    // Wolkenbasis für den adiabatischen LWC: unterstes Niveau des zusammenhängend
+    // gesättigten Bereichs, auch über 0 °C (Krutina 5.1a: warme Basis → viel
+    // Flüssigwasser). Ohne gesättigten Bereich Tafferners Definition: Unterkante
+    // der Vereisungsschicht.
+    const ICING_RH_SAT = 98; // %
+
+    // Korolev et al. (2007, QJRMS 133, 1693): In unterkühlten Schichtwolken wächst
+    // der LWC nur in den untersten ~500 m über der Basis quasi-adiabatisch und
+    // bleibt darüber etwa konstant. Für „Allgemein“ und „Warmer Stratus“ wird der
+    // adiabatische LWC deshalb ab 500 m über der Basis auf diesem Wert gehalten;
+    // „Labil“ (Konvektion) bleibt ungedeckelt.
+    const ICING_KOROLEV_DZ = 500; // m
+
+    // LWC-Klassen [g/m³] Spuren | leicht | mäßig | stark, Lewis (1947) nach Tafferner Tab. 2
+    const ICING_LWC_STRAT = [0.11, 0.69, 1.33];
+    const ICING_LWC_CUMUL = [0.07, 0.50, 1.0];
+    // Unter −15 °C höchstens „mäßig“ (Krutina 6.1a: starke Vereisung dort
+    // ungewöhnlich; Vereisung der Wolke ab −10 °C, die der adiabatische LWC nicht
+    // kennt). Eigene Ergänzung, gilt nicht für Freezing rain.
+    const ICING_SEV_T_MIN = -15;
+
+    // Intensitäten: 0 Spuren, 1 leicht, 2 mäßig, 3 stark
+    const ICING_NAMES = ['Spuren', 'Leicht', 'Mäßig', 'Stark'];
+    const ICING_COLORS = ['#8a94a8', '#7fc8f0', '#e0b030', '#e04848'];
+    const ICING_BG = [null, 'rgba(127,200,240,0.12)', 'rgba(224,176,48,0.16)', 'rgba(224,72,72,0.20)'];
+    // Szenarien mit Farben wie ADWICE (Tafferner Fig. 6)
+    const ICING_REGIMES = {
+      fz: { name: 'Gefrierender Regen', color: '#e04848' },
+      co: { name: 'Labil', color: '#3fae5a' },
+      ws: { name: 'Warmer Stratus', color: '#e0c030' },
+      ge: { name: 'Allgemein', color: '#4a7fe0' },
+    };
+
+    /** −8D-Wert [°C] eines Levels, null ohne Feuchte. */
+    function icing8D(l) {
+      if (!Number.isFinite(l.T_C) || !Number.isFinite(l.Td_C)) return null;
+      return -8 * (l.T_C - l.Td_C);
+    }
+
+    /** Modell meldet an diesem Level Eis, aber kein Flüssigwasser (vereiste Wolke). */
+    function icingIceOnly(l) {
+      return Number.isFinite(l.qw_kgkg) && !(l.qw_kgkg > 0) && l.qi_kgkg > 0;
+    }
+
+    /** Flugfläche aus Druck (ICAO-Standardatmosphäre), dreistellig. */
+    function flFromP(p_hPa) {
+      const z = 44330.8 * (1 - Math.pow(p_hPa / 1013.25, 0.190263));
+      return String(Math.max(0, Math.round(z / 0.3048 / 100))).padStart(3, '0');
+    }
+
+    /** Sättigungsmischungsverhältnis über Wasser [g/kg] */
+    function icingRs(T_C, p_hPa) {
+      const e = MET.es_water(T_C) / 100;
+      return 622 * e / (p_hPa - e);
+    }
+
+    /**
+     * Vereisungsdiagnose der Hauptkurve. Je Level: Szenario (Tafferner Fig. 2),
+     * adiabatischer LWC ab Wolkenbasis, Intensität (Lewis), Eisart (Krutina),
+     * dazu als reine Zusatzinfo, was das Modell an Kondensat meldet.
+     * @returns {{levels: object[], bands: object[]}} bands höchste Schicht zuerst
+     */
+    function computeIcing(lvls) {
+      const L = lvls.filter(l => Number.isFinite(l.T_C) && Number.isFinite(l.Td_C) && Number.isFinite(l.p_hPa));
+      const n = L.length;
+      const rh = L.map(l => Math.min(100, 100 * MET.es_water(l.Td_C) / MET.es_water(l.T_C)));
+      const regime = new Array(n).fill(null);
+      const inT = (T, [lo, hi]) => T >= lo && T <= hi;
+
+      // --- General: −16…0 °C, RH ≥ x(T)
+      for (let i = 0; i < n; i++) {
+        if (inT(L[i].T_C, ICING_GE_T) && rh[i] >= icingRhThreshold(L[i].T_C)) regime[i] = 'ge';
+      }
+
+      // --- Warm stratus: −12…0 °C, RH ≥ 85 %, darüber keine feuchte Schicht
+      // (RH ≥ 85 %) unter −12 °C, die Niederschlag hineinfallen lassen könnte;
+      // Cirren kälter als −50 °C zählen nicht (Tafferner 3a2).
+      let precipAbove = false;
+      for (let i = n - 1; i >= 0; i--) {
+        const T = L[i].T_C;
+        if (T < ICING_WS_T[0] && T > ICING_WS_CIRRUS_T && rh[i] >= ICING_RH_WS) precipAbove = true;
+        if (!precipAbove && inT(T, ICING_WS_T) && rh[i] >= ICING_RH_WS) regime[i] = 'ws';
+      }
+
+      // --- Unstable: −20…0 °C und RH ≥ 63 %, direkt darunter eine Schicht, die
+      // steiler als feuchtadiabatisch abkühlt und darin max. RH ≥ x(T); darf
+      // Warm stratus überschreiben (eingelagerte Konvektion, Tafferner 3a3).
+      const unstableBelow = i => {
+        const a = L[i - 1], b = L[i];
+        const Tm = MET.moist_adiabat_T(a.T_C + 273.15, a.p_hPa, b.p_hPa) - 273.15;
+        return b.T_C < Tm;
+      };
+      const coBase = new Array(n).fill(null); // Unterkante der labilen Schicht je „co“-Level
+      for (let i = 1; i < n; i++) {
+        if (!inT(L[i].T_C, ICING_CO_T) || rh[i] < ICING_CO_RH_MIN) continue;
+        let j = i, rhMax = -1;
+        while (j >= 1 && unstableBelow(j)) { rhMax = Math.max(rhMax, rh[j], rh[j - 1]); j--; }
+        if (j < i && rhMax >= icingRhThreshold(L[i].T_C)) { regime[i] = 'co'; coBase[i] = j; }
+      }
+
+      // --- Freezing rain: warme Nase (T > 0 °C) über bodennaher Kaltluft, feucht
+      // (RH ≥ 80 %) darüber und in der Kaltluft darunter → stark
+      if (n > 1 && L[0].T_C <= 0) {
+        let k = 0;
+        while (k < n && L[k].T_C <= 0) k++;          // k = Unterkante der warmen Nase
+        let m = k;
+        while (m < n && L[m].T_C > 0) m++;           // m = erstes Niveau darüber ≤ 0 °C
+        const moistAbove = k < n && L.slice(m).some((l, idx) => rh[m + idx] >= ICING_RH_FZ);
+        if (k < n && m > k && moistAbove) {
+          for (let i = 0; i < k; i++) if (rh[i] >= ICING_RH_FZ) regime[i] = 'fz';
+        }
+      }
+
+      // --- LWC je zusammenhängender Vereisungszone ab Wolkenbasis
+      // Höhen hypsometrisch aus p und T (unabhängig davon, ob die Quelle z_m führt)
+      const z = [0];
+      for (let k = 1; k < n; k++) {
+        const Tm = (L[k].T_C + L[k - 1].T_C) / 2 + 273.15;
+        z.push(z[k - 1] + 287.05 * Tm / 9.80665 * Math.log(L[k - 1].p_hPa / L[k].p_hPa));
+      }
+      const lwc = new Array(n).fill(null);
+      const capped = new Array(n).fill(false);
+      for (let i = 0; i < n; i++) {
+        if (!regime[i] || (i > 0 && regime[i - 1])) continue;   // i = Unterkante einer Zone
+        let base = i;
+        if (rh[i] >= ICING_RH_SAT) while (base > 0 && rh[base - 1] >= ICING_RH_SAT) base--;
+        // adiabatischer LWC im Level j bei Hebung ab Level b [g/m³]
+        const adiabFrom = (b, j) => Math.max(0, (icingRs(L[b].T_C, L[b].p_hPa) - icingRs(L[j].T_C, L[j].p_hPa))
+          * (L[j].p_hPa * 100) / (287.05 * (L[j].T_C + 273.15)));
+        const adiab = j => adiabFrom(base, j);
+        // Deckel nach Korolev: adiabatischer LWC 500 m über der Basis (linear interpoliert)
+        let cap = null;
+        for (let k = base + 1; k < n; k++) {
+          if (z[k] - z[base] >= ICING_KOROLEV_DZ) {
+            const f = (z[base] + ICING_KOROLEV_DZ - z[k - 1]) / (z[k] - z[k - 1]);
+            cap = adiab(k - 1) + f * (adiab(k) - adiab(k - 1));
+            break;
+          }
+        }
+        for (let j = i; j < n && regime[j]; j++) {
+          if (regime[j] === 'co') {
+            // Konvektion: Paket startet an der Unterkante der labilen Schicht,
+            // sofern die über der Wolkenbasis liegt; kein Korolev-Deckel
+            lwc[j] = adiabFrom(Math.max(base, coBase[j]), j);
+            continue;
+          }
+          lwc[j] = adiab(j);
+          if (cap !== null && regime[j] !== 'co' && z[j] - z[base] > ICING_KOROLEV_DZ && lwc[j] > cap) {
+            lwc[j] = cap;
+            capped[j] = true;
+          }
+        }
+      }
+
+      // --- Intensität, Eisart, Modellinfo je Level
+      const out = L.map((l, i) => {
+        const r = regime[i];
+        if (!r) return { p_hPa: l.p_hPa, regime: null };
+        let cat;
+        if (r === 'fz') cat = 3;
+        else {
+          const th = r === 'co' ? ICING_LWC_CUMUL : ICING_LWC_STRAT;
+          cat = th.filter(t => lwc[i] >= t).length;
+          if (l.T_C < ICING_SEV_T_MIN) cat = Math.min(cat, 2);
+        }
+        let type;
+        if (r === 'fz') type = 'Klareis';
+        else if (r === 'co') type = l.T_C >= -8 ? 'Klareis' : l.T_C >= -15 ? 'Mischeis' : 'Raueis';
+        else type = 'Raueis';
+        let model = null;
+        if (Number.isFinite(l.qw_kgkg) || Number.isFinite(l.qi_kgkg)) {
+          model = l.qw_kgkg > 0 ? 'Wasser' : l.qi_kgkg > 0 ? 'Eis' : '–';
+        }
+        return { p_hPa: l.p_hPa, T_C: l.T_C, regime: r, cat, type, lwc: lwc[i], capped: capped[i], model };
+      });
+
+      // --- Bänder: benachbarte Level mit gleichem Szenario, gleicher Intensität
+      // und Eisart zusammenfassen; Grenzen auf halbem Weg zwischen den Leveln
+      const edge = (i, up) => {
+        const j = up ? i + 1 : i - 1;
+        return j < 0 || j >= n ? out[i].p_hPa : (out[i].p_hPa + out[j].p_hPa) / 2;
+      };
+      const bands = [];
+      for (let i = 0; i < n; i++) {
+        const o = out[i];
+        if (!o.regime) continue;
+        const cur = bands[bands.length - 1];
+        if (cur && cur.iTop === i - 1 && cur.regime === o.regime && cur.cat === o.cat && cur.type === o.type) {
+          cur.iTop = i;
+          cur.p_hi = edge(i, true);
+          cur.lwcMax = Math.max(cur.lwcMax, o.lwc ?? 0);
+          cur.capped = cur.capped || o.capped;
+          cur.models.add(o.model);
+        } else {
+          bands.push({ regime: o.regime, cat: o.cat, type: o.type, iTop: i,
+            p_lo: edge(i, false), p_hi: edge(i, true), lwcMax: o.lwc ?? 0, capped: o.capped, models: new Set([o.model]) });
+        }
+      }
+      return {
+        levels: out,
+        bands: bands.reverse().map(b => ({
+          ...b,
+          name: ICING_NAMES[b.cat],
+          // Modellinfo der Schicht: Wasser, sobald ein Level Flüssigwasser hat
+          model: b.models.has('Wasser') ? 'Wasser' : b.models.has('Eis') ? 'Eis' : b.models.has('–') ? '–' : null,
+          label: `FL${flFromP(b.p_lo)}–FL${flFromP(b.p_hi)}`,
+        })),
+      };
+    }
+
+    // =========================================================================
     // Niederschlagsphase: Bourgouin (1992) + DWD-Schneefallgrenze
     // =========================================================================
     function computePrecipPhase(lvls) {
@@ -4150,6 +4525,31 @@
             tr.innerHTML = `<td>${label}</td>
               <td style="color:${color};font-weight:${cat >= 2 ? 'bold' : 'normal'}">${name}</td>`;
             contrailTbody.appendChild(tr);
+          });
+        }
+      }
+
+      // --- Vereisung (Tafferner 2003 / Krutina, s. computeIcing) ---
+      const icing = computeIcing(lvls);
+      STATE.icingData = icing;
+      const icingTbody = document.querySelector('#icing-table tbody');
+      if (icingTbody) {
+        icingTbody.innerHTML = '';
+        if (icing.bands.length === 0) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td colspan="4" style="color:var(--text3)">Keine Vereisung</td>`;
+          icingTbody.appendChild(tr);
+        } else {
+          icing.bands.forEach(({ label, name, cat, regime, type, model, lwcMax, capped }) => {
+            const rg = ICING_REGIMES[regime];
+            const tr = document.createElement('tr');
+            tr.title = `Szenario: ${rg.name}` + (regime === 'fz' ? '' : ` · LWC max ${lwcMax.toFixed(2)} g/m³`)
+              + (capped ? ' (ab 500 m über der Wolkenbasis konstant, Korolev 2007)' : '');
+            tr.innerHTML = `<td><span style="display:inline-block;width:6px;height:9px;margin-right:4px;background:${rg.color}"></span>${label}</td>
+              <td style="color:${ICING_COLORS[cat]};font-weight:${cat >= 2 ? 'bold' : 'normal'}">${name}</td>
+              <td>${type}</td>
+              <td style="color:var(--text2)">${model ?? ''}</td>`;
+            icingTbody.appendChild(tr);
           });
         }
       }
@@ -7519,6 +7919,18 @@
     });
     document.getElementById('chk-contrails').addEventListener('change', (e) => {
       STATE.showContrails = e.target.checked;
+      redraw();
+    });
+    document.getElementById('chk-icing').addEventListener('change', (e) => {
+      STATE.showIcing = e.target.checked;
+      redraw();
+    });
+    document.getElementById('chk-icing-8d').addEventListener('change', (e) => {
+      STATE.showIcing8D = e.target.checked;
+      redraw();
+    });
+    document.getElementById('chk-icing-adwice').addEventListener('change', (e) => {
+      STATE.showIcingAdwice = e.target.checked;
       redraw();
     });
     document.getElementById('chk-clouds').addEventListener('change', (e) => {
