@@ -8,6 +8,12 @@ set -euo pipefail
 MODEL_FILTER="${1:-}"
 JOBS=4          # max. gleichzeitige fetch_sounding.py-Prozesse
 OUTDIR="${OUTDIR:-./data}"   # überschreibbar per Umgebungsvariable (systemd: Environment=OUTDIR=...)
+# Schalter zum Pausieren des DWD-Opendata-Abrufs (fetch_sounding.py):
+# Existiert diese Datei, wird nur noch Open-Meteo (_OM) geladen.
+#   pausieren:  touch /apps/TLogPViewer/opendata.paused
+#   aktivieren: rm /apps/TLogPViewer/opendata.paused
+# Liegt bewusst außerhalb des Git-Klons, damit deploy:backend sie nicht anfasst.
+OPENDATA_PAUSE_FILE="${OPENDATA_PAUSE_FILE:-/apps/TLogPViewer/opendata.paused}"
 
 # ---------------------------------------------------------------------------
 # index.json immer regenerieren – auch bei Fehler-Exit (set -e / Netzwerkfehler)
@@ -37,6 +43,11 @@ export -f _generate_index
 LOCATIONS="./locations.json"
 
 mkdir -p "$OUTDIR"
+
+export OPENDATA_PAUSE_FILE
+if [[ -e "$OPENDATA_PAUSE_FILE" ]]; then
+    echo "DWD-Opendata-Abruf pausiert ($OPENDATA_PAUSE_FILE vorhanden) – nur Open-Meteo."
+fi
 
 # ---------------------------------------------------------------------------
 # Aufräumen: JSON-Dateien älter als 3 Tage löschen
@@ -101,15 +112,19 @@ printf '%s\n' "$TASKS" | tr '\n' '\0' | xargs -0 -P "$JOBS" -n 1 bash -c '
     || echo "  ✗ $MODEL $ALIAS FEHLGESCHLAGEN  [OM]" >&2
     _generate_index
 
-    echo "  → $MODEL $ALIAS ($LAT, $LON) step=$STEP  [opendata]"
-    python3 fetch_sounding.py \
-        --lat "$LAT" --lon "$LON" \
-        --model "$MODEL" --step "$STEP" \
-        --outdir "'"$OUTDIR"'" \
-        --alias "$ALIAS" \
-    && echo "  ✓ $MODEL $ALIAS fertig  [opendata]" \
-    || echo "  ✗ $MODEL $ALIAS FEHLGESCHLAGEN  [opendata]" >&2
-    _generate_index
+    if [[ -e "$OPENDATA_PAUSE_FILE" ]]; then
+        echo "  ⏸ $MODEL $ALIAS übersprungen  [opendata pausiert]"
+    else
+        echo "  → $MODEL $ALIAS ($LAT, $LON) step=$STEP  [opendata]"
+        python3 fetch_sounding.py \
+            --lat "$LAT" --lon "$LON" \
+            --model "$MODEL" --step "$STEP" \
+            --outdir "'"$OUTDIR"'" \
+            --alias "$ALIAS" \
+        && echo "  ✓ $MODEL $ALIAS fertig  [opendata]" \
+        || echo "  ✗ $MODEL $ALIAS FEHLGESCHLAGEN  [opendata]" >&2
+        _generate_index
+    fi
 ' _
 
 echo "Alle Orte abgearbeitet."

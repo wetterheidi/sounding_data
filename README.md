@@ -43,7 +43,7 @@ Die HTML-Dateien liegen zwar auch im Git-Klon, ausgeliefert wird aber nur
 - Zwei `systemd`-Timer starten `run_locations.sh` pünktlich zur DWD-Verfügbarkeit
 - Das Skript ruft pro aktivem Ort und Modell **zwei** Fetcher nacheinander auf und schreibt die JSON-Dateien nach `/apps/TLogPViewer/data/`:
   - `fetch_sounding_openmeteo.py` – native Modelllevel fertig berechnet von Open-Meteo (primär `open-meteo.wetterheidi.de`, Fallback Michaels Server); Dateiname mit Suffix `_OM`
-  - `fetch_sounding.py` – GRIB2-Dateien direkt vom DWD-Opendata-Server, per eccodes dekodiert
+  - `fetch_sounding.py` – GRIB2-Dateien direkt vom DWD-Opendata-Server, per eccodes dekodiert; per Schalterdatei pausierbar (derzeit pausiert, siehe [DWD-Opendata-Abruf pausieren](#dwd-opendata-abruf-pausieren--wieder-aktivieren))
 - Nach jedem Ort wird `data/index.json` neu erzeugt
 - nginx liefert die JSON-Dateien direkt aus – kein GitHub im Datenpfad
 
@@ -94,6 +94,37 @@ Download manuell anstoßen (z.B. nach Server-Neustart):
 systemctl start tlogp-d2eu.service
 journalctl -u tlogp-d2eu.service -f
 ```
+
+### DWD-Opendata-Abruf pausieren / wieder aktivieren
+
+Pro Ort lädt `run_locations.sh` erst die Open-Meteo-Variante
+(`fetch_sounding_openmeteo.py`, Dateien `…_OM.json`) und dann die GRIB2-Daten
+direkt vom DWD (`fetch_sounding.py`). Nur der DWD-Schritt ist rechenintensiv:
+Auf dem 2-Kern-Server belegt er pro Timer-Lauf ca. 1½ h die volle CPU
+(Stand Oktober 2026). Er lässt sich per Schalterdatei abschalten, ohne Deploy
+und ohne die Timer anzufassen:
+
+```bash
+# pausieren (nur noch Open-Meteo wird geladen)
+ssh root@178.104.206.136 'touch /apps/TLogPViewer/opendata.paused'
+
+# wieder aktivieren
+ssh root@178.104.206.136 'rm /apps/TLogPViewer/opendata.paused'
+
+# Status prüfen
+ssh root@178.104.206.136 'ls -l /apps/TLogPViewer/opendata.paused'
+```
+
+- Wirkt ab dem nächsten Timer-Lauf; ein laufender Download wird nicht abgebrochen.
+  Sofort neu laden: `systemctl start tlogp-d2eu.service`.
+- Die Datei liegt außerhalb des Git-Klons, `npm run deploy:backend` lässt sie stehen.
+- Im Journal steht bei pausiertem Abruf `DWD-Opendata-Abruf pausiert` bzw.
+  `übersprungen [opendata pausiert]` je Ort.
+- Folge im Viewer: Die DWD-Profile ohne `_OM` laufen nach spätestens 3 Tagen
+  aus (Aufräumen in `run_locations.sh`). Im Reiter "DWD Opendata" stehen dann
+  nur noch die `_OM`-Profile.
+
+Seit 13.10.2026 ist der DWD-Abruf pausiert.
 
 ---
 
