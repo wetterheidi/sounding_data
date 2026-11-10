@@ -231,6 +231,10 @@ gewählt.
   — JS-Portierung von `fetch_sounding_openmeteo.py` (dort gleiche Server-Reihenfolge)
 - **Druckflächen** (1000–30 hPa): öffentliche API `api.open-meteo.com` — Logik aus
   `om_pressure_tool.html`, hier direkt in den Viewer integriert
+  (Modellliste `OM_PL_MODELS` bzw. `MODEL_CFG`, in allen drei Dateien gleich halten). Für
+  die USA stehen RRFS CONUS (`ncep_rrfs_conus`) und RRFS Nordamerika
+  (`ncep_rrfs_north_america`) als Nachfolger des Ende 2026-11 abgeschalteten HRRR bereit —
+  nur innerhalb ihrer Domäne, sonst meldet Open-Meteo „No data is available for this location“
 - **Rohdaten-Download**: die letzte Server-Antwort kann unverändert (byte-identisch)
   als JSON gespeichert werden
 - Leaflet liegt lokal unter `om/leaflet/` (kein CDN); einzige externe Abhängigkeiten

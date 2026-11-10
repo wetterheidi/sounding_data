@@ -5910,6 +5910,10 @@
     const OM_PL_MODELS = {
       'pl:ecmwf_ifs025':        { label: 'ECMWF IFS' },
       'pl:gfs_seamless':        { label: 'GFS' },
+      // RRFS (NOAA) ersetzt das Ende 2026-11 abgeschaltete HRRR; nur innerhalb der jeweiligen
+      // Domäne verfügbar, außerhalb meldet Open-Meteo 'No data is available for this location'
+      'pl:ncep_rrfs_conus':     { label: 'RRFS CONUS' },
+      'pl:ncep_rrfs_north_america': { label: 'RRFS Nordamerika' },
       'pl:icon_seamless':       { label: 'ICON (Seamless)' },
       'pl:icon_global':         { label: 'ICON' },
       'pl:icon_eu':             { label: 'ICON-EU' },
