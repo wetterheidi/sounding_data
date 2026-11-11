@@ -2908,7 +2908,10 @@
       // --- Windbarbs (rechte Spalte) ---
       // Mindestabstand in Pixeln zwischen zwei Windbarbs (zoom-unabhängig → mehr Barbs beim Zoomen)
       const MIN_BARB_PX = 22;
-      const barbX = m.left + proj.W + 75;
+      // Fieder (Stamm 18 px + Fähnchen) reicht in jede Richtung bis ~20 px um barbX;
+      // die Druckbeschriftung steht deshalb rechts außerhalb dieses Radius.
+      const barbX = m.left + proj.W + 70;
+      const BARB_LABEL_DX = 24;
 
       // Hilfsfunktion: Richtungsdifferenz mit 360°-Wrap [-180, +180]
       const dirDelta = (a, b) => { let d = a - b; if (d > 180) d -= 360; if (d < -180) d += 360; return d; };
@@ -2955,7 +2958,7 @@
         ctx.fillStyle = PALETTE.axisLabel;
         ctx.font = '11px IBM Plex Mono, monospace';
         ctx.textAlign = 'left';
-        ctx.fillText(Math.round(l.p_hPa), barbX + 14, y + 3);
+        ctx.fillText(Math.round(l.p_hPa), barbX + BARB_LABEL_DX, y + 4);
       });
 
       // --- Kondensationsniveau-Ticks auf der T-Kurve ---
