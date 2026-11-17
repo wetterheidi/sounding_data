@@ -961,7 +961,7 @@
         style="font-size:15px;padding:4px 9px;min-width:34px;">☀</button>
 
       <button class="btn primary" id="btn-fetch">＋ Daten laden</button>
-      <input type="file" id="file-input" accept=".json,.txt" multiple style="display:none">
+      <input type="file" id="file-input" accept=".json,.txt,.csv" multiple style="display:none">
     </div>
   </header>
 
@@ -1085,7 +1085,7 @@
       <div class="src-only file" id="file-pane">
         <button class="btn" id="btn-pick-file">Datei(en) auswählen …</button>
         <div class="om-hint">JSON aus <code>fetch_sounding.py</code> bzw. dem Rohdaten-Knopf,
-          oder Radiosonden-ASCII (Windsond). Dateien lassen sich auch überall auf die Seite ziehen.</div>
+          oder Radiosonden-ASCII/-CSV (Windsond). Dateien lassen sich auch überall auf die Seite ziehen.</div>
       </div>
 
       <div class="src-only ml pl" id="prefill-wrap">
@@ -7434,22 +7434,28 @@
     // Dateiname: YYYY-MM-DD_hhmm_Sondennummer[...].txt
     // Header:    Height[m]  Pressure[hPa]  Temperature[°C]  Dewpoint[°C]  Wind direction[°]  Wind speed[m/s]
     // -------------------------------------------------------------------------
+    // Metadaten aus Dateiname: YYYY-MM-DD_hhmm[_Sondennummer]…
+    // (CSV-Exporte heißen z. B. 2026-11-17_1858.sounding.csv — ohne Nummer)
+    function radiosondeMetaFromFilename(filename) {
+      let valid_time = null, sonde_id = null;
+      const fnMatch = filename.match(/(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})(?:_(\d+))?/);
+      if (fnMatch) {
+        valid_time = `${fnMatch[1]}T${fnMatch[2]}:${fnMatch[3]}Z`;
+        sonde_id = fnMatch[4] ?? null;
+      }
+      const location_alias = sonde_id ? `Sonde ${sonde_id}` : 'Radiosonde';
+      return { valid_time, sonde_id, location_alias };
+    }
+
     function parseRadiosondeAscii(text, filename) {
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      const lines = stripCommentLines(text);
       if (lines.length < 2) return null;
 
       // Header-Zeile prüfen
       const header = lines[0].toLowerCase();
       if (!header.includes('height') || !header.includes('pressure')) return null;
 
-      // Metadaten aus Dateiname: YYYY-MM-DD_hhmm_...
-      let valid_time = null, sonde_id = null;
-      const fnMatch = filename.match(/(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})_(\d+)/);
-      if (fnMatch) {
-        valid_time = `${fnMatch[1]}T${fnMatch[2]}:${fnMatch[3]}Z`;
-        sonde_id = fnMatch[4];
-      }
-      const location_alias = sonde_id ? `Sonde ${sonde_id}` : 'Radiosonde';
+      const { valid_time, sonde_id, location_alias } = radiosondeMetaFromFilename(filename);
 
       // Datenpunkte parsen
       const raw = [];
@@ -7481,19 +7487,124 @@
       };
     }
 
-    // Liest sowohl JSON- als auch ASCII-Dateien (automatische Erkennung)
+    // -------------------------------------------------------------------------
+    // Radiosonden-CSV-Parser (Windsond-CSV-Export)
+    //   # Radiation correction S2H3 v1.0          ← Kommentarzeilen mit '#'
+    //   Height (m AGL), Pressure (mb), Temperature (C), Relative humidity (%),
+    //   Wind speed (m/s), Wind direction (true deg)
+    // Lehren aus dem Mittelwind-Import:
+    //  - Spalten werden über die Kopfzeile zugeordnet, nicht über die Position:
+    //    im CSV stehen Windgeschwindigkeit und -richtung andersherum als im txt.
+    //  - Der Spaltentrenner kommt aus der Kopfzeile. Bei ',' ist der Punkt der
+    //    Dezimaltrenner — KEINE Automatik „enthält Komma ⇒ deutsches Format",
+    //    die würde die Dezimalpunkte zerstören. Nur bei ';' (Excel-DE) wird ein
+    //    Dezimalkomma in einen Punkt umgewandelt.
+    //  - Kein Taupunkt in der Datei → aus RH (über Wasser) und T berechnet.
+    // -------------------------------------------------------------------------
+    function stripCommentLines(text) {
+      return text.replace(/^\uFEFF/, '').split(/\r?\n/).map(l => l.trim())
+        .filter(l => l.length > 0 && !l.startsWith('#'));
+    }
+
+    function parseRadiosondeCsv(text, filename) {
+      const lines = stripCommentLines(text);
+      if (lines.length < 2) return null;
+
+      const headerLine = lines[0];
+      const sep = headerLine.includes(';') ? ';' : headerLine.includes('\t') ? '\t' : ',';
+      const decimalComma = sep === ';';
+      const header = headerLine.split(sep).map(h => h.trim().toLowerCase());
+
+      const find = (...patterns) => header.findIndex(h => patterns.some(re => re.test(h)));
+      const iZ = find(/^height/, /^altitude/, /^h\b/);
+      const iP = find(/^pressure/, /^p\b/);
+      const iT = find(/^temp/, /^t\b/);
+      const iTd = find(/dew ?point/, /^td\b/);
+      const iRH = find(/humidity/, /^rh\b/);
+      const iWspd = find(/wind ?speed/, /^speed/, /^ff\b/);
+      const iWdir = find(/wind ?dir/, /^direction/, /^dd\b/);
+      if (iP < 0 || iT < 0 || (iTd < 0 && iRH < 0)) return null;
+
+      // Einheiten aus der Kopfzeile
+      const zHdr = iZ >= 0 ? header[iZ] : '';
+      const zIsMsl = /msl|amsl|asl/.test(zHdr) && !/agl/.test(zHdr);
+      const zFactor = /\(ft|\bft\b|feet/.test(zHdr) ? 0.3048 : 1;
+      const wHdr = iWspd >= 0 ? header[iWspd] : '';
+      const toKn = /kn|kt/.test(wHdr) ? 1
+        : /km\/h|kmh/.test(wHdr) ? 1 / 1.852
+        : 1 / 0.514444; // Standard m/s
+      const pFactor = /\bpa\b|\(pa\)/.test(iP >= 0 ? header[iP] : '') ? 0.01 : 1; // mb/hPa → 1
+
+      const num = s => {
+        if (s == null) return NaN;
+        let v = s.trim();
+        if (decimalComma) v = v.replace(',', '.');
+        return v === '' ? NaN : Number(v);
+      };
+
+      const raw = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(sep);
+        const p = num(cols[iP]) * pFactor;
+        const T = num(cols[iT]);
+        if (!isFinite(p) || !isFinite(T)) continue;
+        let Td = iTd >= 0 ? num(cols[iTd]) : NaN;
+        if (!isFinite(Td) && iRH >= 0) {
+          const rh = num(cols[iRH]);
+          if (isFinite(rh) && rh > 0) {
+            Td = MET.dewpoint_from_e(Math.min(rh, 100) / 100 * MET.es_water(T));
+          }
+        }
+        if (!isFinite(Td)) continue;
+        const z = iZ >= 0 ? num(cols[iZ]) * zFactor : NaN;
+        const wdir = iWdir >= 0 ? num(cols[iWdir]) : NaN;
+        const wspd = iWspd >= 0 ? num(cols[iWspd]) : NaN;
+        raw.push({
+          z_m: isFinite(z) ? z : null,
+          p_hPa: p, T_C: T, Td_C: Td,
+          wdir_deg: isFinite(wdir) ? wdir : null,
+          wspd_kn: isFinite(wspd) ? wspd * toKn : null,
+        });
+      }
+      if (raw.length < 2) return null;
+      raw.sort((a, b) => b.p_hPa - a.p_hPa);
+
+      // Viewer rechnet in m AGL; MSL-Höhen auf den untersten Messpunkt beziehen
+      if (zIsMsl) {
+        const z0 = raw.find(l => l.z_m != null)?.z_m;
+        if (z0 != null) raw.forEach(l => { if (l.z_m != null) l.z_m -= z0; });
+      }
+
+      const { valid_time, sonde_id, location_alias } = radiosondeMetaFromFilename(filename);
+      const { levels, decimated } = decimateByHeight(raw);
+      return {
+        model: 'Radiosonde',
+        valid_time,
+        location_alias,
+        sonde_id,
+        n_levels_loaded: levels.length,
+        n_levels_raw: raw.length,
+        decimated,
+        levels
+      };
+    }
+
+    // Liest sowohl JSON- als auch ASCII-/CSV-Dateien (automatische Erkennung)
     function readFiles(fileList) {
       const promises = Array.from(fileList).map(f => {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = e => {
             const text = e.target.result;
-            // ASCII-Erkennung: erste nicht-leere Zeile enthält 'Height' oder 'h(mAGL)'
-            const firstLine = text.trimStart().split('\n')[0].toLowerCase();
+            // ASCII/CSV-Erkennung: erste Zeile ohne '#'-Kommentar enthält
+            // 'Height' und 'Pressure'. Komma/Semikolon in der Kopfzeile ⇒ CSV,
+            // sonst leerzeichen-/tabgetrenntes Windsond-txt.
+            const firstLine = (stripCommentLines(text)[0] || '').toLowerCase();
             if (firstLine.includes('height') && firstLine.includes('pressure')) {
-              const snd = parseRadiosondeAscii(text, f.name);
+              const isCsv = /[,;]/.test(firstLine);
+              const snd = isCsv ? parseRadiosondeCsv(text, f.name) : parseRadiosondeAscii(text, f.name);
               if (snd) resolve(snd);
-              else reject(new Error(`Unbekanntes ASCII-Format: ${f.name}`));
+              else reject(new Error(`Unbekanntes ${isCsv ? 'CSV' : 'ASCII'}-Format: ${f.name}`));
             } else {
               try { resolve(JSON.parse(text)); }
               catch (err) { reject(new Error(`JSON-Fehler in ${f.name}: ${err.message}`)); }

@@ -325,7 +325,7 @@ Ein einziger Einstiegspunkt: Button "＋ Daten laden" öffnet einen Dialog mit f
 - **DWD Opendata** – ruft alle vorberechneten Profile aller vordefinierten Orte ab (`/data/index.json`)
 - **Modelllevel** / **Druckflächen** – Ort per Karte oder Koordinaten wählen, Live-Abruf von Open-Meteo (siehe Abschnitt "OM Viewer" unten – dieselbe Logik ist hier direkt in den Ladedialog integriert)
 - **Messung** – echte Radiosondenaufstiege (Quelle: Windy), Station per Karte wählen
-- **Datei** – lokale JSON-Datei auswählen oder per Drag & Drop ins Fenster ziehen
+- **Datei** – lokale Datei auswählen oder per Drag & Drop ins Fenster ziehen: JSON (aus `fetch_sounding.py` bzw. dem Rohdaten-Knopf), Windsond-ASCII (`.txt`, leerzeichengetrennt) oder Windsond-CSV-Export (`.csv`, z. B. `2026-11-17_1858.sounding.csv`). Beim CSV werden `#`-Kommentarzeilen übersprungen und die Spalten über die Kopfzeile zugeordnet (Reihenfolge egal); Komma ist Spaltentrenner und Punkt Dezimaltrenner, nur bei Semikolon-Dateien wird ein Dezimalkomma akzeptiert. Fehlt ein Taupunkt, wird er aus relativer Feuchte und Temperatur berechnet. Höhen müssen m AGL sein (MSL-Höhen werden auf den untersten Messpunkt bezogen). Termin und ggf. Sondennummer stammen aus dem Dateinamen (`YYYY-MM-DD_hhmm[_Nummer]`), die Uhrzeit wird als UTC gelesen.
 
 Der Viewer startet **bewusst leer** – es gibt keinen automatischen Ladevorgang mehr beim Öffnen.
 Beim ersten Hinzufügen einer Kurve wird diese automatisch zur Hauptkurve; weitere Kurven
