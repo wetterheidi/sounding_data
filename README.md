@@ -390,6 +390,29 @@ steht bei B ein fester Kasten mit B − A:
 Die Punkte sind in (p, T) gespeichert und bleiben beim Zoomen/Verschieben an ihrer Diagrammposition.
 Höhen (z, Δz, Γ) beziehen sich immer auf den gerade angezeigten Termin der Hauptkurve.
 
+### Zusatzprofile (▥ Profile)
+Über **▥ Profile** im Header lassen sich schmale Profilspalten zwischen Diagramm und Sidebar
+einblenden (Auswahl wird im Browser gemerkt, × in der Spalte blendet sie wieder aus). Die Spalten
+haben keine eigene Höhenachse, sondern teilen sich die Druckachse des TlogP — Zoom und Verschieben
+laufen mit, das Mausrad über einer Spalte zoomt das Diagramm. Hauptkurve durchgezogen, sichtbare
+Vergleichskurven gestrichelt in ihrer Farbe. Die Maushöhe wird als Linie mit dem Wert der
+Hauptkurve angezeigt. Die x-Achse skaliert sich (außer bei festen Achsen) auf den sichtbaren
+Ausschnitt. Auf schmalen Bildschirmen (< 700 px) ausgeblendet.
+
+| Profil | Inhalt |
+|---|---|
+| Wind | Windgeschwindigkeit [kn] |
+| Windrichtung | [°], als Punkte (kein Sprung 360°→0°) |
+| Rel. Feuchte | über Wasser [%] |
+| θ / θe | potentielle und äquivalentpotentielle Temperatur [K] |
+| N² | Brunt-Väisälä-Frequenz² aus θv (trocken, ohne Sättigungskorrektur) [10⁻⁴ s⁻²] |
+| Scorer l² | N²/U² − U″/U [km⁻²]; U = Windkomponente quer zum Kamm. Die **Anströmrichtung** (Richtung, *aus der* der Wind quer zum Kamm kommt, z. B. Alpen-Nordstau ≈ 360°, Südföhn ≈ 180°) lässt sich im Profil-Menü unter „Scorer l²“ fest eingeben und wird gemerkt; leer = automatisch, vektorielles Mittel des Windes 0–3 km AGL. Im Spaltenkopf steht die verwendete Richtung mit „(fest)“ bzw. „(0–3 km)“. Lücke, wo U < 2 m/s (auch bei Gegenströmung). Leewellen begünstigt, wenn l² mit der Höhe deutlich abnimmt |
+| Richardson Ri | N² / (vektorielle Scherung)², Achse −1…4; rot Ri < 0,25 (turbulent), orange 0,25–1 |
+
+N², l² und Ri werden auf einem 200-m-Höhenraster mit 1-km-Glättung gerechnet (direkt auf den
+Modellflächen wären die Ableitungen zu verrauscht); Werte außerhalb der Achse werden am Rand
+abgeschnitten (N² und l² auf −2…6).
+
 ---
 
 ## Referenz: DWD ICON Modelle

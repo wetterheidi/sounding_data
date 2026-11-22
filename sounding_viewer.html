@@ -507,6 +507,90 @@
     }
 
     /* ------------------------------------------------------------------ */
+    /* Zusatzprofile: Spalten zwischen Diagramm und Sidebar                 */
+    /* (teilen sich die Druckachse inkl. Zoom/Pan mit dem Hauptdiagramm)   */
+    /* ------------------------------------------------------------------ */
+    #profile-strip {
+      display: flex;
+      flex-shrink: 0;
+      background: var(--bg);
+      border-left: 1px solid var(--border);
+    }
+    #profile-strip:empty { display: none; }
+    .profile-col {
+      position: relative;
+      width: 118px;
+      border-right: 1px solid var(--border);
+    }
+    .profile-col:last-child { border-right: none; }
+    .profile-col canvas { display: block; }
+    .profile-col .profile-close {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      background: none;
+      border: none;
+      color: var(--text3);
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      padding: 2px 4px;
+    }
+    .profile-col .profile-close:hover { color: var(--text); }
+    #profile-menu-wrap { position: relative; }
+    #profile-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      z-index: 50;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      min-width: 230px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+      font-size: 12px;
+    }
+    #profile-menu label {
+      display: flex;
+      gap: 6px;
+      align-items: baseline;
+      padding: 3px 0;
+      cursor: pointer;
+      color: var(--text2);
+    }
+    #profile-menu label small { color: var(--text3); font-size: 10px; }
+    #profile-menu .profile-menu-sub {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 0 4px 22px;
+      color: var(--text3);
+      font-size: 11px;
+    }
+    #profile-menu .profile-menu-sub input {
+      width: 58px;
+      background: var(--bg3);
+      color: var(--text);
+      border: 1px solid var(--border2);
+      border-radius: 4px;
+      padding: 2px 4px;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+    #profile-menu .profile-menu-head {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text3);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    @media (max-width: 700px) {
+      #profile-strip { display: none; }
+    }
+
+    /* ------------------------------------------------------------------ */
     /* Seitenleiste: Indizes                                                */
     /* ------------------------------------------------------------------ */
     #sidebar {
@@ -957,6 +1041,14 @@
       <span class="chip accent" id="chip-time">Keine Daten</span>
     </div>
     <div class="file-drop">
+      <div id="profile-menu-wrap">
+        <button class="btn" id="btn-profiles"
+          title="Zusätzliche Vertikalprofile rechts neben dem Diagramm ein-/ausblenden">▥ Profile</button>
+        <div id="profile-menu" hidden>
+          <div class="profile-menu-head">Zusatzprofile</div>
+          <div id="profile-menu-list"></div>
+        </div>
+      </div>
       <button class="btn" id="btn-theme" title="Tag-/Nachtmodus wechseln"
         style="font-size:15px;padding:4px 9px;min-width:34px;">☀</button>
 
@@ -1170,6 +1262,9 @@
           oder eine Datei hierher ziehen.</p>
       </div>
     </div>
+
+    <!-- Zusatzprofile (Wind, Scorer, Ri …) — Spalten werden per JS erzeugt -->
+    <div id="profile-strip"></div>
 
     <!-- Seitenleiste -->
     <div id="sidebar">
@@ -3252,6 +3347,7 @@
       drawProbePins();        // vor den Maus-Linien, damit der Live-Tooltip obenauf liegt
       drawInteractiveLines(); // HIER zeichnen wir die neuen Maus-Linien!
       drawHodograph();
+      drawProfiles();
     }
 
     // =========================================================================
@@ -8084,6 +8180,461 @@
         syncBtn();
         redraw();
       });
+    })();
+
+    // =========================================================================
+    // Zusatzprofile rechts neben dem Diagramm
+    // -------------------------------------------------------------------------
+    // Schmale Spalten zwischen Diagramm und Sidebar. Sie haben keine eigene
+    // y-Achse, sondern benutzen proj.toCanvasY() — damit laufen Zoom/Pan des
+    // Hauptdiagramms automatisch mit, und jede Höhe liegt pixelgenau neben dem
+    // passenden Druckniveau im TlogP. Hauptkurve durchgezogen, Vergleichskurven
+    // gestrichelt in ihrer Vergleichsfarbe (wie im Diagramm).
+    // Ableitungsgrößen (N², Scorer, Ri) werden auf einem äquidistanten
+    // Höhenraster (PROFILE_DZ) gerechnet und geglättet — direkt auf den
+    // Modellflächen wären die zweiten Ableitungen reines Rauschen.
+    // =========================================================================
+    const PROFILE_KEY = 'tlogp-profiles';
+    const PROFILE_COL_W = 118;
+    const PROFILE_DZ = 200;       // m, Raster für Ableitungen
+    const PROFILE_SMOOTH = 2;     // Halbbreite gleitendes Mittel (Punkte) → 5 × 200 m = 1 km
+    const PROFILE_U_MIN = 2;      // m/s: darunter ist Scorer (÷U) nicht aussagekräftig → Lücke
+    const G0 = 9.80665;
+
+    STATE.profiles = [];          // aktive Profil-IDs (Reihenfolge = PROFILE_DEFS)
+    STATE.profileHoverP = null;   // Maus über einer Profilspalte
+    // Scorer: feste Anströmrichtung quer zum Kamm [° woher], null = automatisch
+    // (vektorielles Mittel 0–3 km). Gespeichert unter SCORER_DIR_KEY.
+    const SCORER_DIR_KEY = 'tlogp-scorer-dir';
+    STATE.scorerDir = null;
+
+    // Höhensortiertes Profil + Rasterableitungen, je Sounding einmal berechnet
+    // (wird beim Ändern der Scorer-Richtung verworfen)
+    let _profCache = new WeakMap();
+    function profileBase(snd) {
+      if (_profCache.has(snd)) return _profCache.get(snd);
+      const raw = (snd.levels || [])
+        .filter(l => l.p_hPa > 0 && l.T_C != null)
+        .slice().sort((a, b) => b.p_hPa - a.p_hPa);
+
+      // Höhe: aus den Daten, fehlende Werte hypsometrisch ergänzen
+      const lv = [];
+      for (const l of raw) {
+        const prev = lv[lv.length - 1];
+        let z = l.z_m;
+        if (z == null) {
+          z = prev ? prev.z + 287.05 * ((prev.T_C + l.T_C) / 2 + 273.15) / G0 * Math.log(prev.p / l.p_hPa) : 0;
+        }
+        if (prev && (!(z > prev.z) || !(l.p_hPa < prev.p))) continue;   // nicht monoton → überspringen
+        const T_K = l.T_C + 273.15;
+        const r = l.Td_C != null ? MET.mixing_ratio(l.Td_C, l.p_hPa) : 0;
+        const theta = MET.potential_T(T_K, l.p_hPa);
+        const hasWind = l.wspd_kn != null && l.wdir_deg != null;
+        const s = hasWind ? l.wspd_kn * 0.514444 : NaN;
+        const d = hasWind ? l.wdir_deg * Math.PI / 180 : NaN;
+        lv.push({
+          p: l.p_hPa, z, T_C: l.T_C, Td_C: l.Td_C,
+          theta, thetaV: theta * (1 + 0.608 * r),
+          thetaE: l.Td_C != null ? MET.theta_e(T_K, l.Td_C + 273.15, l.p_hPa) : NaN,
+          rh: l.Td_C != null ? calcRelativeHumidity(l.T_C, l.Td_C) : NaN,
+          wspd_kn: hasWind ? l.wspd_kn : NaN,
+          wdir: hasWind ? l.wdir_deg : NaN,
+          u: -s * Math.sin(d), v: -s * Math.cos(d),
+        });
+      }
+
+      const out = { lv, grid: null, refDir: null };
+      if (lv.length >= 3) out.grid = profileGrid(lv, out);
+      _profCache.set(snd, out);
+      return out;
+    }
+
+    // Lineare Interpolation einer Größe in z; Stützstellen mit NaN werden übergangen
+    function interpZ(lv, key, z) {
+      let lo = null;
+      for (let i = 0; i < lv.length; i++) {
+        const val = lv[i][key];
+        if (!isFinite(val)) continue;
+        if (lv[i].z >= z) {
+          if (lo == null) return lv[i].z === z ? val : NaN;
+          const f = (z - lo.z) / (lv[i].z - lo.z);
+          return lo[key] + f * (val - lo[key]);
+        }
+        lo = lv[i];
+      }
+      return lo && lo.z === z ? lo[key] : NaN;
+    }
+
+    function smoothArr(a, k) {
+      return a.map((_, i) => {
+        let sum = 0, n = 0;
+        for (let j = i - k; j <= i + k; j++) if (j >= 0 && j < a.length && isFinite(a[j])) { sum += a[j]; n++; }
+        return n ? sum / n : NaN;
+      });
+    }
+
+    function profileGrid(lv, out) {
+      // Bezugsrichtung für Scorer: fest eingegebene Anströmrichtung quer zum
+      // Kamm, sonst vektorielles Mittel des Windes 0–3 km AGL als Näherung.
+      // U = Windkomponente in diese Richtung (Gegenwind → negativ → Lücke).
+      const z0 = lv[0].z;
+      let ex = 0, ey = 0;
+      if (STATE.scorerDir != null) {
+        const d = STATE.scorerDir * Math.PI / 180;
+        ex = -Math.sin(d); ey = -Math.cos(d);      // Wind AUS d weht in Richtung −(sin, cos)
+        out.refDir = STATE.scorerDir;
+        out.refFixed = true;
+      } else {
+        let su = 0, sv = 0;
+        for (const l of lv) if (l.z - z0 <= 3000 && isFinite(l.u)) { su += l.u; sv += l.v; }
+        const sm = Math.hypot(su, sv);
+        if (sm > 0) { ex = su / sm; ey = sv / sm; }
+        out.refDir = sm > 0 ? (Math.atan2(-su, -sv) * 180 / Math.PI + 360) % 360 : null;
+        out.refFixed = false;
+      }
+
+      const zs = [];
+      for (let z = z0; z <= lv[lv.length - 1].z; z += PROFILE_DZ) zs.push(z);
+      const n = zs.length;
+      const lvLnp = lv.map(l => ({ z: l.z, lnp: Math.log(l.p) }));
+      const p = zs.map(z => Math.exp(interpZ(lvLnp, 'lnp', z)));
+      const thv = smoothArr(zs.map(z => interpZ(lv, 'thetaV', z)), PROFILE_SMOOTH);
+      const u = smoothArr(zs.map(z => interpZ(lv, 'u', z)), PROFILE_SMOOTH);
+      const v = smoothArr(zs.map(z => interpZ(lv, 'v', z)), PROFILE_SMOOTH);
+      const U = u.map((uu, i) => uu * ex + v[i] * ey);
+
+      const N2 = new Array(n).fill(NaN), l2 = new Array(n).fill(NaN), Ri = new Array(n).fill(NaN);
+      const dz = PROFILE_DZ;
+      for (let i = 1; i < n - 1; i++) {
+        N2[i] = G0 / thv[i] * (thv[i + 1] - thv[i - 1]) / (2 * dz);
+        const du = (u[i + 1] - u[i - 1]) / (2 * dz), dv = (v[i + 1] - v[i - 1]) / (2 * dz);
+        const sh2 = du * du + dv * dv;
+        if (isFinite(sh2) && isFinite(N2[i])) Ri[i] = sh2 > 1e-8 ? N2[i] / sh2 : (N2[i] >= 0 ? 1e3 : -1e3);
+        if (isFinite(U[i]) && U[i] >= PROFILE_U_MIN) {
+          const Uzz = (U[i + 1] - 2 * U[i] + U[i - 1]) / (dz * dz);
+          l2[i] = (N2[i] / (U[i] * U[i]) - Uzz / U[i]) * 1e6;   // m⁻² → km⁻²
+        }
+      }
+      return { z: zs, p, N2: N2.map(x => x * 1e4), l2, Ri };
+    }
+
+    const gridSeries = key => snd => {
+      const g = profileBase(snd).grid;
+      return g ? [g.p.map((p, i) => ({ p, v: g[key][i] }))] : [];
+    };
+    const levelSeries = (...keys) => snd => {
+      const lv = profileBase(snd).lv;
+      return keys.map(k => lv.map(l => ({ p: l.p, v: l[k] })));
+    };
+
+    // Profil-Katalog. range: feste Achse [min,max]; sonst automatisch aus den
+    // sichtbaren Werten (include: Werte, die immer im Bereich liegen sollen;
+    // clamp: Grenzen, über die die Automatik nicht hinausgeht).
+    const PROFILE_DEFS = [
+      { id: 'wspd',  title: 'Wind',        unit: 'kn', desc: 'Windgeschwindigkeit',
+        series: levelSeries('wspd_kn'), include: [0, 20], fmt: v => Math.round(v) + ' kn' },
+      { id: 'wdir',  title: 'Windrichtung', unit: '°', desc: 'Punkte statt Linie (kein Sprung bei 360°→0°)',
+        series: levelSeries('wdir'), dots: true, range: [0, 360], ticks: [0, 90, 180, 270, 360],
+        tickLabel: v => ({ 0: 'N', 90: 'O', 180: 'S', 270: 'W', 360: 'N' })[v],
+        fmt: v => Math.round(v) + '°' },
+      { id: 'rh',    title: 'Rel. Feuchte', unit: '% (Wasser)', desc: 'über Wasser',
+        series: levelSeries('rh'), range: [0, 100], ticks: [0, 50, 100], fmt: v => Math.round(v) + ' %' },
+      { id: 'theta', title: 'θ / θe',      unit: 'K', desc: 'potentielle / äquivalentpot. Temperatur',
+        series: levelSeries('theta', 'thetaE'), legend: ['θ', 'θe'], fmt: v => v.toFixed(1) + ' K' },
+      { id: 'n2',    title: 'N²',          unit: '10⁻⁴ s⁻²', desc: 'Brunt-Väisälä (θv, trocken)',
+        series: gridSeries('N2'), include: [0], clamp: [-2, 6], zeroLine: true, fmt: v => v.toFixed(2) },
+      { id: 'scorer', title: 'Scorer l²',  unit: 'km⁻²', desc: 'N²/U² − U″/U, Leewellen',
+        series: gridSeries('l2'), include: [0], clamp: [-2, 6], zeroLine: true, fmt: v => v.toFixed(2) + ' km⁻²',
+        subtitle: snd => {
+          const b = profileBase(snd);
+          return b.refDir != null ? `U ∥ ${Math.round(b.refDir)}° ${b.refFixed ? '(fest)' : '(0–3 km)'}` : '';
+        } },
+      { id: 'ri',    title: 'Richardson Ri', unit: '', desc: 'N²/Scherung², Ri<0,25 turbulent',
+        series: gridSeries('Ri'), range: [-1, 4], ticks: [0, 1, 2, 4], zeroLine: true,
+        bands: [{ from: -1, to: 0.25, color: 'rgba(224,92,58,0.22)' }, { from: 0.25, to: 1, color: 'rgba(240,160,60,0.13)' }],
+        fmt: v => Math.abs(v) >= 100 ? (v > 0 ? '>100' : '<−100') : v.toFixed(2) },
+    ];
+
+    function niceStep(span, target) {
+      const raw = span / target;
+      const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+      const f = raw / mag;
+      return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag;
+    }
+
+    // Wert der Serie am Druck p (log-p-linear), NaN wenn außerhalb/Lücke
+    function seriesAt(pts, p) {
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i], b = pts[i + 1];
+        if ((a.p - p) * (b.p - p) <= 0 && a.p !== b.p) {
+          if (!isFinite(a.v) || !isFinite(b.v)) return NaN;
+          const f = Math.log(a.p / p) / Math.log(a.p / b.p);
+          return a.v + f * (b.v - a.v);
+        }
+      }
+      return NaN;
+    }
+
+    function rebuildProfileStrip() {
+      const strip = document.getElementById('profile-strip');
+      strip.innerHTML = '';
+      for (const def of PROFILE_DEFS) {
+        if (!STATE.profiles.includes(def.id)) continue;
+        const col = document.createElement('div');
+        col.className = 'profile-col';
+        col.dataset.id = def.id;
+        const cv = document.createElement('canvas');
+        const btn = document.createElement('button');
+        btn.className = 'profile-close';
+        btn.title = 'Profil ausblenden';
+        btn.textContent = '×';
+        btn.addEventListener('click', () => setProfileActive(def.id, false));
+        col.append(cv, btn);
+        strip.append(col);
+
+        cv.addEventListener('mousemove', e => {
+          if (!proj) return;
+          const y = e.clientY - cv.getBoundingClientRect().top;
+          const m = proj.margin;
+          STATE.profileHoverP = (y >= m.top && y <= m.top + proj.H) ? proj.canvasY2p(y) : null;
+          drawProfiles();
+        });
+        cv.addEventListener('mouseleave', () => { STATE.profileHoverP = null; drawProfiles(); });
+        // Mausrad in den Spalten zoomt das Hauptdiagramm (nur die Höhe zählt)
+        cv.addEventListener('wheel', e => {
+          if (!proj) return;
+          e.preventDefault();
+          const r = canvas.getBoundingClientRect();
+          canvas.dispatchEvent(new WheelEvent('wheel', {
+            deltaY: e.deltaY, clientY: e.clientY,
+            clientX: r.left + proj.margin.left + proj.W / 2, cancelable: true,
+          }));
+        }, { passive: false });
+      }
+    }
+
+    function setProfileActive(id, on) {
+      STATE.profiles = PROFILE_DEFS.map(d => d.id).filter(x => x === id ? on : STATE.profiles.includes(x));
+      try { localStorage.setItem(PROFILE_KEY, JSON.stringify(STATE.profiles)); } catch (e) { }
+      const chk = document.querySelector(`#profile-menu-list input[data-id="${id}"]`);
+      if (chk) chk.checked = on;
+      rebuildProfileStrip();
+      resizeCanvas();   // Diagrammbreite ändert sich → neu vermessen + redraw()
+    }
+
+    function drawProfiles() {
+      const strip = document.getElementById('profile-strip');
+      if (!strip || !proj || !strip.children.length) return;
+      const dpr = window.devicePixelRatio || 1;
+      const H = canvas.height / dpr;
+      const m = proj.margin;
+      const yTop = m.top, yBot = m.top + proj.H;
+      const main = STATE.soundings[STATE.currentIdx] || null;
+      const overlays = main ? visibleOverlays() : [];
+      // sichtbarer Druckbereich (Zoom/Pan) für die Auto-Skalierung
+      const pVisTop = Math.max(proj.p_top, proj.canvasY2p(yTop));
+      const pVisBot = Math.min(proj.p_bot, proj.canvasY2p(yBot));
+      const hoverP = STATE.profileHoverP ?? STATE.mouseHover?.p_hPa ?? null;
+
+      for (const col of strip.children) {
+        const def = PROFILE_DEFS.find(d => d.id === col.dataset.id);
+        const cv = col.querySelector('canvas');
+        const W = PROFILE_COL_W;
+        if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
+          cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+          cv.style.width = W + 'px'; cv.style.height = H + 'px';
+        }
+        const c = cv.getContext('2d');
+        c.setTransform(dpr, 0, 0, dpr, 0, 0);
+        c.clearRect(0, 0, W, H);
+        const xL = 8, xR = W - 8;
+
+        // Daten: [{series:[pts...], color, dash}]
+        const layers = [];
+        if (main) {
+          const mainCols = [PALETTE.crosshair, PALETTE.dew];
+          def.series(main).forEach((pts, k) => layers.push({ pts, color: mainCols[k] || PALETTE.crosshair, dash: [], w: 1.6 }));
+          for (const o of overlays) {
+            def.series(o.snd).forEach((pts, k) => layers.push({ pts, color: k ? o.dewColor : o.color, dash: [5, 3], w: 1.2 }));
+          }
+        }
+
+        // x-Achse
+        let lo, hi, ticks;
+        if (def.range) {
+          [lo, hi] = def.range;
+        } else {
+          lo = Infinity; hi = -Infinity;
+          for (const L of layers) for (const q of L.pts) {
+            if (q.p > pVisBot || q.p < pVisTop || !isFinite(q.v)) continue;
+            const v = def.clamp ? Math.max(def.clamp[0], Math.min(def.clamp[1], q.v)) : q.v;
+            lo = Math.min(lo, v); hi = Math.max(hi, v);
+          }
+          for (const v of def.include || []) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+          if (!isFinite(lo)) { lo = 0; hi = 1; }
+          if (hi - lo < 1e-6) { lo -= 1; hi += 1; }
+          const st = niceStep(hi - lo, 3);
+          lo = Math.floor(lo / st) * st; hi = Math.ceil(hi / st) * st;
+        }
+        if (def.ticks) ticks = def.ticks;
+        else {
+          const st = niceStep(hi - lo, 3);
+          ticks = [];
+          for (let t = Math.ceil(lo / st - 1e-9) * st; t <= hi + 1e-9; t += st) ticks.push(+t.toFixed(10));
+        }
+        const xOf = v => xL + (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * (xR - xL);
+
+        // Plotfläche + Gitter
+        c.fillStyle = PALETTE.plotBg;
+        c.fillRect(xL, yTop, xR - xL, yBot - yTop);
+        c.save();
+        c.beginPath(); c.rect(xL, yTop, xR - xL, yBot - yTop); c.clip();
+        for (const b of def.bands || []) {
+          c.fillStyle = b.color;
+          c.fillRect(xOf(b.from), yTop, xOf(b.to) - xOf(b.from), yBot - yTop);
+        }
+        c.strokeStyle = PALETTE.isobar; c.lineWidth = 1; c.globalAlpha = 0.6;
+        for (const p of [1000, 925, 850, 700, 600, 500, 400, 300, 250, 200, 150, 100]) {
+          const y = proj.toCanvasY(p);
+          c.beginPath(); c.moveTo(xL, y); c.lineTo(xR, y); c.stroke();
+        }
+        c.strokeStyle = PALETTE.isotherm;
+        for (const t of ticks) {
+          const x = xOf(t);
+          c.beginPath(); c.moveTo(x, yTop); c.lineTo(x, yBot); c.stroke();
+        }
+        c.globalAlpha = 1;
+        if (def.zeroLine && lo < 0 && hi > 0) {
+          c.strokeStyle = PALETTE.axisLabel; c.lineWidth = 1;
+          c.beginPath(); c.moveTo(xOf(0), yTop); c.lineTo(xOf(0), yBot); c.stroke();
+        }
+
+        // Kurven (Vergleiche zuerst, Hauptkurve obenauf)
+        for (const L of layers.slice().reverse()) {
+          c.strokeStyle = L.color; c.fillStyle = L.color; c.lineWidth = L.w; c.setLineDash(L.dash);
+          if (def.dots) {
+            for (const q of L.pts) {
+              if (!isFinite(q.v)) continue;
+              const y = proj.toCanvasY(q.p);
+              if (y < yTop - 2 || y > yBot + 2) continue;
+              c.beginPath(); c.arc(xOf(q.v), y, L.dash.length ? 1.4 : 1.8, 0, Math.PI * 2);
+              L.dash.length ? c.stroke() : c.fill();
+            }
+            continue;
+          }
+          c.beginPath();
+          let pen = false;
+          for (const q of L.pts) {
+            if (!isFinite(q.v)) { pen = false; continue; }
+            const x = xOf(q.v), y = proj.toCanvasY(q.p);
+            pen ? c.lineTo(x, y) : c.moveTo(x, y);
+            pen = true;
+          }
+          c.stroke();
+        }
+        c.setLineDash([]);
+        c.restore();
+
+        c.strokeStyle = PALETTE.plotBorder; c.lineWidth = 1;
+        c.strokeRect(xL + 0.5, yTop + 0.5, xR - xL - 1, yBot - yTop - 1);
+
+        // Kopf: Titel, Einheit / Untertitel
+        c.textAlign = 'left';
+        c.fillStyle = PALETTE.axisLabel;
+        c.font = 'bold 10px IBM Plex Mono, monospace';
+        c.fillText(def.title, xL, 14);
+        c.font = '9px IBM Plex Mono, monospace';
+        c.fillStyle = PALETTE.titleText;
+        const sub = (main && def.subtitle && def.subtitle(main)) || def.unit;
+        c.fillText(sub, xL, 27);
+        if (def.legend) {
+          c.textAlign = 'right';
+          c.fillStyle = PALETTE.crosshair; c.fillText(def.legend[0], xR - 18, 27);
+          c.fillStyle = PALETTE.dew; c.fillText(def.legend[1], xR, 27);
+        }
+
+        // x-Beschriftung unten
+        c.fillStyle = PALETTE.axisLabel;
+        c.font = '9px IBM Plex Mono, monospace';
+        c.textAlign = 'center';
+        for (const t of ticks) {
+          const lab = def.tickLabel ? def.tickLabel(t) : String(+t.toFixed(4));
+          c.fillText(lab, Math.max(xL + 6, Math.min(xR - 6, xOf(t))), yBot + 12);
+        }
+
+        // Maus-Höhe: Linie + Wert der Hauptkurve
+        if (hoverP != null && main) {
+          const y = proj.toCanvasY(hoverP);
+          if (y >= yTop && y <= yBot) {
+            c.strokeStyle = PALETTE.crosshair; c.globalAlpha = 0.55; c.setLineDash([3, 3]);
+            c.beginPath(); c.moveTo(xL, y); c.lineTo(xR, y); c.stroke();
+            c.setLineDash([]); c.globalAlpha = 1;
+            const vals = def.series(main).map(pts => seriesAt(pts, hoverP));
+            const txt = vals.map(v => isFinite(v) ? def.fmt(v) : '—').join(' / ');
+            c.font = '10px IBM Plex Mono, monospace';
+            const tw = c.measureText(txt).width + 8;
+            const ty = y - 16 < yTop ? y + 4 : y - 16;
+            const tx = Math.max(0, xR - tw);
+            c.fillStyle = PALETTE.hodoBg; c.fillRect(tx, ty, tw, 13);
+            c.fillStyle = PALETTE.hodoText; c.textAlign = 'left';
+            c.fillText(txt, tx + 4, ty + 10);
+          }
+        }
+      }
+    }
+
+    // Eingabe der Anströmrichtung für den Scorer (im Profil-Menü unter „Scorer l²“)
+    function scorerDirField() {
+      try {
+        const v = localStorage.getItem(SCORER_DIR_KEY);
+        if (v !== null && v !== '' && isFinite(+v)) STATE.scorerDir = ((+v % 360) + 360) % 360;
+      } catch (e) { }
+      const row = document.createElement('div');
+      row.className = 'profile-menu-sub';
+      row.innerHTML = `<span title="Richtung, AUS der der Wind quer zum Kamm anströmt (z. B. Alpen-Nordstau ≈ 360°, Föhn ≈ 180°). Leer = vektorielles Mittel des Windes 0–3 km.">Anströmung quer zum Kamm</span>
+        <input type="number" id="scorer-dir" min="0" max="360" step="5" placeholder="auto"> °`;
+      const inp = row.querySelector('input');
+      if (STATE.scorerDir != null) inp.value = STATE.scorerDir;
+      inp.addEventListener('change', () => {
+        const raw = inp.value.trim();
+        STATE.scorerDir = raw === '' || !isFinite(+raw) ? null : ((+raw % 360) + 360) % 360;
+        inp.value = STATE.scorerDir ?? '';
+        try {
+          STATE.scorerDir == null ? localStorage.removeItem(SCORER_DIR_KEY)
+            : localStorage.setItem(SCORER_DIR_KEY, String(STATE.scorerDir));
+        } catch (e) { }
+        _profCache = new WeakMap();
+        drawProfiles();
+      });
+      return row;
+    }
+
+    // Menü im Header
+    (function initProfiles() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(PROFILE_KEY) || '[]');
+        if (Array.isArray(saved)) STATE.profiles = PROFILE_DEFS.map(d => d.id).filter(id => saved.includes(id));
+      } catch (e) { }
+      const list = document.getElementById('profile-menu-list');
+      for (const def of PROFILE_DEFS) {
+        const lab = document.createElement('label');
+        lab.innerHTML = `<input type="checkbox" data-id="${def.id}"><span>${def.title} <small>${def.desc}</small></span>`;
+        const chk = lab.querySelector('input');
+        chk.checked = STATE.profiles.includes(def.id);
+        chk.addEventListener('change', () => setProfileActive(def.id, chk.checked));
+        list.append(lab);
+        if (def.id === 'scorer') list.append(scorerDirField());
+      }
+      const menu = document.getElementById('profile-menu');
+      document.getElementById('btn-profiles').addEventListener('click', e => {
+        e.stopPropagation();
+        menu.hidden = !menu.hidden;
+      });
+      document.addEventListener('click', e => {
+        if (!menu.hidden && !document.getElementById('profile-menu-wrap').contains(e.target)) menu.hidden = true;
+      });
+      window.addEventListener('keydown', e => { if (e.key === 'Escape') menu.hidden = true; });
+      rebuildProfileStrip();
     })();
 
     // =========================================================================
