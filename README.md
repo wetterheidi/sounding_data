@@ -332,6 +332,13 @@ Beim ersten Hinzufügen einer Kurve wird diese automatisch zur Hauptkurve; weite
 (auch aus anderen Quellen/Orten) lassen sich zum Vergleich dazuladen. Die Checkbox
 "Bestand ersetzen" steuert, ob neue Daten den bisherigen Bestand ersetzen oder ergänzen.
 
+Der Ladedialog merkt sich die letzten Einstellungen im Browser (localStorage `om-viewer-settings`):
+zuletzt benutzten Reiter, gewähltes Modell je Reiter (Modelllevel/Druckflächen) und die
+**Vorhersagestunden je Modell** (z. B. ICON mit `0:49:1`), sobald sie geändert werden, nicht erst
+beim Abruf. Dazu kommt der Ort/Alias des letzten erfolgreichen Abrufs. Ohne gemerkte Stunden gilt
+wie bisher der Modell-Default bzw. der live ermittelte Vorhersagehorizont. Die Lauf-Wahl bei
+Druckflächen wird nicht gemerkt, sie steht immer auf dem jüngsten Lauf.
+
 ### Vergleichsdarstellung
 Struktur **Ort → Serie → Kurve**: Eine Serie ist eine Kombination aus Quelle, Modell/Lauf
 und Ort; jede Serie kann mehrere Kurven (Zeitpunkte) enthalten. Im Datenpanel markiert ein

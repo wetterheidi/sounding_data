@@ -6410,6 +6410,30 @@
     const OM_SETTINGS_KEY = 'om-viewer-settings';
     let omMap = null, omMarker = null;
 
+    // Zuletzt benutzte Dialog-Einstellungen (localStorage): Quellen-Reiter,
+    // gewähltes Modell je Reiter (ml/pl) und Vorhersagestunden je Modell, dazu
+    // Ort/Alias des letzten Abrufs. Reiter, Modell und Stunden werden sofort bei
+    // jeder Änderung gemerkt, nicht erst beim Abruf.
+    //   { src, models: {ml, pl}, steps: {<modelKey>: '0:49:1'}, lat, lon, alias }
+    const omPrefs = (() => {
+      let p = null;
+      try { p = JSON.parse(localStorage.getItem(OM_SETTINGS_KEY) ?? 'null'); } catch { /* ignorieren */ }
+      if (!p || typeof p !== 'object') p = {};
+      // Altformat { model, steps } (ein Modell, eine Stundenangabe) übernehmen
+      if (typeof p.model === 'string') {
+        const src = p.model.startsWith('pl:') ? 'pl' : 'ml';
+        p.models = { [src]: p.model, ...p.models };
+        if (typeof p.steps === 'string') p.steps = { [p.model]: p.steps };
+        delete p.model;
+      }
+      if (!p.models || typeof p.models !== 'object') p.models = {};
+      if (!p.steps || typeof p.steps !== 'object') p.steps = {};
+      return p;
+    })();
+    function persistOmPrefs() {
+      try { localStorage.setItem(OM_SETTINGS_KEY, JSON.stringify(omPrefs)); } catch { /* ignorieren */ }
+    }
+
     // Statuszeile des Ladedialogs — von allen Quellen gemeinsam genutzt
     function setStatus(msg, isError = false) {
       const statusEl = document.getElementById('om-status');
@@ -6430,7 +6454,9 @@
         opt.textContent = src === 'pl' ? cfg.label : `${cfg.label} · ${cfg.n_levels} Level`;
         omModelSel.appendChild(opt);
       });
-      if ([...omModelSel.options].some(o => o.value === prev)) omModelSel.value = prev;
+      const has = k => [...omModelSel.options].some(o => o.value === k);
+      if (has(prev)) omModelSel.value = prev;
+      else if (has(omPrefs.models[src])) omModelSel.value = omPrefs.models[src];   // zuletzt in diesem Reiter gewählt
     }
 
     // Reverse-Geocoding für den Alias-Vorschlag im Ladedialog (Modelllevel/
@@ -6848,12 +6874,13 @@
     // appendChild dorthin, statt für jeden Reiter eine eigene zu pflegen.
     const SRC_LOAD_SLOT = { dwd: 'dwd-load-slot', ml: 'mlpl-load-slot', pl: 'mlpl-load-slot', obs: 'obs-load-slot', file: null };
 
-    let currentSrc = 'ml';
+    let currentSrc = SRC_KEYS.includes(omPrefs.src) ? omPrefs.src : 'ml';   // zuletzt benutzter Reiter
     const omPanelEl = document.getElementById('om-panel');
 
     function setSource(src) {
       if (!SRC_KEYS.includes(src)) return;
       currentSrc = src;
+      if (omPrefs.src !== src) { omPrefs.src = src; persistOmPrefs(); }
       SRC_KEYS.forEach(k => omPanelEl.classList.toggle(`src-${k}`, k === src));
       document.querySelectorAll('.src-tab').forEach(b =>
         b.classList.toggle('active', b.dataset.src === src));
@@ -7284,13 +7311,25 @@
       const isMl = key.startsWith('ml:');
       // Lauf-Datum/-Stunde nur bei Druckflächen: die Sichtbarkeit steuert jetzt
       // der Quellen-Reiter über die .src-only-Klassen, hier bleibt nur die Logik.
-      // Stunden nur zurücksetzen, wenn die Quelle bzw. das ML-Modell wechselt —
-      // zwischen Druckflächen-Modellen bleiben sie erhalten, damit vorbefüllte
-      // Stunden (prefillDialogFromMain) nicht verloren gehen
-      const keepSteps = !isMl && omPrevModelKey?.startsWith('pl:');
+      // Stunden nur anfassen, wenn das Modell tatsächlich wechselt (setSource
+      // ruft das bei jedem Öffnen des Dialogs auf). Zwischen Druckflächen-
+      // Modellen bleiben sie erhalten, damit vorbefüllte Stunden
+      // (prefillDialogFromMain) nicht verloren gehen.
+      const modelChanged = key !== omPrevModelKey;
+      const keepSteps = !modelChanged || (!isMl && omPrevModelKey?.startsWith('pl:'));
+      if (modelChanged) {
+        omPrefs.models[isMl ? 'ml' : 'pl'] = key;
+        persistOmPrefs();
+      }
       if (!keepSteps) {
         const stepsEl = document.getElementById('om-steps');
-        if (isMl) {
+        const remembered = omPrefs.steps[key];
+        if (remembered) {
+          // Für dieses Modell zuletzt benutzte Stunden (z. B. 0:49:1) haben
+          // Vorrang vor Default und Live-Horizont
+          stepsEl.value = remembered;
+          ++omMaxStepReqId;   // evtl. laufende Horizont-Abfrage verwerfen
+        } else if (isMl) {
           const cfg = OM_ML_MODELS[key];
           const interval = cfg.defSteps.split(':')[2] ?? '1';
           const fallbackValue = cfg.defSteps;
@@ -7315,42 +7354,47 @@
     }
     omModelSel.addEventListener('change', applyOmModelUi);
 
+    // Von Hand geänderte Vorhersagestunden sofort fürs aktuelle Modell merken
+    function rememberOmSteps() {
+      const key = omModelSel.value;
+      const val = document.getElementById('om-steps').value.trim();
+      if (!key || !val) return;
+      omPrefs.steps[key] = val;
+      persistOmPrefs();
+    }
+    document.getElementById('om-steps').addEventListener('change', rememberOmSteps);
+
     // Jüngster synoptischer Lauf (00/06/12/18Z), der mit ~5 h Verzug verfügbar sein sollte
     function omDefaultPlRun() {
       const d = new Date(Date.now() - 5 * 3600000);
       return { dateStr: d.toISOString().slice(0, 10), hour: Math.floor(d.getUTCHours() / 6) * 6 };
     }
 
+    // Nach erfolgreichem Abruf: Ort/Alias und die tatsächlich benutzten Stunden merken
     function saveOmSettings(lat, lon, alias) {
-      localStorage.setItem(OM_SETTINGS_KEY, JSON.stringify({
-        lat, lon, alias,
-        model: omModelSel.value,
-        steps: document.getElementById('om-steps').value,
-      }));
+      Object.assign(omPrefs, { lat, lon, alias });
+      rememberOmSteps();
+      persistOmPrefs();
     }
 
-    // Formular initialisieren: PL-Lauf-Defaults + zuletzt benutzte Einstellungen
+    // Formular initialisieren: PL-Lauf-Defaults + zuletzt benutzter Ort.
+    // Reiter, Modell und Stunden stellt setSource() beim ersten Öffnen des
+    // Dialogs aus omPrefs wieder her (vorher ist das Modell-Dropdown leer).
     (function initOmForm() {
       const plDef = omDefaultPlRun();
       document.getElementById('om-run-date').value = plDef.dateStr;
       document.getElementById('om-run-hour').value = String(plDef.hour);
 
-      let saved = null;
-      try { saved = JSON.parse(localStorage.getItem(OM_SETTINGS_KEY) ?? 'null'); } catch { /* ignorieren */ }
-      if (saved?.model && (OM_ML_MODELS[saved.model] || OM_PL_MODELS[saved.model])) omModelSel.value = saved.model;
-      applyOmModelUi();
-      if (saved) {
-        if (saved.lat != null) document.getElementById('om-lat').value = saved.lat;
-        if (saved.lon != null) document.getElementById('om-lon').value = saved.lon;
-        if (saved.alias) document.getElementById('om-alias').value = saved.alias;
-        if (saved.steps) document.getElementById('om-steps').value = saved.steps;
-        // Alias gilt für genau diese wiederhergestellten Koordinaten als
-        // bestätigt — sonst würde initOmMap() ihn beim ersten Öffnen des
-        // Dialogs (setOmLocation mit denselben, unveränderten Koordinaten)
-        // fälschlich als "Ort geändert" markieren.
-        if (saved.alias && saved.lat != null && saved.lon != null) {
-          omAliasCoordKey = locKeyFor(saved.lat, saved.lon);
-        }
+      const saved = omPrefs;
+      if (saved.lat != null) document.getElementById('om-lat').value = saved.lat;
+      if (saved.lon != null) document.getElementById('om-lon').value = saved.lon;
+      if (saved.alias) document.getElementById('om-alias').value = saved.alias;
+      // Alias gilt für genau diese wiederhergestellten Koordinaten als
+      // bestätigt — sonst würde initOmMap() ihn beim ersten Öffnen des
+      // Dialogs (setOmLocation mit denselben, unveränderten Koordinaten)
+      // fälschlich als "Ort geändert" markieren.
+      if (saved.alias && saved.lat != null && saved.lon != null) {
+        omAliasCoordKey = locKeyFor(saved.lat, saved.lon);
       }
     })();
 
